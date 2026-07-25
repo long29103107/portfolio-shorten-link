@@ -17,6 +17,8 @@ public sealed class ShortLinkDbContext : DbContext
 
     public DbSet<ShortLinkSharePersistenceEntity> ShortLinkShares => Set<ShortLinkSharePersistenceEntity>();
 
+    public DbSet<ShortLinkAuditEventPersistenceEntity> ShortLinkAuditEvents => Set<ShortLinkAuditEventPersistenceEntity>();
+
     public DbSet<ShortenLinkSecurityAssignmentPersistenceEntity> SecurityAssignments => Set<ShortenLinkSecurityAssignmentPersistenceEntity>();
 
     public DbSet<ShortenLinkCustomRolePersistenceEntity> SecurityCustomRoles => Set<ShortenLinkCustomRolePersistenceEntity>();
@@ -165,6 +167,26 @@ public sealed class ShortLinkDbContext : DbContext
             entity.Property(share => share.CreatedAt).IsRequired();
             entity.HasIndex(share => share.UserId);
             entity.HasIndex(share => new { share.ShortCode, share.UserId }).IsUnique();
+        });
+
+        modelBuilder.Entity<ShortLinkAuditEventPersistenceEntity>(entity =>
+        {
+            entity.ToTable("short_link_audit_events");
+            ConfigureBaseEntity(entity);
+            entity.Property(auditEvent => auditEvent.ActorId).HasMaxLength(256).IsRequired();
+            entity.Property(auditEvent => auditEvent.Action).HasMaxLength(128).IsRequired();
+            entity.Property(auditEvent => auditEvent.TargetType).HasMaxLength(128).IsRequired();
+            entity.Property(auditEvent => auditEvent.TargetId).HasMaxLength(128).IsRequired();
+            entity.Property(auditEvent => auditEvent.OwnerUserId).HasMaxLength(128);
+            entity.Property(auditEvent => auditEvent.Outcome).HasMaxLength(64).IsRequired();
+            entity.Property(auditEvent => auditEvent.OccurredAt).IsRequired();
+            entity.Property(auditEvent => auditEvent.SubjectUserId).HasMaxLength(128);
+            entity.Property(auditEvent => auditEvent.Detail).HasMaxLength(512);
+            entity.HasIndex(auditEvent => new { auditEvent.OccurredAt, auditEvent.Id });
+            entity.HasIndex(auditEvent => auditEvent.Action);
+            entity.HasIndex(auditEvent => auditEvent.TargetId);
+            entity.HasIndex(auditEvent => auditEvent.ActorId);
+            entity.HasIndex(auditEvent => auditEvent.OwnerUserId);
         });
 
         modelBuilder.Entity<ShortenLinkRolePermissionOverridePersistenceEntity>(entity =>

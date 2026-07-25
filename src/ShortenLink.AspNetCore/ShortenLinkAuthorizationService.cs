@@ -18,18 +18,27 @@ public sealed record ShortenLinkAuthorizationResult(
     string? ErrorCode,
     string? ErrorMessage,
     string? UserId,
-    bool IsAdmin)
+    bool IsAdmin,
+    string? ActorId)
 {
     public static ShortenLinkAuthorizationResult Success(
         string? userId = null,
-        bool isAdmin = true) =>
-        new(true, true, null, null, userId, isAdmin);
+        bool isAdmin = true,
+        string? actorId = null) =>
+        new(
+            true,
+            true,
+            null,
+            null,
+            userId,
+            isAdmin,
+            actorId ?? userId ?? (isAdmin ? "system:admin" : "system"));
 
     public static ShortenLinkAuthorizationResult Unauthorized() =>
-        new(false, false, "unauthorized", "A valid credential is required.", null, false);
+        new(false, false, "unauthorized", "A valid credential is required.", null, false, null);
 
     public static ShortenLinkAuthorizationResult Forbidden() =>
-        new(false, true, "forbidden", "The credential does not include the required permission.", null, false);
+        new(false, true, "forbidden", "The credential does not include the required permission.", null, false, null);
 }
 
 public sealed class ShortenLinkAuthorizationService(
@@ -53,7 +62,7 @@ public sealed class ShortenLinkAuthorizationService(
         {
             var session = await userSessionService
                 .GetCurrentUserAsync(httpContext, cancellationToken)
-                .ConfigureAwait(false);
+                ;
             if (!session.Succeeded || session.Principal is null)
             {
                 return ShortenLinkAuthorizationResult.Unauthorized();
@@ -90,7 +99,7 @@ public sealed class ShortenLinkAuthorizationService(
         var apiKeyHash = ShortenLinkSecurityCredentialHasher.HashApiKey(apiKey);
         var userApiKey = await userApiKeyRepository
             .FindByKeyHashAsync(apiKeyHash, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (userApiKey is not null)
         {
             if (!userApiKey.IsEnabled)
@@ -100,7 +109,7 @@ public sealed class ShortenLinkAuthorizationService(
 
             var owner = await userRepository
                 .FindByIdAsync(userApiKey.UserId, cancellationToken)
-                .ConfigureAwait(false);
+                ;
             if (owner is null || !owner.IsEnabled)
             {
                 return ShortenLinkAuthorizationResult.Unauthorized();
@@ -108,7 +117,7 @@ public sealed class ShortenLinkAuthorizationService(
 
             var userPrincipal = await userSessionService
                 .CreatePrincipalAsync(owner, userApiKey.CreatedAt, cancellationToken)
-                .ConfigureAwait(false);
+                ;
 
             var isAdmin = userPrincipal.Roles.Contains(
                 ShortenLinkRoles.Admin,
@@ -124,7 +133,7 @@ public sealed class ShortenLinkAuthorizationService(
 
         var persistedAssignment = await securityAssignmentRepository
             .FindByCredentialKeyHashAsync(apiKeyHash, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (persistedAssignment is not null)
         {
             if (!persistedAssignment.IsEnabled)
@@ -135,7 +144,7 @@ public sealed class ShortenLinkAuthorizationService(
             var persistedPermissions = await GetEffectivePermissionsAsync(
                 persistedAssignment.Roles,
                 persistedAssignment.Permissions,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
             var isAdmin = persistedAssignment.Roles.Contains(
                 ShortenLinkRoles.Admin,
                 StringComparer.OrdinalIgnoreCase);
@@ -144,7 +153,8 @@ public sealed class ShortenLinkAuthorizationService(
                     ? isAdmin
                     : persistedPermissions.Contains(permission))
                 ? ShortenLinkAuthorizationResult.Success(
-                    isAdmin: isAdmin)
+                    isAdmin: isAdmin,
+                    actorId: $"assignment:{persistedAssignment.Id:D}")
                 : ShortenLinkAuthorizationResult.Forbidden();
         }
 
@@ -159,7 +169,7 @@ public sealed class ShortenLinkAuthorizationService(
         var permissions = await GetEffectivePermissionsAsync(
             principal.Roles,
             principal.Permissions,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
         var configuredIsAdmin = principal.Roles.Contains(
             ShortenLinkRoles.Admin,
             StringComparer.OrdinalIgnoreCase);
@@ -167,7 +177,8 @@ public sealed class ShortenLinkAuthorizationService(
                 ? configuredIsAdmin
                 : permissions.Contains(permission))
             ? ShortenLinkAuthorizationResult.Success(
-                isAdmin: configuredIsAdmin)
+                isAdmin: configuredIsAdmin,
+                actorId: $"configured:{NormalizeActorName(principal.Name)}")
             : ShortenLinkAuthorizationResult.Forbidden();
     }
 
@@ -193,14 +204,14 @@ public sealed class ShortenLinkAuthorizationService(
             {
                 var customRole = await roleRepository
                     .FindCustomRoleAsync(role, cancellationToken)
-                    .ConfigureAwait(false);
+                    ;
                 if (customRole is not { IsEnabled: true }) continue;
                 rolePermissions.UnionWith(customRole.Permissions);
             }
 
             var overrides = await roleRepository
                 .ListPermissionOverridesAsync(role, cancellationToken)
-                .ConfigureAwait(false);
+                ;
             foreach (var item in overrides)
             {
                 if (item.IsAllowed) rolePermissions.Add(item.Permission);
@@ -219,4 +230,7 @@ public sealed class ShortenLinkAuthorizationService(
         return !string.IsNullOrWhiteSpace(authorization)
             && authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static string NormalizeActorName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? "api-key" : name.Trim();
 }

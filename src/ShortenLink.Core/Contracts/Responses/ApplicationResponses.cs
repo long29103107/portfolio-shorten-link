@@ -284,6 +284,36 @@ public sealed record ShortLinkDeactivatedResponse(string Code, bool IsActive);
 
 public sealed record ShortLinkDeletedResponse(string Code);
 
+public sealed record ShortLinkAuditEventsResponse(
+    IReadOnlyList<ShortLinkAuditEventResponse> Items,
+    string? NextCursor);
+
+public sealed record ShortLinkAuditEventResponse(
+    Guid Id,
+    string ActorId,
+    string Action,
+    string TargetType,
+    string TargetId,
+    string? OwnerUserId,
+    string Outcome,
+    DateTimeOffset OccurredAtUtc,
+    string? SubjectUserId,
+    string? Detail)
+{
+    public static ShortLinkAuditEventResponse FromDomain(ShortLinkAuditEvent auditEvent) =>
+        new(
+            auditEvent.Id,
+            auditEvent.ActorId,
+            auditEvent.Action,
+            auditEvent.TargetType,
+            auditEvent.TargetId,
+            auditEvent.OwnerUserId,
+            auditEvent.Outcome,
+            auditEvent.OccurredAt,
+            auditEvent.SubjectUserId,
+            auditEvent.Detail);
+}
+
 public sealed record ShortLinkErrorResponse(
     string ErrorCode,
     string Message,

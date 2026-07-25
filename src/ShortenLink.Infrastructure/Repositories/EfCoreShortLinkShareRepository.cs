@@ -15,7 +15,7 @@ public sealed class EfCoreShortLinkShareRepository(ShortLinkDbContext dbContext)
             .Where(share => share.UserId == userId)
             .Select(share => new { share.ShortCode, share.Access })
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false))
+            )
         .ToDictionary(share => share.ShortCode, share => share.Access, StringComparer.Ordinal);
 
     public async Task<IReadOnlyList<ShortLinkShare>> ListByShortCodeAsync(
@@ -27,7 +27,7 @@ public sealed class EfCoreShortLinkShareRepository(ShortLinkDbContext dbContext)
             .OrderBy(share => share.UserId)
             .Select(share => share.ToDomain())
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
     public async Task<ShortLinkShare?> FindAsync(
         string shortCode,
@@ -39,7 +39,7 @@ public sealed class EfCoreShortLinkShareRepository(ShortLinkDbContext dbContext)
             .FirstOrDefaultAsync(
                 share => share.ShortCode == shortCode && share.UserId == userId,
                 cancellationToken)
-            .ConfigureAwait(false);
+            ;
         return record?.ToDomain();
     }
 
@@ -51,7 +51,7 @@ public sealed class EfCoreShortLinkShareRepository(ShortLinkDbContext dbContext)
             .FirstOrDefaultAsync(
                 item => item.ShortCode == share.ShortCode && item.UserId == share.UserId,
                 cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (record is null)
         {
             dbContext.ShortLinkShares.Add(ShortLinkSharePersistenceEntity.FromDomain(share));
@@ -60,7 +60,7 @@ public sealed class EfCoreShortLinkShareRepository(ShortLinkDbContext dbContext)
         {
             record.UpdateFromDomain(share);
         }
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> DeleteAsync(
@@ -71,7 +71,7 @@ public sealed class EfCoreShortLinkShareRepository(ShortLinkDbContext dbContext)
         var deleted = await dbContext.ShortLinkShares
             .Where(share => share.ShortCode == shortCode && share.UserId == userId)
             .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
         return deleted > 0;
     }
 
@@ -82,6 +82,6 @@ public sealed class EfCoreShortLinkShareRepository(ShortLinkDbContext dbContext)
         await dbContext.ShortLinkShares
             .Where(share => share.ShortCode == shortCode)
             .ExecuteDeleteAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
     }
 }

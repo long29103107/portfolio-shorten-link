@@ -26,7 +26,7 @@ internal static class MockDataEndpoints
     {
         var session = await userSessionService
             .GetCurrentUserAsync(httpContext, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (session.Principal is not null
             && !session.Principal.Permissions.Contains(
             ShortenLinkPermissions.ShortLinksCreate,
@@ -49,7 +49,7 @@ internal static class MockDataEndpoints
                     creator?.UserId,
                     creator?.DisplayName,
                     creator?.Username),
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
 
             if (result.Succeeded && result.ShortLink is not null)
             {

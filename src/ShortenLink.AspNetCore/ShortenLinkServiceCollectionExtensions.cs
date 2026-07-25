@@ -89,6 +89,7 @@ public static class ShortenLinkServiceCollectionExtensions
         services.TryAddScoped<IShortLinkRepository, EfCoreShortLinkRepository>();
         services.TryAddScoped<IShortLinkClickRepository, EfCoreShortLinkClickRepository>();
         services.TryAddScoped<IShortLinkShareRepository, EfCoreShortLinkShareRepository>();
+        services.TryAddScoped<IShortLinkAuditRepository, EfCoreShortLinkAuditRepository>();
         services.TryAddScoped<IShortenLinkSecurityAssignmentRepository, EfCoreShortenLinkSecurityAssignmentRepository>();
         services.TryAddScoped<IShortenLinkSecurityRoleRepository, EfCoreShortenLinkSecurityRoleRepository>();
         services.TryAddScoped<IShortenLinkSecurityUserRepository, EfCoreShortenLinkSecurityUserRepository>();

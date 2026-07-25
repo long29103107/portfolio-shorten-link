@@ -25,7 +25,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
         var records = await dbContext.ShortLinks
             .AsNoTracking()
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return records
             .OrderByDescending(link => link.CreatedAt)
@@ -47,7 +47,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
         var records = await dbContext.ShortLinks
             .AsNoTracking()
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
         return records
             .Where(record => IsAccessible(record, accessScope))
             .OrderByDescending(link => link.CreatedAt)
@@ -88,7 +88,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
         var records = await dbContext.ShortLinks
             .AsNoTracking()
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return records
             .OrderByDescending(link => link.CreatedAt)
@@ -115,7 +115,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
         var records = await dbContext.ShortLinks
             .AsNoTracking()
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         var filtered = records
             .Where(record => query.AccessScope is null || IsAccessible(record, query.AccessScope))
@@ -144,7 +144,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
         var record = await dbContext.ShortLinks
             .AsNoTracking()
             .FirstOrDefaultAsync(link => link.Code == code, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return record?.ToDomain();
     }
@@ -237,7 +237,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
         ArgumentNullException.ThrowIfNull(shortLink);
 
         dbContext.ShortLinks.Add(ShortLinkPersistenceEntity.FromDomain(shortLink));
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task UpdateAsync(
@@ -248,7 +248,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
 
         var record = await dbContext.ShortLinks
             .FirstOrDefaultAsync(link => link.Code == shortLink.Code, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         if (record is null)
         {
@@ -259,7 +259,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
             record.UpdateFromDomain(shortLink);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(
@@ -268,12 +268,12 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
     {
         var record = await dbContext.ShortLinks
             .FirstOrDefaultAsync(link => link.Code == code, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         if (record is not null)
         {
             dbContext.ShortLinks.Remove(record);
-            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
 }

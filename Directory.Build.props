@@ -13,6 +13,7 @@
     <Using Include="ShortenLink.Core.Contracts.Responses" />
     <Using Include="ShortenLink.Core.Contracts.Results" />
     <Using Include="ShortenLink.Core.Domain" />
+    <Using Include="ShortenLink.Core.Exceptions" />
 
     <Using Include="ShortenLink.Core.Domain.ShortLinkEntity" Alias="ShortLink" />
     <Using Include="ShortenLink.Core.Domain.ShortLinkClickEntity" Alias="ShortLinkClick" />

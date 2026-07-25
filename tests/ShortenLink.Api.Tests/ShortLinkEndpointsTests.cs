@@ -24,6 +24,141 @@ namespace ShortenLink.Api.Tests;
 public sealed class ShortLinkEndpointsTests
 {
     [Fact]
+    public async Task AuditLogs_RecordEverySuccessfulShortLinkMutationExactlyOnce()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+        await factory.UpsertSecurityUserAsync(
+            "shared-user",
+            "shared@example.com",
+            "Shared User",
+            "password",
+            [ShortenLinkRoles.User],
+            isEnabled: true);
+
+        var created = await CreateShortLinkAsync(client, "https://example.com/audit-secret-url");
+        using var updateResponse = await client.PutAsJsonAsync($"/api/short-links/{created.Code}", new
+        {
+            originalUrl = "https://example.com/updated-secret-url",
+            expiredAtUtc = new DateTimeOffset(2026, 7, 21, 0, 0, 0, TimeSpan.Zero)
+        });
+        using var deactivateResponse = await client.PostAsync(
+            $"/api/short-links/{created.Code}/deactivate",
+            null);
+        using var activateResponse = await client.PostAsync(
+            $"/api/short-links/{created.Code}/activate",
+            null);
+        using var grantResponse = await client.PutAsJsonAsync($"/api/short-links/{created.Code}/shares", new
+        {
+            username = "shared@example.com",
+            access = "View"
+        });
+        using var updateShareResponse = await client.PutAsJsonAsync($"/api/short-links/{created.Code}/shares", new
+        {
+            username = "shared@example.com",
+            access = "Edit"
+        });
+        using var revokeResponse = await client.DeleteAsync(
+            $"/api/short-links/{created.Code}/shares/shared-user");
+        using var deleteResponse = await client.DeleteAsync($"/api/short-links/{created.Code}");
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, deactivateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, activateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, grantResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, updateShareResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, revokeResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+
+        using var response = await client.GetAsync(
+            $"/api/audit-logs?limit=20&targetId={created.Code}");
+        var json = await response.Content.ReadAsStringAsync();
+        var payload = JsonSerializer.Deserialize<ShortLinkAuditEventsResponse>(
+            json,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(payload);
+        Assert.Equal(8, payload.Items.Count);
+        Assert.All(
+            new[]
+            {
+                ShortLinkAuditActions.Created,
+                ShortLinkAuditActions.Updated,
+                ShortLinkAuditActions.Deactivated,
+                ShortLinkAuditActions.Activated,
+                ShortLinkAuditActions.ShareGranted,
+                ShortLinkAuditActions.ShareUpdated,
+                ShortLinkAuditActions.ShareRevoked,
+                ShortLinkAuditActions.Deleted
+            },
+            action => Assert.Single(payload.Items, item => item.Action == action));
+        Assert.DoesNotContain("audit-secret-url", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("updated-secret-url", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AuditLogs_SupportDeterministicCursorAndFilters()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+        var first = await CreateShortLinkAsync(client, "https://example.com/first");
+        var second = await CreateShortLinkAsync(client, "https://example.com/second");
+
+        using var firstPageResponse = await client.GetAsync(
+            "/api/audit-logs?limit=1&action=short_link.created&actorId=system%3Aadmin");
+        var firstPage = await firstPageResponse.Content
+            .ReadFromJsonAsync<ShortLinkAuditEventsResponse>();
+        Assert.Equal(HttpStatusCode.OK, firstPageResponse.StatusCode);
+        Assert.NotNull(firstPage);
+        Assert.Single(firstPage.Items);
+        Assert.NotNull(firstPage.NextCursor);
+
+        using var secondPageResponse = await client.GetAsync(
+            $"/api/audit-logs?limit=1&cursor={Uri.EscapeDataString(firstPage.NextCursor)}&action=short_link.created");
+        var secondPage = await secondPageResponse.Content
+            .ReadFromJsonAsync<ShortLinkAuditEventsResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, secondPageResponse.StatusCode);
+        Assert.NotNull(secondPage);
+        Assert.Single(secondPage.Items);
+        Assert.NotEqual(firstPage.Items[0].Id, secondPage.Items[0].Id);
+        Assert.Equal(
+            new[] { first.Code, second.Code }.OrderBy(code => code),
+            new[] { firstPage.Items[0].TargetId, secondPage.Items[0].TargetId }.OrderBy(code => code));
+    }
+
+    [Fact]
+    public async Task AuditLogs_ReturnUnauthorizedAndForbiddenUsingExistingErrorContract()
+    {
+        await using var unauthorizedFactory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            securityEnabled: true);
+        using var unauthorizedClient = unauthorizedFactory.CreateClient();
+        using var unauthorizedResponse = await unauthorizedClient.GetAsync("/api/audit-logs");
+        var unauthorized = await unauthorizedResponse.Content
+            .ReadFromJsonAsync<ShortLinkErrorResponse>();
+
+        await using var forbiddenFactory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            securityEnabled: true,
+            securityRoles: Array.Empty<string>(),
+            securityPermissions: Array.Empty<string>());
+        using var forbiddenClient = forbiddenFactory.CreateClient();
+        forbiddenClient.DefaultRequestHeaders.Add(
+            "X-ShortenLink-Api-Key",
+            "test-admin-key");
+        using var forbiddenResponse = await forbiddenClient.GetAsync("/api/audit-logs");
+        var forbidden = await forbiddenResponse.Content
+            .ReadFromJsonAsync<ShortLinkErrorResponse>();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorizedResponse.StatusCode);
+        Assert.Equal(ErrorCodes.Unauthorized, unauthorized?.ErrorCode);
+        Assert.Equal(HttpStatusCode.Forbidden, forbiddenResponse.StatusCode);
+        Assert.Equal(ErrorCodes.Forbidden, forbidden?.ErrorCode);
+    }
+
+    [Fact]
     public async Task PostCreate_ReturnsCreatedShortLink()
     {
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);

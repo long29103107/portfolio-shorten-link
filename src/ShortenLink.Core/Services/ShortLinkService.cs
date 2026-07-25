@@ -133,7 +133,7 @@ public sealed class ShortLinkService : IShortLinkService
                 "Expiration must be in the future.");
         }
 
-        var code = await GenerateUniqueCodeAsync(cancellationToken).ConfigureAwait(false);
+        var code = await GenerateUniqueCodeAsync(cancellationToken);
         if (code is null)
         {
             return CreateShortLinkResult.Failure(
@@ -149,7 +149,7 @@ public sealed class ShortLinkService : IShortLinkService
             createdByUserId: request.CreatedByUserId,
             createdByDisplayName: request.CreatedByDisplayName,
             createdByUsername: request.CreatedByUsername);
-        await repository.AddAsync(shortLink, cancellationToken).ConfigureAwait(false);
+        await repository.AddAsync(shortLink, cancellationToken);
 
         return CreateShortLinkResult.Success(shortLink);
     }
@@ -166,13 +166,13 @@ public sealed class ShortLinkService : IShortLinkService
 
         var normalizedCode = code.Trim();
         var now = timeProvider.GetUtcNow();
-        var shortLink = await cache.FindByCodeAsync(normalizedCode, cancellationToken).ConfigureAwait(false);
+        var shortLink = await cache.FindByCodeAsync(normalizedCode, cancellationToken);
         if (shortLink is not null)
         {
-            return await ResolveCachedAsync(shortLink, now, cancellationToken).ConfigureAwait(false);
+            return await ResolveCachedAsync(shortLink, now, cancellationToken);
         }
 
-        shortLink = await repository.FindByCodeAsync(normalizedCode, cancellationToken).ConfigureAwait(false);
+        shortLink = await repository.FindByCodeAsync(normalizedCode, cancellationToken);
         if (shortLink is null)
         {
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
@@ -188,7 +188,7 @@ public sealed class ShortLinkService : IShortLinkService
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.Expired, "Short link has expired.");
         }
 
-        await cache.SetAsync(shortLink, cancellationToken).ConfigureAwait(false);
+        await cache.SetAsync(shortLink, cancellationToken);
 
         return ResolveShortLinkResult.Success(shortLink);
     }
@@ -203,7 +203,7 @@ public sealed class ShortLinkService : IShortLinkService
             return ShortLinkDetailsResult.Failure(validationFailure.Value.ErrorCode, validationFailure.Value.ErrorMessage);
         }
 
-        var shortLink = await repository.FindByCodeAsync(code.Trim(), cancellationToken).ConfigureAwait(false);
+        var shortLink = await repository.FindByCodeAsync(code.Trim(), cancellationToken);
         return shortLink is null
             ? ShortLinkDetailsResult.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.")
             : ShortLinkDetailsResult.Success(shortLink);
@@ -219,15 +219,15 @@ public sealed class ShortLinkService : IShortLinkService
             return DeactivateShortLinkResult.Failure(validationFailure.Value.ErrorCode, validationFailure.Value.ErrorMessage);
         }
 
-        var shortLink = await repository.FindByCodeAsync(code.Trim(), cancellationToken).ConfigureAwait(false);
+        var shortLink = await repository.FindByCodeAsync(code.Trim(), cancellationToken);
         if (shortLink is null)
         {
             return DeactivateShortLinkResult.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
         }
 
         shortLink.Deactivate();
-        await repository.UpdateAsync(shortLink, cancellationToken).ConfigureAwait(false);
-        await cache.RemoveAsync(shortLink.Code, cancellationToken).ConfigureAwait(false);
+        await repository.UpdateAsync(shortLink, cancellationToken);
+        await cache.RemoveAsync(shortLink.Code, cancellationToken);
 
         return DeactivateShortLinkResult.Success();
     }
@@ -242,15 +242,15 @@ public sealed class ShortLinkService : IShortLinkService
             return DeactivateShortLinkResult.Failure(validationFailure.Value.ErrorCode, validationFailure.Value.ErrorMessage);
         }
 
-        var shortLink = await repository.FindByCodeAsync(code.Trim(), cancellationToken).ConfigureAwait(false);
+        var shortLink = await repository.FindByCodeAsync(code.Trim(), cancellationToken);
         if (shortLink is null)
         {
             return DeactivateShortLinkResult.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
         }
 
         shortLink.Activate();
-        await repository.UpdateAsync(shortLink, cancellationToken).ConfigureAwait(false);
-        await cache.RemoveAsync(shortLink.Code, cancellationToken).ConfigureAwait(false);
+        await repository.UpdateAsync(shortLink, cancellationToken);
+        await cache.RemoveAsync(shortLink.Code, cancellationToken);
 
         return DeactivateShortLinkResult.Success();
     }
@@ -290,7 +290,7 @@ public sealed class ShortLinkService : IShortLinkService
                 "Expiration must be in the future.");
         }
 
-        var existing = await repository.FindByCodeAsync(code.Trim(), cancellationToken).ConfigureAwait(false);
+        var existing = await repository.FindByCodeAsync(code.Trim(), cancellationToken);
         if (existing is null)
         {
             return ShortLinkDetailsResult.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
@@ -306,8 +306,8 @@ public sealed class ShortLinkService : IShortLinkService
             existing.CreatedByDisplayName,
             existing.CreatedByUsername);
 
-        await repository.UpdateAsync(updated, cancellationToken).ConfigureAwait(false);
-        await cache.RemoveAsync(updated.Code, cancellationToken).ConfigureAwait(false);
+        await repository.UpdateAsync(updated, cancellationToken);
+        await cache.RemoveAsync(updated.Code, cancellationToken);
 
         return ShortLinkDetailsResult.Success(updated);
     }
@@ -323,13 +323,13 @@ public sealed class ShortLinkService : IShortLinkService
         }
 
         var normalizedCode = code.Trim();
-        if (!await repository.ExistsByCodeAsync(normalizedCode, cancellationToken).ConfigureAwait(false))
+        if (!await repository.ExistsByCodeAsync(normalizedCode, cancellationToken))
         {
             return DeactivateShortLinkResult.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
         }
 
-        await repository.DeleteAsync(normalizedCode, cancellationToken).ConfigureAwait(false);
-        await cache.RemoveAsync(normalizedCode, cancellationToken).ConfigureAwait(false);
+        await repository.DeleteAsync(normalizedCode, cancellationToken);
+        await cache.RemoveAsync(normalizedCode, cancellationToken);
 
         return DeactivateShortLinkResult.Success();
     }
@@ -341,13 +341,13 @@ public sealed class ShortLinkService : IShortLinkService
     {
         if (!shortLink.IsActive)
         {
-            await cache.RemoveAsync(shortLink.Code, cancellationToken).ConfigureAwait(false);
+            await cache.RemoveAsync(shortLink.Code, cancellationToken);
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.Inactive, "Short link is inactive.");
         }
 
         if (shortLink.IsExpired(now))
         {
-            await cache.RemoveAsync(shortLink.Code, cancellationToken).ConfigureAwait(false);
+            await cache.RemoveAsync(shortLink.Code, cancellationToken);
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.Expired, "Short link has expired.");
         }
 
@@ -364,7 +364,7 @@ public sealed class ShortLinkService : IShortLinkService
                 continue;
             }
 
-            if (!await repository.ExistsByCodeAsync(candidate, cancellationToken).ConfigureAwait(false))
+            if (!await repository.ExistsByCodeAsync(candidate, cancellationToken))
             {
                 return candidate;
             }

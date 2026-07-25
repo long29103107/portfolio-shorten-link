@@ -27,7 +27,7 @@ internal sealed class ShortLinkClickBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var request in reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
+        await foreach (var request in reader.ReadAllAsync(stoppingToken))
         {
             try
             {
@@ -40,7 +40,7 @@ internal sealed class ShortLinkClickBackgroundService : BackgroundService
                     request.UserAgent,
                     request.Referrer);
 
-                await repository.AddAsync(shortLinkClick, stoppingToken).ConfigureAwait(false);
+                await repository.AddAsync(shortLinkClick, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

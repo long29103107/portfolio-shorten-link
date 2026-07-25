@@ -206,7 +206,7 @@ export function App() {
           />
         ) : (
           <LoginPage
-            onSignedIn={() => navigate("/short-links")}
+            onSignedIn={() => navigate("/")}
           />
         )}
         <ConfirmDialog

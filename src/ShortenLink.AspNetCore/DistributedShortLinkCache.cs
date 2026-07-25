@@ -32,7 +32,7 @@ internal sealed class DistributedShortLinkCache : IShortLinkCache
     {
         var cachedJson = await distributedCache.GetStringAsync(
             BuildKey(code),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
 
         if (string.IsNullOrWhiteSpace(cachedJson))
         {
@@ -58,7 +58,7 @@ internal sealed class DistributedShortLinkCache : IShortLinkCache
 
         if (!shortLink.CanResolve(timeProvider.GetUtcNow()))
         {
-            await RemoveAsync(shortLink.Code, cancellationToken).ConfigureAwait(false);
+            await RemoveAsync(shortLink.Code, cancellationToken);
             return;
         }
 
@@ -73,7 +73,7 @@ internal sealed class DistributedShortLinkCache : IShortLinkCache
             BuildKey(shortLink.Code),
             JsonSerializer.Serialize(cached, SerializerOptions),
             CreateCacheOptions(shortLink),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
     }
 
     public Task RemoveAsync(

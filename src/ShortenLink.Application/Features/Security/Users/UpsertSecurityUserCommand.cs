@@ -1,0 +1,69 @@
+using ShortenLink.Application.Abstractions;
+using ShortenLink.Core.Security;
+using ShortenLink.Mediator;
+
+namespace ShortenLink.Application.Features.Security.Users;
+
+public sealed record UpsertSecurityUserCommand(
+    string Id,
+    string Username,
+    string DisplayName,
+    string? Password,
+    IReadOnlyList<string>? RoleIds,
+    bool? IsEnabled) : IRequest<SecurityUserResponse>;
+
+internal sealed class UpsertSecurityUserCommandHandler(
+    ICurrentRequestContext requestContext,
+    IShortenLinkSecurityUserRepository userRepository,
+    IShortenLinkSecurityRoleRepository roleRepository,
+    TimeProvider timeProvider)
+    : IRequestHandler<UpsertSecurityUserCommand, SecurityUserResponse>
+{
+    public async Task<SecurityUserResponse> Handle(
+        UpsertSecurityUserCommand request,
+        CancellationToken cancellationToken)
+    {
+        await requestContext.EnsureAdminAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(request.Id))
+            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityUser, "User id is required.", "id");
+        if (string.IsNullOrWhiteSpace(request.Username))
+            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityUser, "Username is required.", "username");
+        if (string.IsNullOrWhiteSpace(request.DisplayName))
+            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityUser, "Display name is required.", "displayName");
+
+        var id = request.Id.Trim();
+        var existing = await userRepository.FindByIdAsync(id, cancellationToken);
+        if (existing is { IsBootstrap: true })
+            throw new BusinessRuleException(ErrorCodes.BootstrapUserImmutable, "The bootstrap admin user cannot be updated through user management APIs.");
+        var usernameOwner = await userRepository.FindByUsernameAsync(request.Username.Trim(), cancellationToken);
+        if (usernameOwner is not null && !usernameOwner.UserKey.Equals(id, StringComparison.Ordinal))
+            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityUser, "Username is already assigned to another user.", "username");
+
+        var roleIds = SecurityFeatureSupport.NormalizeDistinct(request.RoleIds);
+        foreach (var roleId in roleIds)
+        {
+            if (ShortenLinkSystemRoles.PermissionBundles.ContainsKey(roleId))
+                continue;
+            if (await roleRepository.FindCustomRoleAsync(roleId, cancellationToken) is null)
+                throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidRole, $"Unknown role '{roleId}'.", "roleIds");
+        }
+        if (existing is null && roleIds.Count == 0)
+            roleIds = [ShortenLinkSystemRoles.User];
+
+        var passwordHash = !string.IsNullOrWhiteSpace(request.Password)
+            ? ShortenLinkSecurityCredentialHasher.HashPassword(request.Password)
+            : existing?.PasswordHash ?? ShortenLinkSecurityCredentialHasher.PasswordNotSetHash;
+        var user = new ShortenLinkSecurityUser(
+            id,
+            request.Username.Trim(),
+            request.DisplayName.Trim(),
+            passwordHash,
+            roleIds,
+            request.IsEnabled ?? true,
+            isHidden: false,
+            isBootstrap: false,
+            existing?.CreatedAt ?? timeProvider.GetUtcNow());
+        await userRepository.AddOrUpdateAsync(user, cancellationToken);
+        return SecurityUserResponse.FromDomain(user);
+    }
+}

@@ -19,7 +19,7 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
         var records = await dbContext.SecurityAssignments
             .AsNoTracking()
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return records
             .OrderBy(assignment => assignment.Name, StringComparer.OrdinalIgnoreCase)
@@ -39,7 +39,7 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
             .FirstOrDefaultAsync(
                 assignment => assignment.CredentialKeyHash == credentialKeyHash,
                 cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return record?.ToDomain();
     }
@@ -54,7 +54,7 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
             .FirstOrDefaultAsync(
                 candidate => candidate.CredentialKeyHash == assignment.CredentialKeyHash,
                 cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         if (record is null)
         {
@@ -65,7 +65,7 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
             record.UpdateFromDomain(assignment);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> DisableAsync(
@@ -78,14 +78,14 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
             .FirstOrDefaultAsync(
                 assignment => assignment.CredentialKeyHash == credentialKeyHash,
                 cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (record is null)
         {
             return false;
         }
 
         record.IsEnabled = false;
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
 }

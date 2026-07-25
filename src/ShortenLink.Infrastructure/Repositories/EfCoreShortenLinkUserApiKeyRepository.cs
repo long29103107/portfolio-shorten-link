@@ -23,7 +23,7 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
             .AsNoTracking()
             .Where(apiKey => apiKey.UserId == userId)
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return records
             .OrderBy(apiKey => apiKey.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -41,7 +41,7 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
         var record = await dbContext.SecurityUserApiKeys
             .AsNoTracking()
             .FirstOrDefaultAsync(apiKey => apiKey.ApiKeyId == id, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return record?.ToDomain();
     }
@@ -55,7 +55,7 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
         var record = await dbContext.SecurityUserApiKeys
             .AsNoTracking()
             .FirstOrDefaultAsync(apiKey => apiKey.KeyHash == keyHash, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return record?.ToDomain();
     }
@@ -68,7 +68,7 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
 
         var record = await dbContext.SecurityUserApiKeys
             .FirstOrDefaultAsync(candidate => candidate.ApiKeyId == apiKey.ApiKeyKey, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         if (record is null)
         {
@@ -79,7 +79,7 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
             record.UpdateFromDomain(apiKey);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> DisableAsync(
@@ -90,14 +90,14 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
 
         var record = await dbContext.SecurityUserApiKeys
             .FirstOrDefaultAsync(apiKey => apiKey.ApiKeyId == id, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (record is null)
         {
             return false;
         }
 
         record.IsEnabled = false;
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
 }

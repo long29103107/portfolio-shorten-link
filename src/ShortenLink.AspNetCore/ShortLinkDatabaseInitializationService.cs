@@ -19,7 +19,7 @@ internal sealed class ShortLinkDatabaseInitializationService : IHostedService
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ShortLinkDbContext>();
-        await dbContext.Database.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.Database.EnsureCreatedAsync(cancellationToken);
 
         var userRepository = scope.ServiceProvider.GetRequiredService<IShortenLinkSecurityUserRepository>();
         await userRepository
@@ -27,7 +27,7 @@ internal sealed class ShortLinkDatabaseInitializationService : IHostedService
                 ShortenLinkSecurityCredentialHasher.HashPassword("admin"),
                 DateTimeOffset.UtcNow,
                 cancellationToken)
-            .ConfigureAwait(false);
+            ;
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

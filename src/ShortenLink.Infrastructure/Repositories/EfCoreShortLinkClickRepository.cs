@@ -21,7 +21,7 @@ public sealed class EfCoreShortLinkClickRepository : IShortLinkClickRepository
         ArgumentNullException.ThrowIfNull(shortLinkClick);
 
         dbContext.ShortLinkClicks.Add(ShortLinkClickPersistenceEntity.FromDomain(shortLinkClick));
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<ShortLinkClickSummary> GetSummaryAsync(
@@ -33,11 +33,11 @@ public sealed class EfCoreShortLinkClickRepository : IShortLinkClickRepository
         var query = dbContext.ShortLinkClicks
             .AsNoTracking()
             .Where(click => click.ShortCode == shortCode);
-        var clickCount = await query.LongCountAsync(cancellationToken).ConfigureAwait(false);
+        var clickCount = await query.LongCountAsync(cancellationToken);
         var clickedAtValues = await query
             .Select(click => click.ClickedAtUtc)
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
         DateTimeOffset? lastClickedAtUtc = clickedAtValues.Count == 0
             ? null
             : clickedAtValues.Max();
@@ -57,7 +57,7 @@ public sealed class EfCoreShortLinkClickRepository : IShortLinkClickRepository
             .AsNoTracking()
             .Where(click => click.ShortCode == shortCode)
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return records
             .OrderByDescending(click => click.ClickedAtUtc)

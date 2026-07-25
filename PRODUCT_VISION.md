@@ -20,6 +20,11 @@ The product should not stay as a toy URL shortener. The long-term goal is a clea
 - Random-code-first: generated codes are always random; custom aliases are intentionally out of scope.
 - Config-driven: database provider, redirect fallback, cache, analytics, and rate limits are controlled by configuration.
 - Thin demo app: the API and React app prove behavior without duplicating core business logic.
+- Use-case-first application layer: HTTP endpoints dispatch commands/queries
+  through the dependency-free custom Mediator; each feature file keeps its
+  request and handler together.
+- Centralized failures: application handlers throw typed Core exceptions with
+  catalogued error codes, and one API exception handler owns HTTP error mapping.
 - Safe defaults: SQLite should work locally out of the box; PostgreSQL and Redis are optional production upgrades.
 - Clear contracts: endpoint, model, service, repository, options, and DI APIs should remain stable for consumers.
 - Uniform entity identity: every persisted DbSet entity is flattened directly under `ShortenLink.Core/Domain`, uses the `*Entity` suffix, derives from `BaseEntity<Guid>`, and uses a UUIDv7 surrogate primary key; domain-facing codes, user ids, role ids, credential hashes, and former composite keys remain unique business keys.
@@ -53,6 +58,11 @@ The product should not stay as a toy URL shortener. The long-term goal is a clea
 - Provide separate Short Links and Admin navigation, with Admin entry points visible only to authorized identities.
 - Use email as the sign-in identifier; a fresh database seeds `admin@shortenlink.local` with the Admin role.
 - Provide tests for generator, validation, service behavior, endpoint behavior, and persistence.
+- Keep Minimal API endpoint groups thin: session, API-key, role, user,
+  assignment, link-management, sharing, analytics, lifecycle, and redirect
+  flows all dispatch through the Application layer.
+- Redirect successful login to the personal `/` workspace.
+- Provide reusable portal tooltip feedback for compact copy actions.
 
 ## 5. Product Gaps And Next Opportunities
 
@@ -86,16 +96,21 @@ These are the most valuable improvements from the current app state.
 ## 6. Desired Architecture
 
 ```txt
+shared/
+  ShortenLink.Mediator/          # Dependency-free mediator contracts and dispatcher
+
 src/
-  ShortenLink.Core/              # Domain, Contracts, centralized Abstractions, validation, core services
+  ShortenLink.Core/              # Domain entities, contracts, exceptions, validation, core services
+  ShortenLink.Application/       # Vertical feature commands/queries and application ports
   ShortenLink.Infrastructure/    # EF mapping, repositories, SQLite/PostgreSQL providers
   ShortenLink.AspNetCore/        # DI setup, options, authorization, middleware helpers
   ShortenLink.Worker/            # Optional analytics/background jobs
-  ShortenLink.Api/               # Backend API host and explicit endpoint groups
+  ShortenLink.Api/               # Thin HTTP host, endpoint groups, adapters, global exception handling
   ShortenLink.Web/               # React + Vite frontend
 
 tests/
   ShortenLink.Core.Tests/
+  ShortenLink.Application.Tests/
   ShortenLink.Infrastructure.Tests/
   ShortenLink.Api.Tests/
 ```
@@ -249,6 +264,12 @@ Success criteria:
 The product is considered complete for this vision when:
 
 - The reusable library exposes stable models, services, repositories, options, and DI setup; the API host owns endpoint presentation.
+- API endpoint groups contain HTTP binding/response concerns only and dispatch
+  business use cases through `ShortenLink.Mediator`.
+- Commands and queries are implemented as vertical slices in
+  `ShortenLink.Application/Features`, with request and handler kept together.
+- Typed Core exceptions use centralized error-code constants and are converted
+  by one global API exception handler.
 - The reusable library is isolated from the demo app and can be packed as NuGet.
 - The demo API proves create, list, detail, update, activate/deactivate, delete, and redirect flows.
 - The React admin proves users can create, validate, copy, edit, activate/deactivate, delete, search, filter, and inspect short links.

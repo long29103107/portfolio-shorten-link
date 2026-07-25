@@ -670,6 +670,36 @@ code {
   overflow-wrap: anywhere;
 }
 
+.detail-list .short-url-detail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.detail-list .short-url-detail dt {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.detail-list .short-url-detail dd {
+  display: flex;
+  flex: 1 1 320px;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-list .short-url-detail a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-list .short-url-detail .copy-icon-button {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 .feedback {
   margin: 0;
   color: var(--success);
@@ -1977,6 +2007,23 @@ code {
   transform: translateY(-100%);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(6px);
+}
+
+.portal-tooltip {
+  position: fixed;
+  z-index: 500;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 750;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-100%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(5px);
 }
 
 .toast-region {

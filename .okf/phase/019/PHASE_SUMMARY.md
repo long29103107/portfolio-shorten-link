@@ -45,9 +45,30 @@ No active task. Phase 019 is complete with both tasks verified.
 - `019_002` added a newest-first operational creation snapshot from authoritative link/user records, preserved healthy activity during partial failures, and explicitly distinguished the view from a durable audit log.
 - Phase closure verification: 41 frontend tests and the TypeScript/Vite production build passed.
 
+## Current-State Addendum
+
+- The backend now has an explicit `ShortenLink.Application` layer and a
+  dependency-free `shared/ShortenLink.Mediator`.
+- Security session, personal API-key, role, user, credential-assignment,
+  short-link list/detail/analytics/share/lifecycle, and redirect endpoints now
+  dispatch commands or queries through `ISender`.
+- Each use case keeps its command/query and handler in one feature file.
+  `ShortenLinkEndpointHandlers.cs` was removed.
+- Application handlers return data and throw typed Core exceptions. Stable
+  error codes are centralized in `ErrorCodes`/`ShortLinkErrorCodes`, while
+  `GlobalExceptionHandler` owns HTTP status and error-response mapping.
+- Authorization preserves session, user-owned API-key, and configured/persisted
+  assignment actors. Admin bypasses ownership/share; User visibility and
+  mutation remain owner/share scoped.
+- The React login flow now returns to `/`. The create-result copy action is a
+  compact right-aligned icon with reusable `PortalTooltip` copied feedback.
+- Current verification after the architecture migration: backend build passed
+  with 0 warnings, all 153 backend tests passed, and the frontend TypeScript/Vite
+  production build passed.
+
 ## Next Task Proposal
 
-Open Phase 020 with a first task for persisted mutation audit events and a scoped audit-query API. Do not create it until requested.
+Phase 020 is open with `020_001 - Persisted short-link mutation audit and scoped query API` as its first planned task.
 
 ## Task Notes
 

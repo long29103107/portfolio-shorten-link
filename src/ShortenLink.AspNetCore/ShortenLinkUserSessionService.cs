@@ -79,7 +79,7 @@ public sealed class ShortenLinkUserSessionService(
 
         var user = await userRepository
             .FindByUsernameAsync(username, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (user is null
             || !user.IsEnabled
             || !ShortenLinkSecurityCredentialHasher.VerifyPassword(password, user.PasswordHash))
@@ -88,7 +88,7 @@ public sealed class ShortenLinkUserSessionService(
         }
 
         var issuedAtUtc = timeProvider.GetUtcNow();
-        var principal = await CreatePrincipalAsync(user, issuedAtUtc, cancellationToken).ConfigureAwait(false);
+        var principal = await CreatePrincipalAsync(user, issuedAtUtc, cancellationToken);
         return ShortenLinkUserSessionResult.Success(
             principal,
             CreateToken(user, issuedAtUtc, "access"),
@@ -110,14 +110,14 @@ public sealed class ShortenLinkUserSessionService(
             return ShortenLinkUserSessionResult.Unauthorized();
         }
 
-        var user = await userRepository.FindByIdAsync(payload.UserId, cancellationToken).ConfigureAwait(false);
+        var user = await userRepository.FindByIdAsync(payload.UserId, cancellationToken);
         if (user is null || !user.IsEnabled)
         {
             return ShortenLinkUserSessionResult.Unauthorized();
         }
 
         var issuedAtUtc = timeProvider.GetUtcNow();
-        var principal = await CreatePrincipalAsync(user, issuedAtUtc, cancellationToken).ConfigureAwait(false);
+        var principal = await CreatePrincipalAsync(user, issuedAtUtc, cancellationToken);
         return ShortenLinkUserSessionResult.Success(
             principal,
             CreateToken(user, issuedAtUtc, "access"),
@@ -144,7 +144,7 @@ public sealed class ShortenLinkUserSessionService(
 
         var user = await userRepository
             .FindByIdAsync(payload.UserId, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (user is null || !user.IsEnabled)
         {
             return ShortenLinkUserSessionResult.Unauthorized();
@@ -153,7 +153,7 @@ public sealed class ShortenLinkUserSessionService(
         var principal = await CreatePrincipalAsync(
             user,
             DateTimeOffset.FromUnixTimeSeconds(payload.IssuedAtUnixSeconds),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
 
         return ShortenLinkUserSessionResult.Success(principal, token);
     }
@@ -181,7 +181,7 @@ public sealed class ShortenLinkUserSessionService(
             {
                 var customRole = await roleRepository
                     .FindCustomRoleAsync(roleId, cancellationToken)
-                    .ConfigureAwait(false);
+                    ;
                 if (customRole is not { IsEnabled: true })
                 {
                     continue;
@@ -193,7 +193,7 @@ public sealed class ShortenLinkUserSessionService(
                 }
             }
 
-            await ApplyPermissionOverridesAsync(rolePermissions, roleId, cancellationToken).ConfigureAwait(false);
+            await ApplyPermissionOverridesAsync(rolePermissions, roleId, cancellationToken);
             foreach (var permission in rolePermissions)
             {
                 permissions.Add(permission);
@@ -216,7 +216,7 @@ public sealed class ShortenLinkUserSessionService(
     {
         var overrides = await roleRepository
             .ListPermissionOverridesAsync(roleId, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         foreach (var item in overrides)
         {
             if (item.IsAllowed) permissions.Add(item.Permission);

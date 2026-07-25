@@ -28,7 +28,7 @@ public sealed class EfCoreShortenLinkSecurityUserRepository : IShortenLinkSecuri
 
         var records = await query
             .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return records
             .OrderBy(user => user.Username, StringComparer.OrdinalIgnoreCase)
@@ -46,7 +46,7 @@ public sealed class EfCoreShortenLinkSecurityUserRepository : IShortenLinkSecuri
         var record = await dbContext.SecurityUsers
             .AsNoTracking()
             .FirstOrDefaultAsync(user => user.UserId == id, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return record?.ToDomain();
     }
@@ -61,7 +61,7 @@ public sealed class EfCoreShortenLinkSecurityUserRepository : IShortenLinkSecuri
         var record = await dbContext.SecurityUsers
             .AsNoTracking()
             .FirstOrDefaultAsync(user => user.Username == normalizedUsername, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         return record?.ToDomain();
     }
@@ -74,7 +74,7 @@ public sealed class EfCoreShortenLinkSecurityUserRepository : IShortenLinkSecuri
 
         var record = await dbContext.SecurityUsers
             .FirstOrDefaultAsync(candidate => candidate.UserId == user.UserKey, cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         if (record is null)
         {
@@ -85,7 +85,7 @@ public sealed class EfCoreShortenLinkSecurityUserRepository : IShortenLinkSecuri
             record.UpdateFromDomain(user);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<ShortenLinkSecurityUser> EnsureBootstrapAdminAsync(
@@ -99,7 +99,7 @@ public sealed class EfCoreShortenLinkSecurityUserRepository : IShortenLinkSecuri
             .FirstOrDefaultAsync(
                 user => user.UserId == BootstrapAdminUserId || user.IsBootstrap,
                 cancellationToken)
-            .ConfigureAwait(false);
+            ;
 
         if (existing is null)
         {
@@ -115,7 +115,7 @@ public sealed class EfCoreShortenLinkSecurityUserRepository : IShortenLinkSecuri
                 createdAt);
 
             dbContext.SecurityUsers.Add(ShortenLinkSecurityUserPersistenceEntity.FromDomain(user));
-            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await dbContext.SaveChangesAsync(cancellationToken);
             return user;
         }
 
@@ -129,7 +129,7 @@ public sealed class EfCoreShortenLinkSecurityUserRepository : IShortenLinkSecuri
         existing.IsHidden = true;
         existing.IsBootstrap = true;
 
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
         return existing.ToDomain();
     }
 
@@ -141,14 +141,14 @@ public sealed class EfCoreShortenLinkSecurityUserRepository : IShortenLinkSecuri
 
         var record = await dbContext.SecurityUsers
             .FirstOrDefaultAsync(user => user.UserId == id, cancellationToken)
-            .ConfigureAwait(false);
+            ;
         if (record is null || record.IsBootstrap)
         {
             return false;
         }
 
         record.IsEnabled = false;
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await dbContext.SaveChangesAsync(cancellationToken);
         return true;
     }
 }

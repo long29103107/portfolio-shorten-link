@@ -7,18 +7,30 @@ The reusable library projects are intentionally separated from the demo applicat
 ## Project Structure
 
 ```text
+shared/
+  ShortenLink.Mediator/          # Dependency-free request/handler mediator
+
 src/
-  ShortenLink.Core/              # Domain, Contracts, and centralized Abstractions
+  ShortenLink.Core/              # Domain entities, contracts, exceptions, and core services
+  ShortenLink.Application/       # Feature commands/queries and application abstractions
   ShortenLink.Infrastructure/    # Persistence and provider adapters
   ShortenLink.AspNetCore/        # DI setup, authorization, and host integration
-  ShortenLink.Api/               # ASP.NET Core API host and endpoint groups
+  ShortenLink.Api/               # Thin ASP.NET Core host, endpoint groups, and exception mapping
   ShortenLink.Web/               # Demo React + Vite frontend
 
 tests/
   ShortenLink.Core.Tests/
+  ShortenLink.Application.Tests/
   ShortenLink.Infrastructure.Tests/
   ShortenLink.Api.Tests/
 ```
+
+The demo backend follows a Clean Architecture dependency direction. Minimal API
+endpoints bind HTTP input and dispatch a command/query through
+`ShortenLink.Mediator`; handlers live beside their request in
+`ShortenLink.Application/Features`. Handlers return application data and throw
+typed Core exceptions. One global API exception handler owns HTTP error mapping,
+so endpoint files do not contain repository logic or repeated error branches.
 
 ## Package Surface
 
@@ -265,7 +277,7 @@ Minimum `appsettings.json` configuration for SQLite default mode:
       "FrontendFallbackPath": "/not-found"
     },
     "Analytics": {
-      "Enabled": false,
+      "Enabled": true,
       "UseAsyncWorker": true,
       "QueueCapacity": 512
     },
@@ -295,7 +307,7 @@ Minimum `appsettings.json` configuration for SQLite default mode:
         {
           "Name": "local-owner",
           "Key": "dev-owner-key",
-          "Roles": [ "Owner" ],
+          "Roles": [ "Admin" ],
           "Permissions": []
         }
       ]
@@ -324,29 +336,48 @@ Field keys use the JSON request-property casing, such as `originalUrl`, `expired
 
 ### Admin Security
 
-Admin security is permission-based. Roles are only bundles of permissions:
+The only system roles are:
 
-- `Owner`: all permissions.
-- `Admin`: manage links plus analytics and audit-log read access.
-- `Editor`: read, create, update, activate, and deactivate links.
-- `Viewer`: read links and analytics.
+- `Admin`: unrestricted system access, including identity/role administration,
+  and bypass of link ownership/share checks.
+- `User`: a private personal link area plus access to other users' links only
+  when an explicit per-link `View` or `Edit` share exists.
 
-Security is disabled by default for local demo convenience. To protect admin API routes, set `ShortenLink:Security:Enabled` to `true` and send either a signed user session token as `Authorization: Bearer <token>` or the configured API key header, which defaults to `X-ShortenLink-Api-Key`.
+`View` and `Edit` are per-link access levels, not global roles. Link permissions
+cover read, create, update, status, delete, import, analytics, and audit/report
+access. Export is covered by read permission, while activate and deactivate use
+the same status permission. Security administration itself is Admin-only by
+role.
 
-The local/demo identity bootstrap seeds a hidden admin user with username `admin` and password `admin`. The raw password is not stored; the database stores password hash material only. Use the bootstrap account only for local/demo setup and replace it with managed users in a real deployment.
+The demo API enables security by default. Send either a signed user session
+token as `Authorization: Bearer <token>` or the configured API-key header,
+which defaults to `X-ShortenLink-Api-Key`. Reusable consumers may choose their
+own configuration, but should keep security enabled for any exposed management
+endpoint.
+
+On a fresh database, startup seeds `admin@shortenlink.local` with password
+`admin`, assigns the `Admin` role, and enables the full permission bundle. The
+raw password is not stored; the database stores password hash material only.
+Use this bootstrap account only for local development.
 
 User-session APIs:
 
 - `POST /api/security/login`
+- `POST /api/security/refresh`
 - `GET /api/security/me`
 
-`POST /api/security/login` accepts `username` and `password`. Successful responses return a signed local session token plus safe user metadata: user id, username, display name, role ids, effective permissions, and issued timestamp. Login failures use the same `invalid_login` response for unknown users, disabled users, and bad passwords. Responses never include raw passwords, password hashes, or signing material.
+`POST /api/security/login` accepts `email` and `password`. Successful responses
+return access/refresh tokens plus safe user metadata. The React app stores the
+session and redirects to `/`, the personal create workspace. Login failures use
+the same `invalid_login` response for unknown users, disabled users, and bad
+passwords. Responses never include raw passwords, password hashes, or signing
+material.
 
 `GET /api/security/me` requires `Authorization: Bearer <token>` and returns the same safe current-user metadata. Protected admin endpoints can derive permissions from the logged-in user's system or custom roles. Session tokens are local/demo bearer credentials signed by the app; configure `ShortenLink:Security:SessionSigningKey` and `ShortenLink:Security:SessionTokenTtlMinutes` when security is enabled.
 
 Configured API keys remain the bootstrap/local fallback path. The reusable persistence layer also supports durable security assignments for API-key credentials: assignments store a credential key hash, enabled state, built-in system roles, and optional explicit permissions. When a persisted assignment exists for a credential, it is the backend source for that credential; a disabled persisted assignment rejects the credential even if a matching bootstrap key is still present in configuration.
 
-Admins with `security.assignments.manage` can manage durable assignments through backend API contracts:
+Admin can manage durable assignments through backend API contracts:
 
 - `GET /api/security/assignments`
 - `PUT /api/security/assignments`
@@ -354,7 +385,7 @@ Admins with `security.assignments.manage` can manage durable assignments through
 
 The upsert request accepts a raw `credentialKey` only so the server can hash it before persistence. List and disable responses never return raw API keys; they expose the credential key hash, assignment name, built-in roles, explicit permissions, enabled state, and creation timestamp. Unknown roles or permissions are rejected with stable client errors.
 
-Admins with `security.assignments.manage` can also manage role and user identities through backend API contracts:
+Admin can also manage role and user identities through backend API contracts:
 
 - `GET /api/security/roles`
 - `PUT /api/security/roles/custom`
@@ -363,9 +394,15 @@ Admins with `security.assignments.manage` can also manage role and user identiti
 - `PUT /api/security/users`
 - `POST /api/security/users/{id}/disable`
 
-System roles are predefined bundles in the library and are returned as enabled, read-only, non-deletable role bundles. Custom roles can be created or updated with supported permissions only; unknown permissions are rejected before persistence. A custom role can be deleted only after it has been removed or replaced on every assigned user; deleting a role that is still assigned returns `409 role_in_use`. Normal users can be created or updated with system and/or custom role ids, enabled state, display name, and password material for creation or password replacement. User responses never return raw passwords or password hashes. The hidden bootstrap admin user is excluded from normal user-management list responses and cannot be updated or disabled through user-management APIs.
+System roles are predefined bundles in the library and are returned as enabled,
+non-deletable role bundles. Their permission overrides can be staged in the UI
+and saved in one operation. Managed users receive `Admin` or `User`; user
+responses never return raw passwords or password hashes. The bootstrap admin is
+protected from normal update/disable operations.
 
-Permissions are the source of truth for authorization checks; roles only expand to permissions. OAuth/OIDC, public signup, password reset, MFA, and multi-tenant organization management are intentionally out of scope.
+Permissions are the source of truth for link operations, while security
+administration is intrinsically Admin-only. OAuth/OIDC, public signup, password
+reset, MFA, multi-workspace, and organization tenancy remain out of scope.
 
 Logged-in users can manage their own API keys through backend API contracts:
 
@@ -393,17 +430,26 @@ Accepted values:
 
 Numbered list responses include `items`, `totalCount`, `page`, `pageSize`, and `totalPages`, with counts calculated after search and status filters. Invalid filter or sort values return `400` with a stable error code.
 
-The React admin UI includes a `/login` route for the local/demo identity session. After sign-in, admin requests use `Authorization: Bearer <token>` from local session storage. The Security screen lets permitted users list normal users, manage custom roles, create personal API keys, and keep legacy credential assignments where needed. The hidden bootstrap admin is not shown in the normal user list, and raw personal API-key material is displayed only in the create result panel.
+The React app includes `/login`; successful sign-in redirects to `/`. The `/`
+workspace creates personal links, `/short-links` manages owned/shared links, and
+`/admin/dashboard`, `/admin/security/users`, and `/admin/security/roles` are
+Admin surfaces. The account dropdown switches between home, short-link
+management, and Admin where authorized. Copy actions use compact icon buttons
+with reusable portal feedback.
 
 For local frontend development without backend security enabled, configure the React app with Vite environment variables instead of hard-coding secrets:
 
 ```dotenv
 VITE_SHORTENLINK_ADMIN_API_KEY=dev-owner-key
 VITE_SHORTENLINK_ADMIN_API_KEY_HEADER=X-ShortenLink-Api-Key
-VITE_SHORTENLINK_ADMIN_ROLE=Owner
+VITE_SHORTENLINK_ADMIN_ROLE=Admin
 ```
 
-`VITE_SHORTENLINK_ADMIN_ROLE` accepts the built-in system role bundles `Owner`, `Admin`, `Editor`, and `Viewer`. The admin UI uses the signed-in user's permissions first, then these local/demo fallback values to hide or disable create, edit, activate, deactivate, delete, and security-management controls when the matching permission is missing. For permission-level testing, use `VITE_SHORTENLINK_ADMIN_PERMISSIONS` with comma-separated permission names such as `short_links.read,short_links.create`.
+`VITE_SHORTENLINK_ADMIN_ROLE` accepts `Admin` or `User`. The UI uses the
+signed-in user's roles and permissions first, then these local/demo fallback
+values to hide or disable controls. For permission-level testing, use
+`VITE_SHORTENLINK_ADMIN_PERMISSIONS` with comma-separated names such as
+`short_links.read,short_links.create`.
 
 If no frontend role or permission variables are set, the UI keeps all admin controls available for the default disabled-security demo mode. The API still enforces authorization whenever backend security is enabled.
 
@@ -481,6 +527,27 @@ Example configuration:
   }
 }
 ```
+
+## Mutation Audit Log
+
+Successful short-link create, update, activate, deactivate, delete, share grant,
+share update, and share revoke operations append durable audit events. Events
+retain the actor, action, short-code target, owner, outcome, occurrence time,
+optional share subject, and non-secret detail; destination URLs, passwords, API
+keys, hashes, and session tokens are not recorded.
+
+Authorized callers with `audit_logs.read` can query:
+
+```http
+GET /api/audit-logs?limit=50&cursor=<cursor>&action=short_link.updated&targetId=abc1234&actorId=user-1&from=2026-07-01T00:00:00Z&to=2026-07-31T23:59:59Z
+```
+
+Results are newest-first and return `{ "items": [...], "nextCursor": "..." }`.
+Admin can inspect all matching events. User results remain limited to events for
+owned links or links currently shared with that user; the persisted owner id
+keeps owner history available after link deletion. Missing credentials use the
+existing `401 unauthorized` response, and callers without `audit_logs.read`
+receive the existing `403 forbidden` response.
 
 ## Redirect Cache
 
@@ -581,8 +648,10 @@ In development, `src\ShortenLink.Api\appsettings.Development.json` overrides `Sh
 
 ## Frontend Demo
 
-The React + Vite demo app now provides the Phase 001 create, copy, detail, deactivate, and fallback flow.
-It also exposes explicit status experiences at `/unauthorized`, `/forbidden`, and `/not-found`; `/not-found` remains compatible with the configured unknown-code fallback and renders the `404` state.
+The React + Vite app provides authenticated creation, compact copy feedback,
+owned/shared link management, Admin dashboard and security screens, detail,
+analytics, lifecycle actions, and fallback/status experiences. `/not-found`
+remains compatible with the configured unknown-code fallback.
 
 Start the API in one terminal:
 
@@ -604,6 +673,13 @@ Open:
 
 ```text
 http://localhost:5173
+```
+
+For the fresh local database, sign in with:
+
+```text
+Email: admin@shortenlink.local
+Password: admin
 ```
 
 The Vite dev server proxies `/api/*` requests to `http://localhost:5188` by default. Override that target when needed:
