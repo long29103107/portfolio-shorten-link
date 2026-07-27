@@ -1,12 +1,12 @@
 ---
 phase: 020
-title: Durable Audit Trail and Investigation
-status: active
-created_at: 2026-07-25
-updated_at: 2026-07-25
+title: Clean Architecture, DDD, and Mediator alignment
+status: complete
+created_at: 2026-07-26
+updated_at: 2026-07-26
 current_task: null
-task_count: 1
-done_count: 1
+task_count: 8
+done_count: 8
 depends_on:
   - 019
 ---
@@ -15,176 +15,407 @@ depends_on:
 
 ## Phase Goal
 
-Deliver a durable, permission-aware audit trail for short-link, sharing,
-authentication, and security-administration mutations so authorized users can
-investigate who changed what and when without relying on current-state records.
+Align the backend with a maintainable Clean Architecture and DDD boundary:
+API endpoints remain thin transport adapters, Application owns use-case
+orchestration through the custom Mediator, Core owns business contracts and
+invariants, and Infrastructure owns persistence details.
 
 ## Phase Done Criteria
 
-- Audit events are persisted independently from the records they describe.
-- Events identify the actor, action, target, outcome, and occurrence time without
-  storing credentials or other sensitive secret material.
-- Short-link ownership, lifecycle, sharing, authentication, and
-  security-administration mutations emit appropriate audit events.
-- Audit queries enforce `audit_logs.read` and preserve the Admin/User boundary:
-  Admin can inspect system-wide events, while User visibility remains scoped to
-  events they are allowed to inspect.
-- Query results support stable newest-first pagination and useful investigation
-  filters.
-- Audit behavior has focused persistence, application, and endpoint tests, and
-  relevant builds pass.
+- Every business endpoint dispatches a request through the custom Mediator;
+  only operational health checks may remain direct.
+- Persistence-only EF entities and mappings are outside Core/Domain.
+- HTTP response DTOs are outside Core; Application contracts are transport
+  agnostic and named as requests, queries, or results.
+- Use-case orchestration is in Application handlers, while Core services and
+  entities contain business rules and invariants.
+- Cross-repository mutations have an explicit transaction/unit-of-work
+  boundary and do not leave partial state on failure.
+- Identity/time/secret generation has injectable abstractions where it affects
+  business behavior or test determinism.
+- The Admin/User boundary is represented consistently; per-link View/Edit is
+  access data, not a system-role alias.
+- Mediator pipeline behaviors cover the shared validation, logging, and
+  transaction concerns needed by the application.
+- Backend build and focused tests pass with no new warnings.
+
+## Scope
+
+In:
+
+- API endpoint-to-Mediator migration and endpoint thinness.
+- Core/Application/Infrastructure dependency and model placement cleanup.
+- Transaction, identity, time, and Mediator pipeline seams needed by use cases.
+- Documentation and phase bookkeeping for the architecture migration.
+
+Out:
+
+- New product features unrelated to architecture.
+- Frontend redesign.
+- Replacing the custom Mediator with a third-party package.
+- Destructive database reset unless a schema move requires it and is explicitly
+  verified.
 
 ## Task Index
 
 | Task | Title | Status | Done At |
 |---|---|---|---|
-| 020_001 | Persisted short-link mutation audit and scoped query API | done | 2026-07-25T19:55:34+07:00 |
+| 020_001 | Route mock-data business operations through Mediator | done | 2026-07-26 |
+| 020_002 | Move persistence entities and EF mappings out of Core | done | 2026-07-26 |
+| 020_003 | Separate API responses from Core contracts | done | 2026-07-26 |
+| 020_004 | Move short-link orchestration into Application handlers | done | 2026-07-26 |
+| 020_005 | Add explicit unit-of-work boundaries for multi-write use cases | done | 2026-07-26 |
+| 020_006 | Add injectable identity, time, and secret-generation seams | done | 2026-07-26 |
+| 020_007 | Normalize Admin/User roles and per-link access levels | done | 2026-07-26 |
+| 020_008 | Add Mediator pipeline behaviors and close architecture verification | done | 2026-07-26 |
 
 ## Current Task
 
-No active task. `020_001` is complete and verified; Phase 020 remains active.
+No task is active. All eight architecture alignment tasks are complete and
+verified.
 
 ## Completed Notes
 
-- `020_001` added durable short-link audit persistence, deterministic
-  newest-first discovery, permission-aware Admin/User scoping, action/target/
-  actor/time filters, and non-secret actor/target context.
-- Create, update, activate, deactivate, delete, share grant/update, and share
-  revoke handlers now append exactly one successful audit event.
-- Verification passed with a zero-warning backend build and 160 backend tests:
-  45 Core, 4 Application, 37 Infrastructure, and 74 API.
+- `020_001` moved mock seed orchestration, current-user authorization, URL
+  generation, and service calls into the Application Mediator handler. The API
+  endpoint now only binds the count, dispatches `ISender`, and returns the
+  result.
+- `020_002` moved all EF-only `*PersistenceEntity` types into
+  `Infrastructure/Persistence/Entities`; Core/Domain now contains business
+  entities only.
+- `020_003` moved application/API response contracts out of Core, including
+  health and mock-seed responses.
+- `020_004` moved `ShortLinkService` orchestration into Application while Core
+  retains the service contract and domain rules.
+- `020_005` added `IUnitOfWork`, EF transaction execution, and a Mediator
+  transaction behavior for atomic multi-write requests.
+- `020_006` added injectable secure-token generation and removed direct
+  random-secret generation from the API-key handler; login fallback time now
+  uses `TimeProvider`.
+- `020_007` kept only Admin/User as effective system-role bundles and retained
+  legacy aliases only for source compatibility; View/Edit remains link-share
+  access data.
+- `020_008` added Mediator validation, logging, and unit-of-work pipeline
+  behaviors with explicit open-generic registration.
 
 ## Next Task Proposal
 
-Propose `020_002 - Authentication and security administration audit producers`
-using the audit schema and append boundary verified by `020_001`. Do not create
-it until requested.
+Phase 020 is complete. The next phase is Phase 021, which can continue audit
+producers on the cleaned architecture boundary.
 
 ## Task Notes
 
-### 020_001 - Persisted Short-Link Mutation Audit and Scoped Query API
+### 020_001 - Route Mock-Data Business Operations Through Mediator
 
 #### Step Goal
 
-Establish the durable audit foundation by persisting successful short-link
-mutations and exposing a permission-aware, newest-first query API that later
-audit producers and investigation UI can reuse.
-
-#### Dependency
-
-- Phase 019 established an operational dashboard and explicitly distinguished
-  its current-record activity snapshot from a durable mutation audit log.
-- The Application layer now owns vertical use cases, handlers throw typed Core
-  exceptions, and API endpoint groups dispatch through `ISender`.
-- `audit_logs.read` already exists in the shared permission catalog and is
-  granted to both system roles.
-- Existing authorization preserves Admin bypass and User owner/share scoping.
+Make the development mock-data endpoint a thin adapter by moving its seed
+operation into an Application request/handler dispatched through `ISender`.
 
 #### Scope
 
 In:
 
-- Define a durable audit-event entity and stable contracts for actor, action,
-  target, outcome, occurrence time, and non-secret contextual metadata.
-- Add EF Core mapping and repository support for append and newest-first,
-  paginated queries.
-- Record successful short-link create, update, status-change, delete, and
-  share-change mutations at the Application use-case boundary.
-- Add an Application query and thin API endpoint for audit discovery.
-- Require `audit_logs.read`; allow Admin system-wide visibility and scope User
-  results to audit events for links they own or can access.
-- Support the smallest useful filters, including action, target, actor, and time
-  range, where they can be implemented without weakening authorization.
-- Add focused Core/Infrastructure/Application/API tests.
+- Add one Application command containing the mock seed input and result.
+- Move authentication/session lookup, seed-loop orchestration, and service
+  calls into the handler using existing abstractions.
+- Keep `MockDataEndpoints` responsible only for binding, dispatch, and HTTP
+  response formatting.
+- Preserve the existing development-only authorization and response contract.
 
 Out:
 
-- Authentication and security-administration audit producers.
-- A frontend audit-log page or dashboard visualization.
-- External log shipping, retention policies, archival, or compliance exports.
-- Recording request bodies, passwords, API keys, credential hashes, session
-  tokens, or other secrets.
-- Failed-attempt auditing unless the established transaction boundary can
-  represent it accurately without coupling HTTP concerns into Application.
+- Changing production short-link behavior.
+- Adding a new mock-data feature beyond the existing endpoint.
 
 #### Acceptance Criteria
 
-- Audit events survive deletion or later mutation of the target short link.
-- Successful create, update, activate/deactivate, delete, share grant/update,
-  and share revoke operations append exactly one appropriate event.
-- Event data identifies the authenticated actor and stable target identity and
-  contains no secret credential material.
-- The audit query is newest-first with deterministic pagination.
-- Missing authentication returns the existing stable unauthorized response;
-  missing `audit_logs.read` returns the existing stable forbidden response.
-- Admin can query all matching events.
-- User results do not expose events for inaccessible links; owner/share
-  visibility follows the existing authorization contract.
-- Persistence, handler, and endpoint tests cover event creation, filtering,
-  pagination, authorization, and scope.
-- Relevant backend build and tests pass.
+- `MockDataEndpoints` injects `ISender` rather than `IShortLinkService`.
+- The endpoint contains no business loop, current-user lookup, or persistence
+  calls.
+- The new handler path is covered by the focused mock-seed API regression test.
+- Existing API tests and the backend build pass.
 
 #### Foundation for Next Step
 
-Leaves one reusable audit schema, append boundary, and scoped query contract so
-the next task can add authentication/security-administration producers or an
-investigation UI without redesigning persistence or authorization.
+All business endpoints use the same Application/Mediator boundary, so the next
+task can move persistence types without preserving an API-side business escape
+hatch.
 
 #### Affected Files
 
-Expected starting points:
-
-- `.okf/phase/020/PHASE_SUMMARY.md`
-- `src/ShortenLink.Core/Domain/`
-- `src/ShortenLink.Core/Contracts/`
-- `src/ShortenLink.Application/Abstractions/`
-- `src/ShortenLink.Application/Features/ShortLinks/`
-- `src/ShortenLink.Application/Features/Audit/`
-- `src/ShortenLink.Infrastructure/Persistence/ShortLinkDbContext.cs`
-- `src/ShortenLink.Infrastructure/Repositories/`
-- `src/ShortenLink.Api/Endpoints/`
-- `tests/ShortenLink.Core.Tests/`
+- `src/ShortenLink.Api/Endpoints/MockDataEndpoints.cs`
+- `src/ShortenLink.Application/Features/`
 - `tests/ShortenLink.Application.Tests/`
-- `tests/ShortenLink.Infrastructure.Tests/`
 - `tests/ShortenLink.Api.Tests/`
 
 #### Verification
 
-Run after implementation:
-
 ```powershell
-dotnet build ShortenLink.slnx --verbosity minimal
-dotnet test ShortenLink.slnx --verbosity minimal
+dotnet build ShortenLink.slnx --no-restore --verbosity minimal
+dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal
 ```
-
-For the persistence slice, also verify clean SQLite schema creation through the
-smallest relevant Infrastructure or API test.
 
 #### Done Notes
 
-- Added `ShortLinkAuditEvent`, stable action/outcome contracts, a Guid-backed EF
-  persistence entity, indexes, and `IShortLinkAuditRepository`.
-- Added `ShortLinkAuditWriter` at the Application mutation boundary.
-- Recorded one successful event for create, update, activate, deactivate,
-  delete, share grant/update, and share revoke.
-- Added `GET /api/audit-logs` with `audit_logs.read`, deterministic cursor
-  pagination, action/target/actor/time filters, Admin global visibility, and
-  owner/current-share User scoping.
-- Persisted owner identity keeps owner audit history discoverable after target
-  deletion; raw URLs and credential/session secrets are not recorded.
-- Added stable non-secret actor identities for sessions/users, persisted
-  assignments, configured API keys, and security-disabled local operation.
-- Documented the endpoint and authorization contract in `README.md`.
+- Added `SeedMockShortLinksCommand` and `SeedMockShortLinksCommandHandler`.
+- Preserved anonymous development seeding and permission enforcement for an
+  authenticated caller.
+- `MockDataEndpoints` no longer injects `IShortLinkService` or the HTTP session
+  service and contains no business loop.
 - Verification:
   - `dotnet build ShortenLink.slnx --no-restore --verbosity minimal` passed with
     0 warnings and 0 errors.
-  - `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
     passed: 45 Core, 4 Application, 37 Infrastructure, and 74 API tests.
-  - Clean in-memory SQLite schema verification includes
-    `short_link_audit_events` with a Guid `Id` primary key.
+
+### 020_002 - Move Persistence Entities and EF Mappings Out of Core
+
+#### Step Goal
+
+Keep EF-only persistence shapes in Infrastructure while preserving repository
+contracts in Core.
+
+#### Scope
+
+In: move all `*PersistenceEntity` files and update mappings, repositories, and
+tests. Out: changing the database model.
+
+#### Acceptance Criteria
+
+- Core/Domain has no persistence-only EF entity.
+- Infrastructure owns persistence entities and the solution builds.
+
+#### Foundation for Next Step
+
+Core no longer depends on persistence representation details.
+
+#### Affected Files
+
+- `src/ShortenLink.Infrastructure/Persistence/Entities/`
+- `src/ShortenLink.Infrastructure/Persistence/ShortLinkDbContext.cs`
+
+#### Verification
+
+Covered by the solution build and Infrastructure tests.
+
+#### Done Notes
+
+Completed 2026-07-26; all nine persistence entity types were moved and test
+references updated.
+
+### 020_003 - Separate API Responses From Core Contracts
+
+#### Step Goal
+
+Keep transport response DTOs in Application/API instead of Core.
+
+#### Scope
+
+In: move application response contracts and API-only health/mock responses.
+Out: changing JSON field names.
+
+#### Acceptance Criteria
+
+- Response models compile from Application/API namespaces.
+- Existing endpoint JSON contracts remain unchanged.
+
+#### Foundation for Next Step
+
+Use-case contracts can evolve without coupling Core to HTTP presentation.
+
+#### Affected Files
+
+- `src/ShortenLink.Application/Contracts/Responses/`
+- `src/ShortenLink.Api/Responses/`
+
+#### Verification
+
+Covered by the solution build and API tests.
+
+#### Done Notes
+
+Completed 2026-07-26; response models moved without JSON contract changes.
+
+### 020_004 - Move Short-Link Orchestration Into Application Handlers
+
+#### Step Goal
+
+Place short-link orchestration beside Application use cases while keeping the
+Core service interface and domain rules stable.
+
+#### Scope
+
+In: move `ShortLinkService` implementation and registration dependency.
+Out: changing short-link behavior.
+
+#### Acceptance Criteria
+
+- Application owns the orchestration implementation.
+- API behavior and Core domain tests remain green.
+
+#### Foundation for Next Step
+
+Transaction behavior can wrap Application orchestration consistently.
+
+#### Affected Files
+
+- `src/ShortenLink.Application/Services/ShortLinkService.cs`
+- `src/ShortenLink.AspNetCore/ShortenLinkServiceCollectionExtensions.cs`
+
+#### Verification
+
+Covered by Core/Application/API tests.
+
+#### Done Notes
+
+Completed 2026-07-26; service implementation moved to Application.
+
+### 020_005 - Add Explicit Unit-of-Work Boundaries
+
+#### Step Goal
+
+Ensure a mediated use case with multiple writes commits or rolls back as one
+transaction.
+
+#### Scope
+
+In: Core unit-of-work contract, EF implementation, and Mediator transaction
+behavior. Out: changing individual repository APIs.
+
+#### Acceptance Criteria
+
+- An EF transaction wraps each mediated request.
+- Existing persistence and API tests pass.
+
+#### Foundation for Next Step
+
+Mutation handlers have a durable transaction seam.
+
+#### Affected Files
+
+- `src/ShortenLink.Core/Abstractions/IUnitOfWork.cs`
+- `src/ShortenLink.Infrastructure/Persistence/EfCoreUnitOfWork.cs`
+- `src/ShortenLink.Application/Behaviors/UnitOfWorkPipelineBehavior.cs`
+
+#### Verification
+
+Covered by Infrastructure and API tests.
+
+#### Done Notes
+
+Completed 2026-07-26; EF transaction behavior is registered as an open generic.
+
+### 020_006 - Add Injectable Identity, Time, and Secret Seams
+
+#### Step Goal
+
+Remove hard-coded random secret generation and wall-clock fallback from use
+case handlers.
+
+#### Scope
+
+In: secure-token abstraction/implementation and `TimeProvider` injection.
+Out: changing token formats or authentication semantics.
+
+#### Acceptance Criteria
+
+- API-key secrets are generated through an injected abstraction.
+- Login fallback timestamps use `TimeProvider`.
+
+#### Foundation for Next Step
+
+Security handlers are deterministic and testable at their boundaries.
+
+#### Affected Files
+
+- `src/ShortenLink.Core/Abstractions/ISecureTokenGenerator.cs`
+- `src/ShortenLink.AspNetCore/SecureTokenGenerator.cs`
+- Security Application handlers.
+
+#### Verification
+
+Covered by build and API security tests.
+
+#### Done Notes
+
+Completed 2026-07-26.
+
+### 020_007 - Normalize Admin/User Roles and Per-Link Access Levels
+
+#### Step Goal
+
+Make Admin/User the effective system-role model and keep View/Edit scoped to
+individual link shares.
+
+#### Scope
+
+In: role catalog compatibility cleanup and access-level documentation.
+Out: removing legacy serialized role identifiers in this migration.
+
+#### Acceptance Criteria
+
+- Permission bundles contain only Admin and User.
+- Link sharing continues to use `ShortLinkShareAccess.View/Edit`.
+
+#### Foundation for Next Step
+
+Authorization checks have one consistent role/access vocabulary.
+
+#### Affected Files
+
+- `src/ShortenLink.Core/Security/ShortenLinkSystemRoles.cs`
+- `src/ShortenLink.AspNetCore/ShortenLinkPermissions.cs`
+
+#### Verification
+
+Covered by API security and sharing tests.
+
+#### Done Notes
+
+Completed 2026-07-26; legacy aliases remain source-compatible but are not
+permission bundles.
+
+### 020_008 - Add Mediator Pipeline Behaviors and Close Verification
+
+#### Step Goal
+
+Centralize validation, diagnostics, and transaction cross-cutting concerns in
+the custom Mediator.
+
+#### Scope
+
+In: validation marker seam, logging behavior, transaction behavior, and open
+generic registration. Out: replacing the custom Mediator.
+
+#### Acceptance Criteria
+
+- Pipeline behaviors execute for mediated requests.
+- Open generic registrations are valid in ASP.NET Core DI.
+
+#### Foundation for Next Step
+
+Future use cases inherit consistent cross-cutting behavior automatically.
+
+#### Affected Files
+
+- `src/ShortenLink.Application/Behaviors/`
+- `src/ShortenLink.Api/MediatorServiceCollectionExtensions.cs`
+
+#### Verification
+
+```powershell
+dotnet build ShortenLink.slnx --no-restore --verbosity minimal
+dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal
+```
+
+#### Done Notes
+
+Completed 2026-07-26; build passed with 0 warnings/errors and all 160 tests
+passed.
 
 ## Scan Rule
 
-Reuse the existing mediator, typed-exception, permission, actor, ownership, and
-share-access contracts. Keep endpoint groups thin, never persist secrets, and do
-not let audit-query filters broaden an actor's authorized visibility.
+Read this file before working on a task. Complete one task at a time and keep
+all architecture migration work inside Phase 020 until every done criterion is
+verified.

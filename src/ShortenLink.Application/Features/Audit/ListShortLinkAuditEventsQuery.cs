@@ -3,7 +3,7 @@ using System.Text;
 using ShortenLink.Application.Abstractions;
 using ShortenLink.Core.Abstractions;
 using ShortenLink.Core.Contracts.Queries;
-using ShortenLink.Core.Contracts.Responses;
+using ShortenLink.Application.Contracts.Responses;
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
 

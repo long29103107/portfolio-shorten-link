@@ -7,7 +7,8 @@ public sealed record RefreshSecurityUserCommand(
     string RefreshToken) : IRequest<SecurityLoginResponse>;
 
 internal sealed class RefreshSecurityUserCommandHandler(
-    ISecuritySessionService sessionService)
+    ISecuritySessionService sessionService,
+    TimeProvider timeProvider)
     : IRequestHandler<RefreshSecurityUserCommand, SecurityLoginResponse>
 {
     public async Task<SecurityLoginResponse> Handle(
@@ -15,6 +16,6 @@ internal sealed class RefreshSecurityUserCommandHandler(
         CancellationToken cancellationToken)
     {
         var result = await sessionService.RefreshAsync(request.RefreshToken, cancellationToken);
-        return LoginSecurityUserCommandHandler.CreateResponse(result);
+        return LoginSecurityUserCommandHandler.CreateResponse(result, timeProvider.GetUtcNow());
     }
 }

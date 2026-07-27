@@ -1,6 +1,6 @@
 using ShortenLink.Core.Domain;
 
-namespace ShortenLink.Core.Domain;
+namespace ShortenLink.Infrastructure.Persistence.Entities;
 
 public sealed class ShortenLinkRolePermissionOverridePersistenceEntity : BaseEntity<Guid>
 {

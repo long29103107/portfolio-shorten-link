@@ -1,6 +1,5 @@
-using System.Globalization;
-using System.Security.Cryptography;
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Core.Abstractions;
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
 
@@ -12,7 +11,8 @@ public sealed record CreateCurrentUserApiKeyCommand(
 internal sealed class CreateCurrentUserApiKeyCommandHandler(
     ICurrentRequestContext requestContext,
     IShortenLinkUserApiKeyRepository apiKeyRepository,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ISecureTokenGenerator tokenGenerator)
     : IRequestHandler<CreateCurrentUserApiKeyCommand, SecurityUserApiKeyCreatedResponse>
 {
     public async Task<SecurityUserApiKeyCreatedResponse> Handle(
@@ -32,9 +32,9 @@ internal sealed class CreateCurrentUserApiKeyCommandHandler(
 
         var user = await requestContext.GetCurrentUserAsync(cancellationToken)
             ?? throw new AuthenticationRequiredException();
-        var rawApiKey = $"slk_{Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant()}";
+        var rawApiKey = $"slk_{tokenGenerator.CreateToken(32)}";
         var apiKey = new ShortenLinkUserApiKey(
-            Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+            tokenGenerator.CreateIdentifier(),
             user.UserId,
             request.DisplayName.Trim(),
             ShortenLinkSecurityCredentialHasher.HashApiKey(rawApiKey),

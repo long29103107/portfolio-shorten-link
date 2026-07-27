@@ -1,4 +1,5 @@
 using System.Reflection;
+using ShortenLink.Application.Behaviors;
 using ShortenLink.Mediator;
 
 namespace ShortenLink.Api;
@@ -31,12 +32,16 @@ internal static class MediatorServiceCollectionExtensions
         services.AddScoped<ISender>(serviceProvider => serviceProvider.GetRequiredService<ApplicationMediator>());
         services.AddScoped<IPublisher>(serviceProvider => serviceProvider.GetRequiredService<ApplicationMediator>());
         services.AddScoped<IMediator>(serviceProvider => serviceProvider.GetRequiredService<ApplicationMediator>());
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(LoggingPipelineBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationPipelineBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(UnitOfWorkPipelineBehavior<,>));
 
         return services;
     }
 
     private static bool IsMediatorHandler(Type type) =>
-        type.IsGenericType
+        !type.ContainsGenericParameters
+        && type.IsGenericType
         && type.GetGenericTypeDefinition() is var definition
         && (definition == typeof(IRequestHandler<,>)
             || definition == typeof(INotificationHandler<>)

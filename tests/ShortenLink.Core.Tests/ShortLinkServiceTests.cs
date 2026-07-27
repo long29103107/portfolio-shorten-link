@@ -1,5 +1,6 @@
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Generation;
+using ShortenLink.Application.Services;
 using ShortenLink.Core.Services;
 using Xunit;
 

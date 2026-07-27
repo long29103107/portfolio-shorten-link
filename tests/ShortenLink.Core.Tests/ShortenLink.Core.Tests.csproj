@@ -8,6 +8,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <ProjectReference Include="..\..\src\ShortenLink.Core\ShortenLink.Core.csproj" />
+    <ProjectReference Include="..\..\src\ShortenLink.Application\ShortenLink.Application.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

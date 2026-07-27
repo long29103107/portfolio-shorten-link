@@ -68,7 +68,7 @@ No active task. Phase 019 is complete with both tasks verified.
 
 ## Next Task Proposal
 
-Phase 020 is open with `020_001 - Persisted short-link mutation audit and scoped query API` as its first planned task.
+Phase 020 is open with `020_001 - Route mock-data business operations through Mediator` as its first task.
 
 ## Task Notes
 

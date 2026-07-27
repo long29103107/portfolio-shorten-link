@@ -9,7 +9,8 @@ public sealed record LoginSecurityUserCommand(
     string Password) : IRequest<SecurityLoginResponse>;
 
 internal sealed class LoginSecurityUserCommandHandler(
-    ISecuritySessionService sessionService)
+    ISecuritySessionService sessionService,
+    TimeProvider timeProvider)
     : IRequestHandler<LoginSecurityUserCommand, SecurityLoginResponse>
 {
     public async Task<SecurityLoginResponse> Handle(
@@ -37,10 +38,12 @@ internal sealed class LoginSecurityUserCommandHandler(
         }
 
         var result = await sessionService.LoginAsync(email!, request.Password, cancellationToken);
-        return CreateResponse(result);
+        return CreateResponse(result, timeProvider.GetUtcNow());
     }
 
-    internal static SecurityLoginResponse CreateResponse(SecuritySessionResult result)
+    internal static SecurityLoginResponse CreateResponse(
+        SecuritySessionResult result,
+        DateTimeOffset fallbackIssuedAtUtc)
     {
         if (!result.Succeeded
             || result.User is null
@@ -62,6 +65,6 @@ internal sealed class LoginSecurityUserCommandHandler(
                 result.User.DisplayName,
                 result.User.Roles,
                 result.User.Permissions,
-                result.IssuedAtUtc ?? DateTimeOffset.UtcNow));
+                result.IssuedAtUtc ?? fallbackIssuedAtUtc));
     }
 }

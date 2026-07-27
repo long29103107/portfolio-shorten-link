@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ShortenLink.Core.Generation;
 using ShortenLink.Core.Services;
+using ShortenLink.Application.Services;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Repositories;
 
@@ -85,8 +86,10 @@ public static class ShortenLinkServiceCollectionExtensions
         });
 
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.TryAddSingleton<ISecureTokenGenerator, SecureTokenGenerator>();
         services.TryAddSingleton<IShortCodeGenerator, Base62ShortCodeGenerator>();
         services.TryAddScoped<IShortLinkRepository, EfCoreShortLinkRepository>();
+        services.TryAddScoped<IUnitOfWork, EfCoreUnitOfWork>();
         services.TryAddScoped<IShortLinkClickRepository, EfCoreShortLinkClickRepository>();
         services.TryAddScoped<IShortLinkShareRepository, EfCoreShortLinkShareRepository>();
         services.TryAddScoped<IShortLinkAuditRepository, EfCoreShortLinkAuditRepository>();

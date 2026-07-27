@@ -1,3 +1,5 @@
+using ShortenLink.Api.Responses;
+
 namespace ShortenLink.Api.Endpoints;
 
 internal static class HealthEndpoints

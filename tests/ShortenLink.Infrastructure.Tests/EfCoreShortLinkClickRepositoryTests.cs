@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence;
+using ShortenLink.Infrastructure.Persistence.Entities;
 using ShortenLink.Infrastructure.Repositories;
 using Xunit;
 

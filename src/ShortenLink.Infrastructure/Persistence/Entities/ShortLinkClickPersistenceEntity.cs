@@ -1,4 +1,4 @@
-namespace ShortenLink.Core.Domain;
+namespace ShortenLink.Infrastructure.Persistence.Entities;
 
 public sealed class ShortLinkClickPersistenceEntity : BaseEntity<Guid>
 {

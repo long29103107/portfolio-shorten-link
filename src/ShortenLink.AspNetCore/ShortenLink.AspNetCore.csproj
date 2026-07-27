@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ShortenLink.Core\ShortenLink.Core.csproj" />
+    <ProjectReference Include="..\ShortenLink.Application\ShortenLink.Application.csproj" />
     <ProjectReference Include="..\ShortenLink.Infrastructure\ShortenLink.Infrastructure.csproj" />
   </ItemGroup>
 

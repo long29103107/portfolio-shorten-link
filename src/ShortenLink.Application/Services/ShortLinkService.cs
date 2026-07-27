@@ -1,7 +1,9 @@
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Generation;
+using ShortenLink.Core.Services;
+using ShortenLink.Core;
 
-namespace ShortenLink.Core.Services;
+namespace ShortenLink.Application.Services;
 
 public sealed class ShortLinkService : IShortLinkService
 {

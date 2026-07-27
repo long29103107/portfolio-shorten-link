@@ -1,7 +1,7 @@
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Security;
 
-namespace ShortenLink.Core.Domain;
+namespace ShortenLink.Infrastructure.Persistence.Entities;
 
 public sealed class ShortLinkSharePersistenceEntity : BaseEntity<Guid>
 {

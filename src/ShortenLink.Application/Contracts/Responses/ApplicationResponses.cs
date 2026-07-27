@@ -2,15 +2,7 @@ using System.Text.Json.Serialization;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Security;
 
-namespace ShortenLink.Core.Contracts.Responses;
-
-public sealed record HealthResponse(string Status, string App);
-
-public sealed record MockSeedShortLinksResponse(
-    int RequestedCount,
-    int CreatedCount,
-    int FailedCount,
-    IReadOnlyList<string> Codes);
+namespace ShortenLink.Application.Contracts.Responses;
 
 public sealed record ShortLinkCreatedResponse(
     string Code,

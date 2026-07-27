@@ -2,7 +2,7 @@ using System.Text.Json;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Security;
 
-namespace ShortenLink.Core.Domain;
+namespace ShortenLink.Infrastructure.Persistence.Entities;
 
 public sealed class ShortenLinkSecurityUserPersistenceEntity : BaseEntity<Guid>
 {
