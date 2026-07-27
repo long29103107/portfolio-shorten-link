@@ -3,7 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\shared\ShortenLink.Mediator\ShortenLink.Mediator.csproj" />
     <ProjectReference Include="..\ShortenLink.Application\ShortenLink.Application.csproj" />
-    <ProjectReference Include="..\ShortenLink.AspNetCore\ShortenLink.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\shared\ShortenLink.Hosting\ShortenLink.Hosting.csproj" />
   </ItemGroup>
 
   <ItemGroup>

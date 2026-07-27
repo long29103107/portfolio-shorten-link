@@ -2,7 +2,7 @@ using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using ShortenLink.Core.Services;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 internal sealed class ChannelShortLinkClickRecorder : IShortLinkClickRecorder
 {

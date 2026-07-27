@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using ShortenLink.Core.Security;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 public interface IShortenLinkAuthorizationService
 {

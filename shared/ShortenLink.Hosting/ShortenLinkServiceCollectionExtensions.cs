@@ -17,7 +17,7 @@ using ShortenLink.Application.Services;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Repositories;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 public static class ShortenLinkServiceCollectionExtensions
 {

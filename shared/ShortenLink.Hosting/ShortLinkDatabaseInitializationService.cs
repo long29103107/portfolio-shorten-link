@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 using ShortenLink.Core.Security;
 using ShortenLink.Infrastructure.Persistence;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 internal sealed class ShortLinkDatabaseInitializationService : IHostedService
 {

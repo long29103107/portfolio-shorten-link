@@ -249,7 +249,7 @@
         </article>
         <article class="card">
           <h3>Thư viện reusable</h3>
-          <p>Project khác có thể dùng package <code>ShortenLink.AspNetCore</code> để gọi <code>AddShortenLink(...)</code> và map endpoints.</p>
+          <p>Project khác có thể dùng package <code>ShortenLink.Hosting</code> để gọi <code>AddShortenLink(...)</code> và map endpoints.</p>
         </article>
       </div>
     </section>
@@ -343,19 +343,19 @@ Invoke-RestMethod `
 
     <section id="library">
       <h2>4. Nhúng thư viện vào app .NET khác</h2>
-      <p>Với app ASP.NET Core, package chính nên dùng là <code>ShortenLink.AspNetCore</code>.</p>
+      <p>Với app ASP.NET Core, package chính nên dùng là <code>ShortenLink.Hosting</code>.</p>
 
       <h3>Cách dùng bằng project reference khi dev local</h3>
-      <pre><code>dotnet add reference ..\shorten-link\src\ShortenLink.AspNetCore\ShortenLink.AspNetCore.csproj</code></pre>
+      <pre><code>dotnet add reference ..\shorten-link\shared\ShortenLink.Hosting\ShortenLink.Hosting.csproj</code></pre>
 
       <h3>Cách dùng bằng local NuGet package</h3>
       <pre><code>New-Item -ItemType Directory -Force .\.nupkg
 dotnet pack ..\shorten-link\ShortenLink.slnx -c Release -o .\.nupkg
 dotnet nuget add source .\.nupkg --name shorten-link-local
-dotnet add package ShortenLink.AspNetCore --source .\.nupkg</code></pre>
+dotnet add package ShortenLink.Hosting --source .\.nupkg</code></pre>
 
       <h3>Program.cs tối thiểu</h3>
-      <pre><code>using ShortenLink.AspNetCore;
+      <pre><code>using ShortenLink.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -409,7 +409,7 @@ app.Run();</code></pre>
 
       <div class="callout">
         <strong>Package nào để làm gì?</strong>
-        <code>ShortenLink.AspNetCore</code> là entry point cho host ASP.NET Core.
+        <code>ShortenLink.Hosting</code> là entry point cho host ASP.NET Core.
         <code>ShortenLink.Core</code> chứa contracts và domain behavior.
         <code>ShortenLink.Infrastructure</code> chứa EF Core persistence cho SQLite/PostgreSQL.
       </div>
@@ -485,7 +485,7 @@ dotnet pack ShortenLink.slnx -c Release --verbosity minimal
 .\scripts\smoke-consumer-package.ps1</code></pre>
 
       <p><code>release-dry-run.ps1</code> kiểm package artifacts nhưng không publish. Nếu truyền <code>-Publish</code>, script sẽ fail để tránh publish nhầm.</p>
-      <p><code>smoke-consumer-package.ps1</code> tạo một app ASP.NET Core sạch trong <code>.tmp</code>, install <code>ShortenLink.AspNetCore</code>, chạy SQLite default mode và kiểm create/detail/redirect/delete.</p>
+      <p><code>smoke-consumer-package.ps1</code> tạo một app ASP.NET Core sạch trong <code>.tmp</code>, install <code>ShortenLink.Hosting</code>, chạy SQLite default mode và kiểm create/detail/redirect/delete.</p>
 
       <h3>Giữ artifact để xem thủ công</h3>
       <pre><code>.\scripts\release-dry-run.ps1 -KeepArtifacts

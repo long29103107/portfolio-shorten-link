@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using ShortenLink.AspNetCore;
+using ShortenLink.Hosting;
 using ShortenLink.Application.Features.ShortLinks.Create;
 using ShortenLink.Application.Features.ShortLinks.Analytics;
 using ShortenLink.Application.Features.ShortLinks.Delete;

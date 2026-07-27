@@ -20,8 +20,8 @@ outside source control, and explicit publish intent.
 
 | Product definition item | Evidence |
 |---|---|
-| Reusable library exposes stable models, services, repositories, options, DI setup, and endpoint mapping. | `src\ShortenLink.Core`, `src\ShortenLink.Infrastructure`, and `src\ShortenLink.AspNetCore` provide the reusable package boundary. README documents `IShortLinkService`, `AddShortenLink(builder.Configuration)`, `UseShortenLinkRateLimiting()`, and `MapShortenLinkEndpoints()`. |
-| Reusable library is isolated from the demo app and can be packed as NuGet packages. | `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.AspNetCore` are packable. `ShortenLink.Api` and `ShortenLink.Web` are documented as demo apps, not reusable package surface. |
+| Reusable library exposes stable models, services, repositories, options, DI setup, and endpoint mapping. | `src\ShortenLink.Core`, `src\ShortenLink.Infrastructure`, and `shared\ShortenLink.Hosting` provide the reusable package boundary. README documents `IShortLinkService`, `AddShortenLink(builder.Configuration)`, `UseShortenLinkRateLimiting()`, and `MapShortenLinkEndpoints()`. |
+| Reusable library is isolated from the demo app and can be packed as NuGet packages. | `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting` are packable. `ShortenLink.Api` and `ShortenLink.Web` are documented as demo apps, not reusable package surface. |
 | Demo API proves create, detail, delete/deactivate, and redirect flows. | `src\ShortenLink.Api` maps `POST /api/short-links`, `GET /api/short-links/{code}`, `DELETE /api/short-links/{code}`, and `GET /{code}`. API tests and consumer smoke cover the flow. |
 | React demo proves create, copy, inspect, and fallback behavior. | `src\ShortenLink.Web` contains the create page, detail page, fallback page, and short-link components. README documents the Vite demo flow. |
 | SQLite works by default. | README documents SQLite default configuration. Consumer smoke runs SQLite default mode with no PostgreSQL, Redis, Docker, frontend assets, credentials, or package publishing. |
@@ -34,9 +34,9 @@ outside source control, and explicit publish intent.
 
 | Capability | Evidence |
 |---|---|
-| Consumer package entry point | `ShortenLink.AspNetCore` is the normal package for ASP.NET Core hosts. |
+| Consumer package entry point | `ShortenLink.Hosting` is the normal package for ASP.NET Core hosts. |
 | Package metadata and README inclusion | `scripts\release-dry-run.ps1` inspects package IDs, versions, authors, README inclusion, license expression, repository metadata, tags, dependency shape, assemblies, and absence of demo API/Web coupling. |
-| Clean consumer install | `scripts\smoke-consumer-package.ps1` creates a clean ASP.NET Core app, installs `ShortenLink.AspNetCore`, maps package endpoints, and verifies create/detail/redirect/deactivate/post-delete redirect behavior. |
+| Clean consumer install | `scripts\smoke-consumer-package.ps1` creates a clean ASP.NET Core app, installs `ShortenLink.Hosting`, maps package endpoints, and verifies create/detail/redirect/deactivate/post-delete redirect behavior. |
 | Manual publish guardrails | `scripts\publish-nuget.ps1` previews by default, requires `-Publish`, requires `NUGET_API_KEY` or `-NuGetApiKey`, masks the key in displayed command arguments, and reruns release dry-run before `dotnet nuget push`. |
 | Live publish preflight | `docs\nuget-publish-preflight.md` separates repository-verifiable gates from external NuGet.org account, package ID ownership, API key scope, version availability, and maintainer approval checks. |
 | Local feed rehearsal | `scripts\rehearse-local-feed.ps1` validates packages, copies the three reusable packages to `.tmp\local-nuget-feed`, handles duplicate versions with `-ResetFeed` or `-SkipDuplicate`, and smokes a clean consumer from the existing feed. |
@@ -64,7 +64,7 @@ when the local PowerShell execution policy allows it.
 - `dotnet pack ShortenLink.slnx -c Release --verbosity minimal` can emit a
   warning for `ShortenLink.Api` because the demo host has packaging disabled.
   This is expected. The reusable packages are `ShortenLink.Core`,
-  `ShortenLink.Infrastructure`, and `ShortenLink.AspNetCore`.
+  `ShortenLink.Infrastructure`, and `ShortenLink.Hosting`.
 - Restore-heavy commands may need network access to `api.nuget.org` for package
   dependencies and repository signature checks. In sandboxed environments, a
   `NU1301` network error should be treated as an environment blocker before it is

@@ -19,7 +19,7 @@ Review all three reusable packages as one release set:
 |---|---|---|
 | `ShortenLink.Core` | Domain contracts, validation, service abstractions, requests, and results. | Confirm the package ID is owned or available on NuGet.org, the version is correct, and the public contract is intended for release. |
 | `ShortenLink.Infrastructure` | Persistence and provider adapters. | Confirm it depends on the matching `ShortenLink.Core` version and that its package ID and version are owned or available. |
-| `ShortenLink.AspNetCore` | Normal ASP.NET Core host entry point. | Confirm it depends on the matching lower-level package versions and is the package consumers should normally install. |
+| `ShortenLink.Hosting` | Normal ASP.NET Core host entry point. | Confirm it depends on the matching lower-level package versions and is the package consumers should normally install. |
 
 `ShortenLink.Api` and `ShortenLink.Web` are demo applications and must not be
 published as reusable NuGet packages.
@@ -44,9 +44,9 @@ Required local evidence:
   metadata, README inclusion, license expression, repository metadata, tags,
   dependencies, assemblies, and absence of demo API/Web coupling.
 - Local feed rehearsal copies `ShortenLink.Core`, `ShortenLink.Infrastructure`,
-  and `ShortenLink.AspNetCore` into a local folder feed without using
+  and `ShortenLink.Hosting` into a local folder feed without using
   NuGet.org credentials.
-- Consumer smoke installs `ShortenLink.AspNetCore` into a clean ASP.NET Core
+- Consumer smoke installs `ShortenLink.Hosting` into a clean ASP.NET Core
   app and verifies create, detail, redirect, deactivate, and post-delete
   redirect behavior.
 
@@ -62,7 +62,7 @@ repository:
 - A responsible maintainer is signed in to the correct NuGet.org account.
 - The account or organization owns, reserves, or is allowed to create all three
   package IDs: `ShortenLink.Core`, `ShortenLink.Infrastructure`, and
-  `ShortenLink.AspNetCore`.
+  `ShortenLink.Hosting`.
 - The chosen `<version>` has not already been published for any of the three
   package IDs, unless this is a deliberate retry using `-SkipDuplicate`.
 - The API key is scoped only as broadly as needed for the intended package IDs
@@ -126,7 +126,7 @@ After a successful intentional publish:
 - Verify all three packages are visible on NuGet.org under the expected owner.
 - Confirm package descriptions, README, license, repository metadata, tags, and
   dependency versions render correctly.
-- Install `ShortenLink.AspNetCore` into a clean consumer app from NuGet.org and
+- Install `ShortenLink.Hosting` into a clean consumer app from NuGet.org and
   rerun the create, detail, redirect, and deactivate smoke flow.
 - If a bad package is published, prefer deprecating or unlisting the affected
   version and publishing a corrected version. Do not try to overwrite the same

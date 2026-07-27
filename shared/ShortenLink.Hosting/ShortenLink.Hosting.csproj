@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ShortenLink.Core\ShortenLink.Core.csproj" />
+    <ProjectReference Include="..\..\src\ShortenLink.Application\ShortenLink.Application.csproj" />
+    <ProjectReference Include="..\..\src\ShortenLink.Infrastructure\ShortenLink.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.6" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageId>ShortenLink.Hosting</PackageId>
+    <Title>ShortenLink Hosting</Title>
+    <Description>ASP.NET Core host integration, configuration, caching, security, and runtime services for Shorten Link.</Description>
+    <Authors>ShortenLink Contributors</Authors>
+    <PackageTags>short-link;url-shortener;aspnetcore;hosting</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/long29103107/shorten-link</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/long29103107/shorten-link</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

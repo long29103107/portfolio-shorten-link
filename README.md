@@ -2,19 +2,19 @@
 
 Reusable .NET short-link library plus a demo ASP.NET Core API and React frontend.
 
-The reusable library projects are intentionally separated from the demo application so they can be packed as NuGet packages and consumed by other .NET applications. `ShortenLink.AspNetCore` is the normal package for ASP.NET Core hosts; the demo API and React app exist to prove the package behavior, not to own short-link business logic.
+The reusable library projects are intentionally separated from the demo application so they can be packed as NuGet packages and consumed by other .NET applications. `ShortenLink.Hosting` is the normal package for ASP.NET Core hosts; the demo API and React app exist to prove the package behavior, not to own short-link business logic.
 
 ## Project Structure
 
 ```text
 shared/
   ShortenLink.Mediator/          # Dependency-free request/handler mediator
+  ShortenLink.Hosting/           # ASP.NET Core DI, authorization, and host integration
 
 src/
   ShortenLink.Core/              # Domain entities, contracts, exceptions, and core services
   ShortenLink.Application/       # Feature commands/queries and application abstractions
   ShortenLink.Infrastructure/    # Persistence and provider adapters
-  ShortenLink.AspNetCore/        # DI setup, authorization, and host integration
   ShortenLink.Api/               # Thin ASP.NET Core host, endpoint groups, and exception mapping
   ShortenLink.Web/               # Demo React + Vite frontend
 
@@ -36,9 +36,9 @@ so endpoint files do not contain repository logic or repeated error branches.
 
 | Package | Use when |
 |---|---|
-| `ShortenLink.AspNetCore` | You are building an ASP.NET Core host and want DI registration, options binding, authorization, redirect fallback, analytics worker integration, cache wiring, and rate limiting. |
+| `ShortenLink.Hosting` | You are building an ASP.NET Core host and want DI registration, options binding, authorization, redirect fallback, analytics worker integration, cache wiring, and rate limiting. |
 | `ShortenLink.Core` | You need direct access to reusable domain models, validation, service contracts, request/result types, or `IShortLinkService` from non-host code. |
-| `ShortenLink.Infrastructure` | You are composing persistence manually or extending provider wiring. Most ASP.NET Core hosts receive it transitively through `ShortenLink.AspNetCore`. |
+| `ShortenLink.Infrastructure` | You are composing persistence manually or extending provider wiring. Most ASP.NET Core hosts receive it transitively through `ShortenLink.Hosting`. |
 
 `ShortenLink.Api` and `ShortenLink.Web` are demo applications and are not part of the reusable package surface.
 
@@ -55,16 +55,16 @@ dotnet test ShortenLink.slnx
 
 ### Pack The Consumer Package
 
-The normal ASP.NET Core consumer entry point is `ShortenLink.AspNetCore`. It references the lower-level reusable projects and exposes host-facing extension methods.
+The normal ASP.NET Core consumer entry point is `ShortenLink.Hosting`. It references the lower-level reusable projects and exposes host-facing extension methods.
 
 ```powershell
-dotnet pack src\ShortenLink.AspNetCore\ShortenLink.AspNetCore.csproj -c Release
+dotnet pack shared\ShortenLink.Hosting\ShortenLink.Hosting.csproj -c Release
 ```
 
 The package is created at:
 
 ```text
-src\ShortenLink.AspNetCore\bin\Release\ShortenLink.AspNetCore.1.0.0.nupkg
+shared\ShortenLink.Hosting\bin\Release\ShortenLink.Hosting.1.0.0.nupkg
 ```
 
 Lower-level packages can also be packed when a consumer needs them directly:
@@ -99,7 +99,7 @@ dotnet pack ShortenLink.slnx -c Release --verbosity minimal
 .\scripts\smoke-consumer-package.ps1
 ```
 
-The build/test/pack commands validate the repository and package artifacts. The consumer smoke creates a clean app, installs the packaged `ShortenLink.AspNetCore` entry point from a local package source, and verifies create, detail, redirect, deactivate, and post-delete redirect behavior without using demo API internals.
+The build/test/pack commands validate the repository and package artifacts. The consumer smoke creates a clean app, installs the packaged `ShortenLink.Hosting` entry point from a local package source, and verifies create, detail, redirect, deactivate, and post-delete redirect behavior without using demo API internals.
 
 The release dry-run script packs the reusable packages into `.tmp\release-dry-run`, inspects the package metadata and contents, confirms `README.md` is included, checks dependency shape, and verifies that demo API/Web artifacts are not coupled into the reusable packages. It never publishes to NuGet; passing `-Publish` fails closed.
 
@@ -113,7 +113,7 @@ Keep the dry-run package artifacts for inspection when needed:
 
 Use this checklist before any future real package publish:
 
-- Review package versions and release notes for `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.AspNetCore`.
+- Review package versions and release notes for `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting`.
 - Complete the maintainer preflight in `docs\nuget-publish-preflight.md`, including package ID ownership, account or organization ownership, API key scope, version availability, and release approval.
 - Run `dotnet build ShortenLink.slnx --verbosity minimal`.
 - Run `dotnet test ShortenLink.slnx --verbosity minimal`.
@@ -159,9 +159,9 @@ Use `-SkipDuplicate` only when retrying a partially completed publish and after 
 .\scripts\publish-nuget.ps1 -PackageVersion 1.0.0 -Publish -SkipDuplicate
 ```
 
-The publish script fails closed when `-Publish` is missing or no NuGet API key is available. When publishing is enabled, it reruns the release dry-run into `.tmp\nuget-publish` before pushing `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.AspNetCore`.
+The publish script fails closed when `-Publish` is missing or no NuGet API key is available. When publishing is enabled, it reruns the release dry-run into `.tmp\nuget-publish` before pushing `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting`.
 
-After publishing, verify the packages on NuGet, install `ShortenLink.AspNetCore` into a clean consumer app, and run the create, detail, redirect, and deactivate smoke flow again. If a bad package is published, prefer deprecating or unlisting the affected version and publishing a corrected version; do not overwrite the same NuGet version.
+After publishing, verify the packages on NuGet, install `ShortenLink.Hosting` into a clean consumer app, and run the create, detail, redirect, and deactivate smoke flow again. If a bad package is published, prefer deprecating or unlisting the affected version and publishing a corrected version; do not overwrite the same NuGet version.
 
 ### Local Feed Publish Rehearsal
 
@@ -171,7 +171,7 @@ Before using real NuGet credentials, rehearse the publish path against a local f
 .\scripts\rehearse-local-feed.ps1 -PackageVersion 1.0.0 -ResetFeed
 ```
 
-The rehearsal validates packages with `release-dry-run.ps1`, copies `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.AspNetCore` into `.tmp\local-nuget-feed`, then runs the clean consumer smoke against that existing feed. It does not call `dotnet nuget push`, does not require credentials, and never publishes to NuGet.org.
+The rehearsal validates packages with `release-dry-run.ps1`, copies `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting` into `.tmp\local-nuget-feed`, then runs the clean consumer smoke against that existing feed. It does not call `dotnet nuget push`, does not require credentials, and never publishes to NuGet.org.
 
 If the feed already contains the same package version, the script fails closed. Start a clean rehearsal feed with `-ResetFeed`, or intentionally retry against existing packages with `-SkipDuplicate`:
 
@@ -187,7 +187,7 @@ Keep rehearsal artifacts for inspection when needed:
 
 ## Use From Another .NET App
 
-Most ASP.NET Core consumers should start with `ShortenLink.AspNetCore`. That package is the host-facing entry point for dependency injection and runtime integration. Endpoint presentation is composed explicitly by the application host.
+Most ASP.NET Core consumers should start with `ShortenLink.Hosting`. That package is the host-facing entry point for dependency injection and runtime integration. Endpoint presentation is composed explicitly by the application host.
 
 ### Consumer Package Smoke
 
@@ -197,7 +197,7 @@ To validate the package from a clean consumer app shape, run:
 .\scripts\smoke-consumer-package.ps1
 ```
 
-The smoke script packs the reusable packages into a temporary local NuGet source, creates a clean ASP.NET Core app under `.tmp`, installs `ShortenLink.AspNetCore`, maps the library endpoints, runs SQLite default mode, and verifies create, detail, redirect, and deactivate behavior. It does not reference `ShortenLink.Api`, and it does not require PostgreSQL, Redis, Docker, frontend assets, credentials, or package publishing.
+The smoke script packs the reusable packages into a temporary local NuGet source, creates a clean ASP.NET Core app under `.tmp`, installs `ShortenLink.Hosting`, maps the library endpoints, runs SQLite default mode, and verifies create, detail, redirect, and deactivate behavior. It does not reference `ShortenLink.Api`, and it does not require PostgreSQL, Redis, Docker, frontend assets, credentials, or package publishing.
 
 To smoke an existing local package source without regenerating it:
 
@@ -216,7 +216,7 @@ Keep the generated consumer app and local package source for inspection when nee
 From the consumer app directory:
 
 ```powershell
-dotnet add reference ..\shorten-link\src\ShortenLink.AspNetCore\ShortenLink.AspNetCore.csproj
+dotnet add reference ..\shorten-link\shared\ShortenLink.Hosting\ShortenLink.Hosting.csproj
 ```
 
 ### Option 2: Install From A Local NuGet Folder
@@ -237,17 +237,17 @@ dotnet nuget add source .\.nupkg --name shorten-link-local
 Install the package:
 
 ```powershell
-dotnet add package ShortenLink.AspNetCore --source .\.nupkg
+dotnet add package ShortenLink.Hosting --source .\.nupkg
 ```
 
-If the consumer needs direct access to lower-level contracts, install/reference `ShortenLink.Core` as well. If it needs to compose EF Core persistence manually, install/reference `ShortenLink.Infrastructure`. Normal API hosts should start with `ShortenLink.AspNetCore`.
+If the consumer needs direct access to lower-level contracts, install/reference `ShortenLink.Core` as well. If it needs to compose EF Core persistence manually, install/reference `ShortenLink.Infrastructure`. Normal API hosts should start with `ShortenLink.Hosting`.
 
 ### ASP.NET Core Setup
 
 In the consumer app's `Program.cs`:
 
 ```csharp
-using ShortenLink.AspNetCore;
+using ShortenLink.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -497,7 +497,7 @@ The demo host still uses `AddShortenLink(builder.Configuration);` with no applic
 
 ## Configuration Defaults And Optional Providers
 
-SQLite is the safe default and requires no external infrastructure. PostgreSQL, Redis cache, click analytics, and rate limiting are opt-in through configuration. A consumer can install the same `ShortenLink.AspNetCore` package and choose behavior through `ShortenLink:*` settings instead of changing application code.
+SQLite is the safe default and requires no external infrastructure. PostgreSQL, Redis cache, click analytics, and rate limiting are opt-in through configuration. A consumer can install the same `ShortenLink.Hosting` package and choose behavior through `ShortenLink:*` settings instead of changing application code.
 
 ## Click Analytics
 

@@ -1,4 +1,4 @@
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 public static class ShortenLinkRateLimitingPolicyNames
 {

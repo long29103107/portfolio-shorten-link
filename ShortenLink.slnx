@@ -1,11 +1,11 @@
 <Solution>
   <Folder Name="/shared/">
     <Project Path="shared/ShortenLink.Mediator/ShortenLink.Mediator.csproj" />
+    <Project Path="shared/ShortenLink.Hosting/ShortenLink.Hosting.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/ShortenLink.Application/ShortenLink.Application.csproj" />
     <Project Path="src/ShortenLink.Api/ShortenLink.Api.csproj" />
-    <Project Path="src/ShortenLink.AspNetCore/ShortenLink.AspNetCore.csproj" />
     <Project Path="src/ShortenLink.Core/ShortenLink.Core.csproj" />
     <Project Path="src/ShortenLink.Infrastructure/ShortenLink.Infrastructure.csproj" />
   </Folder>

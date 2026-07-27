@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using ShortenLink.Core.Abstractions;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 internal sealed class SecureTokenGenerator : ISecureTokenGenerator
 {

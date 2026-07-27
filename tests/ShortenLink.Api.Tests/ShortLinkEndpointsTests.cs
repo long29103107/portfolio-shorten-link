@@ -11,7 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using ShortenLink.Api;
-using ShortenLink.AspNetCore;
+using ShortenLink.Hosting;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence.Entities;
 using ShortenLink.Core.Services;

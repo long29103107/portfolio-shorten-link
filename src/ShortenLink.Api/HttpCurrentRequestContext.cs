@@ -1,5 +1,5 @@
 using ShortenLink.Application.Abstractions;
-using ShortenLink.AspNetCore;
+using ShortenLink.Hosting;
 
 namespace ShortenLink.Api;
 

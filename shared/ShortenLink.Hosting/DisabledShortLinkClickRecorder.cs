@@ -1,6 +1,6 @@
 using ShortenLink.Core.Services;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 internal sealed class DisabledShortLinkClickRecorder : IShortLinkClickRecorder
 {

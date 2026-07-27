@@ -1,4 +1,4 @@
-using ShortenLink.AspNetCore;
+using ShortenLink.Hosting;
 using ShortenLink.Api;
 using ShortenLink.Api.Endpoints;
 using ShortenLink.Application.Features.ShortLinks.Create;

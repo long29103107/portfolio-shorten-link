@@ -30,10 +30,11 @@ Hệ thống nên đi theo hướng dễ mở rộng như kiến trúc URL Short
 
 ```txt
 shorten-link-solution/
+├── shared/
+│   └── ShortenLink.Hosting/        # ASP.NET Core DI setup, middleware, and host integration
 ├── src/
 │   ├── ShortenLink.Core/              # Domain models, interfaces, core logic
 │   ├── ShortenLink.Infrastructure/    # EF Core, repositories, SQLite/Postgres provider
-│   ├── ShortenLink.AspNetCore/        # Extension methods, DI setup, middleware, endpoint mapping
 │   ├── ShortenLink.Worker/            # Optional analytics/background jobs
 │   ├── ShortenLink.Api/               # Demo backend API using the library
 │   └── ShortenLink.Web/               # React frontend

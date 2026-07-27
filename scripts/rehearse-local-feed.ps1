@@ -50,7 +50,7 @@ Assert-UnderDirectory -Path $WorkDirectory -Parent $tempRoot
 $packageIds = @(
     "ShortenLink.Core",
     "ShortenLink.Infrastructure",
-    "ShortenLink.AspNetCore"
+    "ShortenLink.Hosting"
 )
 
 if ($ResetFeed -and (Test-Path -LiteralPath $FeedDirectory)) {

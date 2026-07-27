@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Services;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 internal sealed class ShortLinkClickBackgroundService : BackgroundService
 {

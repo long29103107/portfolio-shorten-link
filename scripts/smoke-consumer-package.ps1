@@ -159,7 +159,7 @@ try {
         ) | Out-Null
     }
 
-    foreach ($packageId in @("ShortenLink.Core", "ShortenLink.Infrastructure", "ShortenLink.AspNetCore")) {
+    foreach ($packageId in @("ShortenLink.Core", "ShortenLink.Infrastructure", "ShortenLink.Hosting")) {
         $packagePath = Join-Path $PackageSource "$packageId.$PackageVersion.nupkg"
         if (-not (Test-Path -LiteralPath $packagePath)) {
             throw "Expected local package was not produced: $packagePath"
@@ -179,7 +179,7 @@ try {
     Invoke-Tool -FileName $dotnet -WorkingDirectory $ConsumerRoot -Arguments @(
         "add",
         "package",
-        "ShortenLink.AspNetCore",
+        "ShortenLink.Hosting",
         "--version",
         $PackageVersion,
         "--no-restore"
@@ -191,8 +191,8 @@ try {
     }
 
     $projectText = Get-Content -LiteralPath $projectFile -Raw
-    if ($projectText -notmatch 'PackageReference Include="ShortenLink.AspNetCore"') {
-        throw "Consumer project does not reference the ShortenLink.AspNetCore package."
+    if ($projectText -notmatch 'PackageReference Include="ShortenLink.Hosting"') {
+        throw "Consumer project does not reference the ShortenLink.Hosting package."
     }
 
     if ($projectText -match "ProjectReference|ShortenLink.Api") {
@@ -201,7 +201,7 @@ try {
 
     $programPath = Join-Path $ConsumerRoot "Program.cs"
     @'
-using ShortenLink.AspNetCore;
+using ShortenLink.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -334,7 +334,7 @@ app.Run();
         PackageSource = $PackageSource
         PackageSourceMode = if ($UseExistingPackageSource) { "Existing" } else { "Generated" }
         ApiUrl = $ApiUrl
-        Package = "ShortenLink.AspNetCore"
+        Package = "ShortenLink.Hosting"
         PackageVersion = $PackageVersion
         Alias = $alias
         CreateStatus = [int]$createResponse.StatusCode

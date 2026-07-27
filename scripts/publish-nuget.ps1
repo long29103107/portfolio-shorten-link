@@ -100,7 +100,7 @@ Assert-UnderDirectory -Path $PackageDirectory -Parent $tempRoot
 $packageIds = @(
     "ShortenLink.Core",
     "ShortenLink.Infrastructure",
-    "ShortenLink.AspNetCore"
+    "ShortenLink.Hosting"
 )
 
 if (-not $Publish) {

@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using ShortenLink.AspNetCore;
+using ShortenLink.Hosting;
 using ShortenLink.Application.Features.ShortLinks.Redirect;
 using ShortenLink.Mediator;
 

@@ -1,6 +1,6 @@
 using ShortenLink.Core.Security;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 public static class ShortenLinkPermissions
 {

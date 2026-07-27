@@ -98,12 +98,12 @@ These are the most valuable improvements from the current app state.
 ```txt
 shared/
   ShortenLink.Mediator/          # Dependency-free mediator contracts and dispatcher
+  ShortenLink.Hosting/           # ASP.NET Core DI, authorization, and host integration
 
 src/
   ShortenLink.Core/              # Domain entities, contracts, exceptions, validation, core services
   ShortenLink.Application/       # Vertical feature commands/queries and application ports
   ShortenLink.Infrastructure/    # EF mapping, repositories, SQLite/PostgreSQL providers
-  ShortenLink.AspNetCore/        # DI setup, options, authorization, middleware helpers
   ShortenLink.Worker/            # Optional analytics/background jobs
   ShortenLink.Api/               # Thin HTTP host, endpoint groups, adapters, global exception handling
   ShortenLink.Web/               # React + Vite frontend

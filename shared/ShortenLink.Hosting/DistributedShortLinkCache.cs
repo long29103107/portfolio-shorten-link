@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Services;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 internal sealed class DistributedShortLinkCache : IShortLinkCache
 {

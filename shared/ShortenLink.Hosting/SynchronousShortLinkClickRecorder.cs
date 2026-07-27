@@ -1,7 +1,7 @@
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Services;
 
-namespace ShortenLink.AspNetCore;
+namespace ShortenLink.Hosting;
 
 internal sealed class SynchronousShortLinkClickRecorder : IShortLinkClickRecorder
 {
