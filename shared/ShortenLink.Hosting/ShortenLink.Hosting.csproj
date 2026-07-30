@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\ShortenLink.Mediator\ShortenLink.Mediator.csproj" />
     <ProjectReference Include="..\..\src\ShortenLink.Core\ShortenLink.Core.csproj" />
     <ProjectReference Include="..\..\src\ShortenLink.Application\ShortenLink.Application.csproj" />
     <ProjectReference Include="..\..\src\ShortenLink.Infrastructure\ShortenLink.Infrastructure.csproj" />

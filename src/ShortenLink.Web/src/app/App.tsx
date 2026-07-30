@@ -11,6 +11,7 @@ import {
 import { getCurrentSecurityUser } from "../features/short-links/api/shortLinksApi";
 import { LoginPage } from "../features/short-links/pages/LoginPage";
 import { AdminDashboardPage } from "../features/short-links/pages/AdminDashboardPage";
+import { AuditLogPage } from "../features/short-links/pages/AuditLogPage";
 import { SecurityManagementPage } from "../features/short-links/pages/SecurityManagementPage";
 import { ShortLinkAdminPage } from "../features/short-links/pages/ShortLinkAdminPage";
 import { StatusPage } from "../features/short-links/pages/StatusPage";
@@ -27,7 +28,7 @@ import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 import { Toaster } from "../shared/components/Toaster";
 import { parseRoute } from "./router";
 
-type NavigationIconName = "endpoint" | "admin" | "users" | "roles" | "sign-in";
+type NavigationIconName = "endpoint" | "admin" | "audit" | "users" | "roles" | "sign-in";
 
 const securitySectionIcons = {
   users: "users",
@@ -113,6 +114,8 @@ export function App() {
         ? "/short-links"
         : route.kind === "security"
           ? `/admin/security/${route.section}`
+          : route.kind === "audit"
+            ? "/audit-logs"
           : route.kind === "dashboard"
             ? "/admin/dashboard"
             : window.location.pathname;
@@ -171,6 +174,8 @@ export function App() {
       ? "Admin"
       : route.kind === "dashboard"
         ? "Dashboard"
+      : route.kind === "audit"
+        ? "Audit logs"
       : route.kind === "security"
         ? "Identity & Access"
       : route.kind === "login"
@@ -186,6 +191,8 @@ export function App() {
       ? "Manage generated random short links"
       : route.kind === "dashboard"
         ? "Monitor short links and access controls"
+      : route.kind === "audit"
+        ? "Investigate durable mutation history"
       : route.kind === "security"
         ? `Manage ${route.section} access controls`
       : route.kind === "login"
@@ -251,6 +258,16 @@ export function App() {
               <NavigationIcon name="admin" />
               Dashboard
             </Button>
+            {adminPermissions.canReadAuditLogs ? (
+              <Button
+                className="sidebar-nav-button"
+                variant="ghost"
+                onClick={() => navigate("/audit-logs")}
+              >
+                <NavigationIcon name="audit" />
+                Audit logs
+              </Button>
+            ) : null}
             <div className="sidebar-nav-group">
               <p className="sidebar-nav-group-label">Security</p>
               {(["users", "roles"] as const).map((section) => (
@@ -280,6 +297,17 @@ export function App() {
                 <NavigationIcon name="endpoint" />
                 Short links
               </Button>
+              {adminPermissions.canReadAuditLogs ? (
+                <Button
+                  className="sidebar-nav-button"
+                  aria-current={route.kind === "audit" ? "page" : undefined}
+                  variant="ghost"
+                  onClick={() => navigate("/audit-logs")}
+                >
+                  <NavigationIcon name="audit" />
+                  Audit logs
+                </Button>
+              ) : null}
             </div>
           </nav>
         )}
@@ -420,6 +448,12 @@ export function App() {
           <AdminDashboardPage />
         ) : null}
 
+        {route.kind === "audit" ? (
+          adminPermissions.canReadAuditLogs
+            ? <AuditLogPage />
+            : <StatusPage statusCode={403} onBackHome={() => navigate("/")} />
+        ) : null}
+
         {route.kind === "security" ? (
           <SecurityManagementPage section={route.section} onDirtyChange={setHasAdminEditChanges} />
         ) : null}
@@ -460,6 +494,12 @@ function NavigationIcon({ name }: { name: NavigationIconName }) {
       <>
         <rect width="18" height="18" x="3" y="3" rx="2" />
         <path d="M8 3v18M8 8h13M8 13h13" />
+      </>
+    ),
+    audit: (
+      <>
+        <path d="M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H19v20H6.5A2.5 2.5 0 0 1 4 19.5Z" />
+        <path d="M8 7h7M8 11h7M8 15h4" />
       </>
     ),
     users: (

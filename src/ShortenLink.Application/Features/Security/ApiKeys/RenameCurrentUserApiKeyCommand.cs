@@ -1,4 +1,5 @@
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Features.Audit;
 using ShortenLink.Mediator;
 
 namespace ShortenLink.Application.Features.Security.ApiKeys;
@@ -9,7 +10,8 @@ public sealed record RenameCurrentUserApiKeyCommand(
 
 internal sealed class RenameCurrentUserApiKeyCommandHandler(
     ICurrentRequestContext requestContext,
-    IShortenLinkUserApiKeyRepository apiKeyRepository)
+    IShortenLinkUserApiKeyRepository apiKeyRepository,
+    ShortLinkAuditWriter auditWriter)
     : IRequestHandler<RenameCurrentUserApiKeyCommand, SecurityUserApiKeyResponse>
 {
     public async Task<SecurityUserApiKeyResponse> Handle(
@@ -44,6 +46,14 @@ internal sealed class RenameCurrentUserApiKeyCommandHandler(
             apiKey.CreatedAt);
 
         await apiKeyRepository.AddOrUpdateAsync(renamed, cancellationToken);
+        await auditWriter.RecordAsync(
+            user.UserId,
+            ShortLinkAuditActions.UserApiKeyRenamed,
+            renamed.ApiKeyKey,
+            user.UserId,
+            subjectUserId: user.UserId,
+            targetType: ShortLinkAuditTargetTypes.UserApiKey,
+            cancellationToken: cancellationToken);
         return SecurityUserApiKeyResponse.FromDomain(renamed);
     }
 }

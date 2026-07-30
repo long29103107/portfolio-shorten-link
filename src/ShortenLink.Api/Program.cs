@@ -12,8 +12,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddShortenLink(builder.Configuration);
 builder.Services.AddApplicationMediator(typeof(CreateShortLinkCommand).Assembly);
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentRequestContext, HttpCurrentRequestContext>();
 builder.Services.AddScoped<ISecuritySessionService, SecuritySessionServiceAdapter>();
 builder.Services.AddScoped<ShortLinkAccessGuard>();
 builder.Services.AddScoped<ShortLinkAuditWriter>();
@@ -32,9 +30,9 @@ if (app.Environment.IsDevelopment())
 app.UseRateLimiter();
 app.UseExceptionHandler();
 
-app.MapShortLinkManagementEndpoints();
+app.MapShortenLinkEndpoints();
 app.MapAuditLogEndpoints();
-app.MapRedirectEndpoints();
+app.MapRateLimitEndpoints();
 app.MapSecuritySessionEndpoints();
 app.MapSecurityApiKeyEndpoints();
 app.MapSecurityRoleEndpoints();

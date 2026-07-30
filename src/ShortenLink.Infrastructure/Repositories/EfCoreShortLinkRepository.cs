@@ -5,15 +5,9 @@ using ShortenLink.Infrastructure.Persistence;
 
 namespace ShortenLink.Infrastructure.Repositories;
 
-public sealed class EfCoreShortLinkRepository : IShortLinkRepository
+public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
+    : EfCoreRepository<ShortLinkPersistenceEntity>(dbContext), IShortLinkRepository
 {
-    private readonly ShortLinkDbContext dbContext;
-
-    public EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
-    {
-        this.dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    }
-
     public async Task<IReadOnlyList<ShortLink>> ListRecentAsync(
         int limit,
         DateTimeOffset? beforeCreatedAt = null,
@@ -22,8 +16,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
     {
         var safeLimit = Math.Clamp(limit, 1, 500);
 
-        var records = await dbContext.ShortLinks
-            .AsNoTracking()
+        var records = await ReadOnlyEntities
             .ToListAsync(cancellationToken)
             ;
 
@@ -44,8 +37,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(accessScope);
-        var records = await dbContext.ShortLinks
-            .AsNoTracking()
+        var records = await ReadOnlyEntities
             .ToListAsync(cancellationToken)
             ;
         return records
@@ -85,8 +77,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
     {
         var safeSkip = Math.Max(skip, 0);
         var safeLimit = Math.Clamp(limit, 1, 500);
-        var records = await dbContext.ShortLinks
-            .AsNoTracking()
+        var records = await ReadOnlyEntities
             .ToListAsync(cancellationToken)
             ;
 
@@ -100,7 +91,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
     }
 
     public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
-        dbContext.ShortLinks.CountAsync(cancellationToken);
+        Entities.CountAsync(cancellationToken);
 
     public async Task<ShortLinkListPage> ListPageAsync(
         int skip,
@@ -112,8 +103,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
 
         var safeSkip = Math.Max(skip, 0);
         var safeLimit = Math.Clamp(limit, 1, 500);
-        var records = await dbContext.ShortLinks
-            .AsNoTracking()
+        var records = await ReadOnlyEntities
             .ToListAsync(cancellationToken)
             ;
 
@@ -141,8 +131,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
         string code,
         CancellationToken cancellationToken = default)
     {
-        var record = await dbContext.ShortLinks
-            .AsNoTracking()
+        var record = await ReadOnlyEntities
             .FirstOrDefaultAsync(link => link.Code == code, cancellationToken)
             ;
 
@@ -228,7 +217,7 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
     public Task<bool> ExistsByCodeAsync(
         string code,
         CancellationToken cancellationToken = default) =>
-        dbContext.ShortLinks.AnyAsync(link => link.Code == code, cancellationToken);
+        Entities.AnyAsync(link => link.Code == code, cancellationToken);
 
     public async Task AddAsync(
         ShortLink shortLink,
@@ -236,8 +225,9 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
     {
         ArgumentNullException.ThrowIfNull(shortLink);
 
-        dbContext.ShortLinks.Add(ShortLinkPersistenceEntity.FromDomain(shortLink));
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await AddEntityAsync(
+            ShortLinkPersistenceEntity.FromDomain(shortLink),
+            cancellationToken);
     }
 
     public async Task UpdateAsync(
@@ -246,34 +236,34 @@ public sealed class EfCoreShortLinkRepository : IShortLinkRepository
     {
         ArgumentNullException.ThrowIfNull(shortLink);
 
-        var record = await dbContext.ShortLinks
+        var record = await Entities
             .FirstOrDefaultAsync(link => link.Code == shortLink.Code, cancellationToken)
             ;
 
         if (record is null)
         {
-            dbContext.ShortLinks.Add(ShortLinkPersistenceEntity.FromDomain(shortLink));
+            Entities.Add(ShortLinkPersistenceEntity.FromDomain(shortLink));
         }
         else
         {
             record.UpdateFromDomain(shortLink);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(
         string code,
         CancellationToken cancellationToken = default)
     {
-        var record = await dbContext.ShortLinks
+        var record = await Entities
             .FirstOrDefaultAsync(link => link.Code == code, cancellationToken)
             ;
 
         if (record is not null)
         {
-            dbContext.ShortLinks.Remove(record);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            Entities.Remove(record);
+            await SaveChangesAsync(cancellationToken);
         }
     }
 }

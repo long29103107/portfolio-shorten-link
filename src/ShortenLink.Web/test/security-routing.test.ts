@@ -10,6 +10,7 @@ describe("security navigation", () => {
   test("routes admin security sidebar destinations", () => {
     expect(parseRoute("/short-links")).toEqual({ kind: "admin" });
     expect(parseRoute("/admin/dashboard")).toEqual({ kind: "dashboard" });
+    expect(parseRoute("/audit-logs")).toEqual({ kind: "audit" });
     expect(parseRoute("/admin")).toEqual({ kind: "status", statusCode: 404 });
     expect(parseRoute("/admin/security")).toEqual({ kind: "security", section: "users" });
     expect(parseRoute("/admin/security/users")).toEqual({ kind: "security", section: "users" });

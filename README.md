@@ -255,11 +255,56 @@ builder.Services.AddShortenLink(builder.Configuration);
 
 var app = builder.Build();
 
-app.UseShortenLinkRateLimiting();
-// Map the endpoint groups owned by your application host.
+app.UseRateLimiter();
+app.MapShortenLinkEndpoints();
 
 app.Run();
 ```
+
+`AddShortenLink` registers the default HTTP request context and the built-in
+session/API-key authorization evaluator through `TryAdd`. An external host can
+bring its own identity and policy system by registering replacements before
+the package:
+
+```csharp
+builder.Services.AddScoped<ICurrentRequestContext, ClaimsPrincipalRequestContext>();
+builder.Services.AddScoped<IShortenLinkAuthorizationService, PolicyAuthorizationService>();
+builder.Services.AddShortenLink(builder.Configuration);
+```
+
+The replacement authorization service returns `ShortenLinkAuthorizationResult`
+with `Success(...)`, `Unauthorized()`, or `Forbidden()`. Application handlers
+continue to use the same permission and ownership contracts, so the consumer
+does not need to reference `ShortenLink.Api` or copy its request-context adapter.
+
+For a host that only resolves redirects, omit the security persistence and
+bootstrap-admin path while keeping the same redirect handler:
+
+```csharp
+builder.Services.AddShortenLink(
+    builder.Configuration,
+    options => options.RedirectOnly = true);
+
+app.MapShortenLinkEndpoints(options =>
+{
+    options.MapManagementEndpoints = false;
+});
+```
+
+The default full profile remains unchanged when the overload is not used.
+
+Providers that own persistence can opt out of EF registration and supply the
+public Core contracts (`IShortLinkRepository`, `IUnitOfWork`, click/share/audit
+repositories) through DI:
+
+```csharp
+builder.Services.AddShortenLink(
+    builder.Configuration,
+    options => options.UseExternalPersistence = true);
+```
+
+External providers own transactions, concurrency, schema/migrations, and the
+durability guarantees of their repository implementations.
 
 Minimum `appsettings.json` configuration for SQLite default mode:
 
@@ -528,13 +573,41 @@ Example configuration:
 }
 ```
 
+## Admin CSV Export
+
+The protected short-link workspace includes an `Export CSV` action beside the
+discovery filters. It reuses the current search, status, and sort criteria,
+fetches all matching pages through `GET /api/short-links`, and downloads a
+stable UTF-8 CSV containing only safe link metadata. Ownership, sharing, and
+permission scope remain enforced by the API; the browser does not broaden the
+result set.
+
+## Short-Link QR Codes
+
+Authorized rows in the protected short-link workspace expose a `QR code`
+action. The dialog generates a PNG QR image from the existing public `shortUrl`,
+shows the URL for confirmation, and supports downloading the image. No
+destination URL, credential, audit field, or session material is encoded, and
+QR presentation does not add an endpoint or change redirect behavior. QR
+generation is client-side and remains scoped to the links already returned by
+the authorized list API.
+
 ## Mutation Audit Log
 
 Successful short-link create, update, activate, deactivate, delete, share grant,
-share update, and share revoke operations append durable audit events. Events
-retain the actor, action, short-code target, owner, outcome, occurrence time,
-optional share subject, and non-secret detail; destination URLs, passwords, API
-keys, hashes, and session tokens are not recorded.
+share update, and share revoke operations append durable audit events. Successful
+login, token refresh, user-owned API-key changes, and admin user, role,
+permission-override, and persisted security-assignment changes are audited
+through the same contract. Events retain the actor, action, typed stable target,
+owner when user visibility applies, outcome, occurrence time, and optional
+non-secret context; destination URLs, passwords, raw API keys, credential
+hashes, and session tokens are not recorded.
+
+Audit delivery is fail-open: the business transaction commits first, then the
+event is queued for background persistence through a separate database scope.
+Temporary audit storage failures are logged and do not fail link, sharing,
+authentication, or security-administration requests; audit discovery is
+eventually consistent with the completed mutation.
 
 Authorized callers with `audit_logs.read` can query:
 
@@ -544,10 +617,18 @@ GET /api/audit-logs?limit=50&cursor=<cursor>&action=short_link.updated&targetId=
 
 Results are newest-first and return `{ "items": [...], "nextCursor": "..." }`.
 Admin can inspect all matching events. User results remain limited to events for
-owned links or links currently shared with that user; the persisted owner id
-keeps owner history available after link deletion. Missing credentials use the
-existing `401 unauthorized` response, and callers without `audit_logs.read`
-receive the existing `403 forbidden` response.
+owned links, links currently shared with that user, and that user's own
+authentication and API-key activity. Security-administration events remain
+Admin-only even when they target that user. The persisted owner id keeps owner
+history available after link deletion. Missing credentials use the existing
+`401 unauthorized` response, and callers without `audit_logs.read` receive the
+existing `403 forbidden` response.
+
+Authenticated callers with `audit_logs.read` can open `/audit-logs` in the web
+app. The investigation page loads newest-first results, supports action,
+target-id, actor-id, and time-range filters, and follows the opaque cursor to
+load older events. Scope is always enforced by the API; the browser does not
+reconstruct or broaden Admin/User visibility.
 
 ## Redirect Cache
 
@@ -583,6 +664,15 @@ Phase 3 adds opt-in HTTP rate limiting for public create and redirect paths:
 - `ShortenLink:RateLimiting:Create` applies to `POST /api/short-links`.
 - `ShortenLink:RateLimiting:Redirect` applies to `GET /{code}` before cache lookup, database lookup, or click analytics recording.
 - Over-limit requests return HTTP `429`.
+
+Admins can inspect the current rate-limit configuration and bounded recent
+throttling activity through `GET /api/admin/rate-limits`. The response reports
+whether rate limiting is enabled, each policy's permit limit, fixed-window
+duration, queue limit, aggregate rejection count, and the most recent
+policy/timestamp pairs. It intentionally omits IP addresses, URLs, short-link
+codes, request payloads, and credentials. Activity is process-local and bounded
+in memory; it is operational visibility, not a durable metrics store. Non-Admin
+callers receive `403 forbidden`.
 
 Example configuration:
 
@@ -647,6 +737,19 @@ The API now exposes:
 In development, `src\ShortenLink.Api\appsettings.Development.json` overrides `ShortenLink:BaseUrl` to `https://localhost:7154` and sets `ShortenLink:Redirect:FrontendFallbackPath` to `http://localhost:5173/not-found` so returned short URLs and unknown-code fallback both line up with the local split API + Vite setup.
 
 ## Frontend Demo
+
+### Expiry Presentation
+
+The short-link list and detail view display expiry values with the browser's
+local timezone abbreviation. Active links expiring within the next 24 hours
+also show an explicit `Expiring soon` label and supporting text; inactive and
+expired states keep their existing lifecycle meaning. This is presentation
+only: the API still requires a future expiry and remains authoritative for
+status, authorization, and redirect behavior.
+
+Create and Edit share the same local-time quick picks: `+30m`, `+60m`,
+`+180m`, `+6h`, and `+12h`. The selected local value is converted to the UTC
+instant sent to the API; no fixed timezone is imposed on the browser.
 
 The React + Vite app provides authenticated creation, compact copy feedback,
 owned/shared link management, Admin dashboard and security screens, detail,

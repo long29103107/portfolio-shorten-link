@@ -1,4 +1,5 @@
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Features.Audit;
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
 
@@ -10,17 +11,21 @@ public sealed record DeleteCustomSecurityRoleCommand(
 internal sealed class DeleteCustomSecurityRoleCommandHandler(
     ICurrentRequestContext requestContext,
     IShortenLinkSecurityRoleRepository roleRepository,
-    IShortenLinkSecurityUserRepository userRepository)
+    IShortenLinkSecurityUserRepository userRepository,
+    ShortLinkAuditWriter auditWriter)
     : IRequestHandler<DeleteCustomSecurityRoleCommand, SecurityRoleDeletedResponse>
 {
     public async Task<SecurityRoleDeletedResponse> Handle(
         DeleteCustomSecurityRoleCommand request,
         CancellationToken cancellationToken)
     {
-        await requestContext.EnsureAdminAsync(cancellationToken);
+        var actor = await requestContext.AuthorizeAsync(
+            SecurityFeatureSupport.AdminOnly,
+            cancellationToken);
         if (ShortenLinkSystemRoles.PermissionBundles.ContainsKey(request.Id))
             throw new BusinessRuleException(ErrorCodes.SystemRoleImmutable, "System roles cannot be deleted.");
-        if (await roleRepository.FindCustomRoleAsync(request.Id, cancellationToken) is null)
+        var existing = await roleRepository.FindCustomRoleAsync(request.Id, cancellationToken);
+        if (existing is null)
             throw new NotFoundException(ErrorCodes.NotFound, "Custom role was not found.");
 
         var users = await userRepository.ListAsync(includeHidden: true, cancellationToken);
@@ -32,6 +37,13 @@ internal sealed class DeleteCustomSecurityRoleCommandHandler(
                 $"Role is assigned to {assignedCount} user(s). Remove or replace the role on those users before deleting it.");
         if (!await roleRepository.DeleteCustomRoleAsync(request.Id, cancellationToken))
             throw new NotFoundException(ErrorCodes.NotFound, "Custom role was not found.");
+        await auditWriter.RecordAsync(
+            actor,
+            ShortLinkAuditActions.SecurityRoleDeleted,
+            existing.RoleKey,
+            ownerUserId: null,
+            cancellationToken: cancellationToken,
+            targetType: ShortLinkAuditTargetTypes.SecurityRole);
         return new SecurityRoleDeletedResponse(request.Id);
     }
 }

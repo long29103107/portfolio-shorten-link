@@ -5,23 +5,18 @@ using ShortenLink.Infrastructure.Persistence;
 
 namespace ShortenLink.Infrastructure.Repositories;
 
-public sealed class EfCoreShortLinkClickRepository : IShortLinkClickRepository
+public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
+    : EfCoreRepository<ShortLinkClickPersistenceEntity>(dbContext), IShortLinkClickRepository
 {
-    private readonly ShortLinkDbContext dbContext;
-
-    public EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
-    {
-        this.dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    }
-
     public async Task AddAsync(
         ShortLinkClick shortLinkClick,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(shortLinkClick);
 
-        dbContext.ShortLinkClicks.Add(ShortLinkClickPersistenceEntity.FromDomain(shortLinkClick));
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await AddEntityAsync(
+            ShortLinkClickPersistenceEntity.FromDomain(shortLinkClick),
+            cancellationToken);
     }
 
     public async Task<ShortLinkClickSummary> GetSummaryAsync(
@@ -30,8 +25,7 @@ public sealed class EfCoreShortLinkClickRepository : IShortLinkClickRepository
     {
         ShortCodeValidator.ValidateCodeOrThrow(shortCode);
 
-        var query = dbContext.ShortLinkClicks
-            .AsNoTracking()
+        var query = ReadOnlyEntities
             .Where(click => click.ShortCode == shortCode);
         var clickCount = await query.LongCountAsync(cancellationToken);
         var clickedAtValues = await query
@@ -53,8 +47,7 @@ public sealed class EfCoreShortLinkClickRepository : IShortLinkClickRepository
         ShortCodeValidator.ValidateCodeOrThrow(shortCode);
 
         var safeLimit = Math.Clamp(limit, 1, 100);
-        var records = await dbContext.ShortLinkClicks
-            .AsNoTracking()
+        var records = await ReadOnlyEntities
             .Where(click => click.ShortCode == shortCode)
             .ToListAsync(cancellationToken)
             ;

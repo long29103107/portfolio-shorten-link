@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$PackageVersion = "1.0.0",
+    [string]$PackageVersion = "1.0.1",
     [string]$ApiUrl = "http://127.0.0.1:5298",
     [string]$PackageSource = "",
     [string]$ConsumerRoot = "",
@@ -153,6 +153,7 @@ try {
             "Release",
             "-o",
             $PackageSource,
+            "-p:PackageVersion=$PackageVersion",
             "--no-restore",
             "--verbosity",
             "minimal"
@@ -175,6 +176,17 @@ try {
         "--output",
         $ConsumerRoot
     ) | Out-Null
+
+    # Keep the generated consumer isolated from repository-wide implicit
+    # global usings and project conventions while it verifies NuGet usage.
+    @'
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
+'@ | Set-Content -LiteralPath (Join-Path $ConsumerRoot "Directory.Build.props") -Encoding UTF8
 
     Invoke-Tool -FileName $dotnet -WorkingDirectory $ConsumerRoot -Arguments @(
         "add",
@@ -209,7 +221,7 @@ builder.Services.AddShortenLink(builder.Configuration);
 
 var app = builder.Build();
 
-app.UseShortenLinkRateLimiting();
+app.UseRateLimiter();
 app.MapShortenLinkEndpoints();
 app.MapGet("/consumer-health", () => Results.Ok(new { status = "ok", app = "consumer-smoke" }));
 
@@ -220,9 +232,8 @@ app.Run();
         "restore",
         "--source",
         $PackageSource,
-        "--source",
-        "https://api.nuget.org/v3/index.json",
         "--ignore-failed-sources",
+        "--force-evaluate",
         "--verbosity",
         "minimal"
     ) | Out-Null
@@ -291,10 +302,10 @@ app.Run();
         throw "Consumer app did not become ready.`nSTDOUT:`n$stdout`nSTDERR:`n$stderr"
     }
 
-    $alias = "consumer$(([Guid]::NewGuid().ToString("N")).Substring(0, 8))"
+    $expiry = (Get-Date).ToUniversalTime().AddHours(1).ToString("o")
     $createResponse = Invoke-Json -Client $client -Method "Post" -Url ($ApiUrl.TrimEnd("/") + "/api/short-links") -Body @{
         originalUrl = "https://example.com/consumer-smoke"
-        customAlias = $alias
+        expiredAtUtc = $expiry
     }
 
     if ([int]$createResponse.StatusCode -ne 201) {
@@ -302,11 +313,11 @@ app.Run();
     }
 
     $created = $createResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
-    $detailResponse = Invoke-Json -Client $client -Method "Get" -Url ($ApiUrl.TrimEnd("/") + "/api/short-links/$alias")
+    $detailResponse = Invoke-Json -Client $client -Method "Get" -Url ($ApiUrl.TrimEnd("/") + "/api/short-links/$($created.code)")
     $detail = $detailResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
-    $redirectResponse = Invoke-Json -Client $client -Method "Get" -Url ($ApiUrl.TrimEnd("/") + "/$alias")
-    $deleteResponse = Invoke-Json -Client $client -Method "Delete" -Url ($ApiUrl.TrimEnd("/") + "/api/short-links/$alias")
-    $postDeleteRedirect = Invoke-Json -Client $client -Method "Get" -Url ($ApiUrl.TrimEnd("/") + "/$alias")
+    $redirectResponse = Invoke-Json -Client $client -Method "Get" -Url ($ApiUrl.TrimEnd("/") + "/$($created.code)")
+    $deleteResponse = Invoke-Json -Client $client -Method "Delete" -Url ($ApiUrl.TrimEnd("/") + "/api/short-links/$($created.code)")
+    $postDeleteRedirect = Invoke-Json -Client $client -Method "Get" -Url ($ApiUrl.TrimEnd("/") + "/$($created.code)")
 
     if ([int]$detailResponse.StatusCode -ne 200) {
         throw "Get detail failed with status $([int]$detailResponse.StatusCode)."
@@ -336,7 +347,7 @@ app.Run();
         ApiUrl = $ApiUrl
         Package = "ShortenLink.Hosting"
         PackageVersion = $PackageVersion
-        Alias = $alias
+        Code = $created.code
         CreateStatus = [int]$createResponse.StatusCode
         DetailStatus = [int]$detailResponse.StatusCode
         RedirectStatus = [int]$redirectResponse.StatusCode

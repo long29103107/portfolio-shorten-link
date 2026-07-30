@@ -1,7 +1,8 @@
+using Microsoft.AspNetCore.Http;
 using ShortenLink.Application.Abstractions;
-using ShortenLink.Hosting;
+using ShortenLink.Core.Exceptions;
 
-namespace ShortenLink.Api;
+namespace ShortenLink.Hosting;
 
 internal sealed class HttpCurrentRequestContext(
     IHttpContextAccessor httpContextAccessor,
@@ -12,20 +13,10 @@ internal sealed class HttpCurrentRequestContext(
         string permission,
         CancellationToken cancellationToken = default)
     {
-        var httpContext = GetHttpContext();
-        var result = await authorizationService
-            .AuthorizeAsync(httpContext, permission, cancellationToken)
-            ;
-
+        var result = await AuthorizeResultAsync(permission, cancellationToken);
         if (!result.Succeeded)
         {
-            throw result.IsAuthenticated
-                ? new ForbiddenException(
-                    result.ErrorCode ?? ErrorCodes.Forbidden,
-                    result.ErrorMessage ?? "The request is not authorized.")
-                : new AuthenticationRequiredException(
-                    result.ErrorCode ?? ErrorCodes.Unauthorized,
-                    result.ErrorMessage ?? "A valid credential is required.");
+            throw ToException(result);
         }
     }
 
@@ -33,18 +24,12 @@ internal sealed class HttpCurrentRequestContext(
         string permission,
         CancellationToken cancellationToken = default)
     {
-        var result = await authorizationService.AuthorizeAsync(
-            GetHttpContext(), permission, cancellationToken);
+        var result = await AuthorizeResultAsync(permission, cancellationToken);
         if (!result.Succeeded)
         {
-            throw result.IsAuthenticated
-                ? new ForbiddenException(
-                    result.ErrorCode ?? ErrorCodes.Forbidden,
-                    result.ErrorMessage ?? "The request is not authorized.")
-                : new AuthenticationRequiredException(
-                    result.ErrorCode ?? ErrorCodes.Unauthorized,
-                    result.ErrorMessage ?? "A valid credential is required.");
+            throw ToException(result);
         }
+
         return new CurrentRequestActor(result.UserId, result.IsAdmin, result.ActorId);
     }
 
@@ -52,8 +37,7 @@ internal sealed class HttpCurrentRequestContext(
         CancellationToken cancellationToken = default)
     {
         var session = await userSessionService
-            .GetCurrentUserAsync(GetHttpContext(), cancellationToken)
-            ;
+            .GetCurrentUserAsync(GetHttpContext(), cancellationToken);
 
         return session.Succeeded && session.Principal is not null
             ? new CurrentUser(
@@ -64,6 +48,23 @@ internal sealed class HttpCurrentRequestContext(
                 session.Principal.Permissions)
             : null;
     }
+
+    private async Task<ShortenLinkAuthorizationResult> AuthorizeResultAsync(
+        string permission,
+        CancellationToken cancellationToken) =>
+        await authorizationService.AuthorizeAsync(
+            GetHttpContext(),
+            permission,
+            cancellationToken);
+
+    private static Exception ToException(ShortenLinkAuthorizationResult result) =>
+        result.IsAuthenticated
+            ? new ForbiddenException(
+                result.ErrorCode ?? ErrorCodes.Forbidden,
+                result.ErrorMessage ?? "The request is not authorized.")
+            : new AuthenticationRequiredException(
+                result.ErrorCode ?? ErrorCodes.Unauthorized,
+                result.ErrorMessage ?? "A valid credential is required.");
 
     private HttpContext GetHttpContext() =>
         httpContextAccessor.HttpContext

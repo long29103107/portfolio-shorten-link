@@ -12,6 +12,7 @@ import {
 import { getAdminPermissionState } from "../api/adminSecurity";
 import type { ShortLinkAdminItem, ShortLinkAnalytics, ShortLinkDiscoveryQuery } from "../types";
 import { formatDateTime, toFriendlyErrorMessage } from "../types";
+import { getExpiryPresentation } from "../expiryPresentation";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Button } from "../../../shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card";
@@ -31,6 +32,8 @@ import { DataTable } from "../../../shared/components/DataTable";
 import { Pagination } from "../../../shared/components/Pagination";
 import { ExpiryQuickPicks } from "../components/ExpiryQuickPicks";
 import { ShortLinkShareDialog } from "../components/ShortLinkShareDialog";
+import { ShortLinkQrDialog } from "../components/ShortLinkQrDialog";
+import { downloadShortLinksCsv } from "../export";
 import {
   defaultShortLinkDiscoveryQuery,
   createShortLinkDiscoveryChange,
@@ -84,10 +87,13 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
   );
   const [analyticsCode, setAnalyticsCode] = useState<string | null>(null);
   const [sharingLink, setSharingLink] = useState<ShortLinkAdminItem | null>(null);
+  const [qrLink, setQrLink] = useState<ShortLinkAdminItem | null>(null);
   const [analyticsData, setAnalyticsData] = useState<ShortLinkAnalytics | null>(null);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [isAnalyticsRetryable, setIsAnalyticsRetryable] = useState(false);
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportFailure, setExportFailure] = useState<RecoveryNotice | null>(null);
   const copyFeedbackTimeoutRef = useRef<number | null>(null);
   const adminPermissions = getAdminPermissionState();
 
@@ -631,8 +637,44 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
     setDiscoveryQuery(change.query);
   };
 
+  const handleExport = async () => {
+    if (isExporting) {
+      return;
+    }
+
+    setIsExporting(true);
+    setExportFailure(null);
+
+    try {
+      const firstPage = await listShortLinks(200, 1, discoveryQuery);
+      const allLinks = [...firstPage.items];
+      const totalPages = Math.max(firstPage.totalPages ?? 1, 1);
+
+      for (let page = 2; page <= totalPages; page += 1) {
+        const nextPage = await listShortLinks(200, page, discoveryQuery);
+        const knownCodes = new Set(allLinks.map((link) => link.code));
+        allLinks.push(...nextPage.items.filter((link) => !knownCodes.has(link.code)));
+      }
+
+      downloadShortLinksCsv(allLinks);
+      showToast({
+        title: "Short links exported",
+        message: `${allLinks.length} link${allLinks.length === 1 ? "" : "s"} downloaded`,
+        variant: "success"
+      });
+    } catch (error) {
+      const message = error instanceof ApiError
+        ? toFriendlyErrorMessage(error.errorCode, error.message)
+        : "The short-link export could not be created.";
+      setExportFailure(createRecoveryNotice(error, message));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const hasRowActions = (link: ShortLinkAdminItem) =>
-    adminPermissions.canReadAnalytics
+    Boolean(link.shortUrl)
+    || adminPermissions.canReadAnalytics
     || (canEditLink(link) && adminPermissions.canUpdate)
     || (canEditLink(link) && (link.isActive ? adminPermissions.canDeactivate : adminPermissions.canActivate))
     || (canManageLink(link) && adminPermissions.canDelete);
@@ -674,6 +716,7 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
           open={openMenuCode === link.code}
           onOpenChange={(open) => setOpenMenuCode(open ? link.code : null)}
           actions={[
+            ...(link.shortUrl ? [{ id: "qr", label: "QR code", onSelect: () => setQrLink(link) }] : []),
             ...(adminPermissions.canReadAnalytics ? [{ id: "analytics", label: "Analytics", onSelect: () => void openAnalyticsPanel(link) }] : []),
             ...(canEditLink(link) && adminPermissions.canUpdate ? [{ id: "edit", label: "Edit", onSelect: () => startEdit(link) }] : []),
             ...(canManageLink(link) ? [{ id: "share", label: "Share", onSelect: () => setSharingLink(link) }] : []),
@@ -723,7 +766,28 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
         value={discoveryQuery}
         disabled={isLoading}
         onChange={handleDiscoveryChange}
+        action={
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={isLoading || isExporting}
+            onClick={() => void handleExport()}
+          >
+            {isExporting ? "Exporting..." : "Export CSV"}
+          </Button>
+        }
       />
+
+      {exportFailure ? (
+        <div className="recovery-banner recovery-banner-error" role="alert">
+          <span>{exportFailure.message}</span>
+          {exportFailure.retryable ? (
+            <Button variant="secondary" onClick={() => void handleExport()}>Retry export</Button>
+          ) : (
+            <Button variant="ghost" onClick={() => setExportFailure(null)}>Dismiss</Button>
+          )}
+        </div>
+      ) : null}
 
       {isLoading ? <TableSkeleton /> : null}
 
@@ -814,7 +878,27 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
             },
             { id: "access", header: "Access", cell: (link) => <Badge variant="secondary">{link.accessLevel ?? "Unknown"}</Badge> },
             { id: "created", header: "Created", cell: (link) => formatDateTime(link.createdAtUtc) },
-            { id: "expiry", header: "Expiry", cell: (link) => formatDateTime(link.expiredAtUtc) },
+            {
+              id: "expiry",
+              header: "Expiry (local time)",
+              cell: (link) => {
+                const expiry = getExpiryPresentation(link, new Date());
+                return (
+                  <div className="expiry-cell">
+                    <time dateTime={link.expiredAtUtc ?? undefined}>{expiry.dateTime}</time>
+                    {expiry.state !== "active" && expiry.state !== "unknown" ? (
+                      <Badge
+                        variant={expiry.state === "expiring-soon" ? "secondary" : "destructive"}
+                        className={`expiry-badge expiry-badge-${expiry.state}`}
+                      >
+                        {expiry.label}
+                      </Badge>
+                    ) : null}
+                    {expiry.state === "expiring-soon" ? <small>{expiry.detail}</small> : null}
+                  </div>
+                );
+              }
+            },
             { id: "status", header: "Status", cell: (link) => <Badge variant={link.isActive ? "default" : "destructive"}>{link.isActive ? "Active" : "Inactive"}</Badge> },
             { id: "actions", header: "Actions", cell: renderActions }
           ]}
@@ -956,6 +1040,7 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
         </div>
       ) : null}
       <ShortLinkShareDialog link={sharingLink} onClose={() => setSharingLink(null)} />
+      <ShortLinkQrDialog link={qrLink} onClose={() => setQrLink(null)} />
       {analyticsCode ? (
         <div className="dialog-backdrop" role="presentation">
           <div

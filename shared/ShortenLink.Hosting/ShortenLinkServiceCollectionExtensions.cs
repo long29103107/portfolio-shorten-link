@@ -12,8 +12,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ShortenLink.Core.Generation;
+using ShortenLink.Core.Domain;
 using ShortenLink.Core.Services;
 using ShortenLink.Application.Services;
+using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Features.Audit;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Repositories;
 
@@ -24,15 +27,24 @@ public static class ShortenLinkServiceCollectionExtensions
     public static IServiceCollection AddShortenLink(
         this IServiceCollection services,
         IConfiguration configuration)
+        => AddShortenLink(services, configuration, configure: null);
+
+    public static IServiceCollection AddShortenLink(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        Action<ShortenLinkHostOptions>? configure)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+
+        var hostOptions = new ShortenLinkHostOptions();
+        configure?.Invoke(hostOptions);
 
         services
             .AddOptions<ShortenLinkOptions>()
             .Bind(configuration.GetSection(ShortenLinkOptions.SectionName))
             .Validate(
-                static options => HasRequiredConnectionString(options.Database),
+                options => hostOptions.UseExternalPersistence || HasRequiredConnectionString(options.Database),
                 "ShortenLink database configuration requires SqliteConnectionString when UsePostgres is false, or PostgresConnectionString when UsePostgres is true.")
             .Validate(
                 static options => string.IsNullOrWhiteSpace(options.BaseUrl)
@@ -70,42 +82,64 @@ public static class ShortenLinkServiceCollectionExtensions
                 "ShortenLink:Security:RefreshTokenTtlMinutes must be greater than 0.")
             .ValidateOnStart();
 
-        services.AddDbContext<ShortLinkDbContext>((serviceProvider, options) =>
+        if (!hostOptions.UseExternalPersistence)
         {
-            var shortenLinkOptions = serviceProvider
-                .GetRequiredService<IOptions<ShortenLinkOptions>>()
-                .Value;
-
-            if (shortenLinkOptions.Database.UsePostgres)
+            services.AddDbContext<ShortLinkDbContext>((serviceProvider, options) =>
             {
-                options.UseNpgsql(shortenLinkOptions.Database.PostgresConnectionString);
-                return;
-            }
+                var shortenLinkOptions = serviceProvider
+                    .GetRequiredService<IOptions<ShortenLinkOptions>>()
+                    .Value;
 
-            options.UseSqlite(shortenLinkOptions.Database.SqliteConnectionString);
-        });
+                if (shortenLinkOptions.Database.UsePostgres)
+                {
+                    options.UseNpgsql(shortenLinkOptions.Database.PostgresConnectionString);
+                    return;
+                }
+
+                options.UseSqlite(shortenLinkOptions.Database.SqliteConnectionString);
+            });
+        }
 
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddHttpContextAccessor();
+        services.TryAddScoped<ICurrentRequestContext, HttpCurrentRequestContext>();
+        services.TryAddSingleton<ShortenLinkRateLimitMonitor>();
+        services.TryAddSingleton<IRateLimitActivityReader>(serviceProvider =>
+            serviceProvider.GetRequiredService<ShortenLinkRateLimitMonitor>());
         services.TryAddSingleton<ISecureTokenGenerator, SecureTokenGenerator>();
         services.TryAddSingleton<IShortCodeGenerator, Base62ShortCodeGenerator>();
-        services.TryAddScoped<IShortLinkRepository, EfCoreShortLinkRepository>();
-        services.TryAddScoped<IUnitOfWork, EfCoreUnitOfWork>();
-        services.TryAddScoped<IShortLinkClickRepository, EfCoreShortLinkClickRepository>();
-        services.TryAddScoped<IShortLinkShareRepository, EfCoreShortLinkShareRepository>();
-        services.TryAddScoped<IShortLinkAuditRepository, EfCoreShortLinkAuditRepository>();
-        services.TryAddScoped<IShortenLinkSecurityAssignmentRepository, EfCoreShortenLinkSecurityAssignmentRepository>();
-        services.TryAddScoped<IShortenLinkSecurityRoleRepository, EfCoreShortenLinkSecurityRoleRepository>();
-        services.TryAddScoped<IShortenLinkSecurityUserRepository, EfCoreShortenLinkSecurityUserRepository>();
-        services.TryAddScoped<IShortenLinkUserApiKeyRepository, EfCoreShortenLinkUserApiKeyRepository>();
+        if (!hostOptions.UseExternalPersistence)
+        {
+            services.TryAddScoped<IShortLinkRepository, EfCoreShortLinkRepository>();
+            services.TryAddScoped<IUnitOfWork, EfCoreUnitOfWork>();
+            services.TryAddScoped<IShortLinkClickRepository, EfCoreShortLinkClickRepository>();
+            services.TryAddScoped<IShortLinkShareRepository, EfCoreShortLinkShareRepository>();
+            services.TryAddScoped<IShortLinkAuditRepository, EfCoreShortLinkAuditRepository>();
+        }
+        services.TryAddScoped<AuditEventBuffer>();
+        if (!hostOptions.RedirectOnly && !hostOptions.UseExternalPersistence)
+        {
+            services.TryAddScoped<IShortenLinkSecurityAssignmentRepository, EfCoreShortenLinkSecurityAssignmentRepository>();
+            services.TryAddScoped<IShortenLinkSecurityRoleRepository, EfCoreShortenLinkSecurityRoleRepository>();
+            services.TryAddScoped<IShortenLinkSecurityUserRepository, EfCoreShortenLinkSecurityUserRepository>();
+            services.TryAddScoped<IShortenLinkUserApiKeyRepository, EfCoreShortenLinkUserApiKeyRepository>();
+            services.TryAddScoped<IShortenLinkAuthorizationService, ShortenLinkAuthorizationService>();
+            services.TryAddScoped<IShortenLinkUserSessionService, ShortenLinkUserSessionService>();
+        }
         services.TryAddScoped<IShortLinkService, ShortLinkService>();
-        services.TryAddScoped<IShortenLinkUserSessionService, ShortenLinkUserSessionService>();
-        services.TryAddScoped<IShortenLinkAuthorizationService, ShortenLinkAuthorizationService>();
-        services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IHostedService, ShortLinkDatabaseInitializationService>());
+        if (!hostOptions.UseExternalPersistence)
+        {
+            services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IHostedService>(_ =>
+                    new ShortLinkDatabaseInitializationService(
+                        _.GetRequiredService<IServiceScopeFactory>(),
+                        !hostOptions.RedirectOnly)));
+        }
 
         RegisterCache(services, configuration);
         RegisterRateLimiting(services);
         RegisterAnalytics(services);
+        RegisterAuditQueue(services);
 
         return services;
     }
@@ -115,6 +149,18 @@ public static class ShortenLinkServiceCollectionExtensions
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = static (context, _) =>
+            {
+                var policy = context.HttpContext
+                    .GetEndpoint()?
+                    .Metadata
+                    .GetMetadata<EnableRateLimitingAttribute>()?
+                    .PolicyName;
+                context.HttpContext.RequestServices
+                    .GetRequiredService<ShortenLinkRateLimitMonitor>()
+                    .RecordRejection(policy);
+                return ValueTask.CompletedTask;
+            };
             options.AddPolicy(
                 ShortenLinkRateLimitingPolicyNames.Create,
                 httpContext => CreateFixedWindowPartition(
@@ -205,6 +251,23 @@ public static class ShortenLinkServiceCollectionExtensions
         });
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, ShortLinkClickBackgroundService>());
+    }
+
+    private static void RegisterAuditQueue(IServiceCollection services)
+    {
+        services.TryAddSingleton(serviceProvider =>
+        {
+            var options = new BoundedChannelOptions(1024)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.DropWrite
+            };
+            return Channel.CreateBounded<ShortLinkAuditEvent>(options);
+        });
+        services.TryAddSingleton<IAuditEventQueue, ChannelShortLinkAuditEventQueue>();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, ShortLinkAuditBackgroundService>());
     }
 
     private static bool IsValidFrontendFallbackPath(string? fallbackPath)

@@ -27,6 +27,12 @@ The product should not stay as a toy URL shortener. The long-term goal is a clea
   catalogued error codes, and one API exception handler owns HTTP error mapping.
 - Safe defaults: SQLite should work locally out of the box; PostgreSQL and Redis are optional production upgrades.
 - Clear contracts: endpoint, model, service, repository, options, and DI APIs should remain stable for consumers.
+- Consumer-first integration: external applications may bring their own identity, authorization, persistence, tenancy,
+  observability, and messaging infrastructure through explicit public abstractions.
+- Optional composition: advanced providers and hosted services remain opt-in; the smallest redirect-only integration
+  must not require the demo security model, EF Core, Redis, or analytics worker.
+- Compatibility before convenience: public package contracts use semantic versioning, documented extension points, and
+  provider contract tests before new integrations are considered stable.
 - Uniform entity identity: every persisted DbSet entity is flattened directly under `ShortenLink.Core/Domain`, uses the `*Entity` suffix, derives from `BaseEntity<Guid>`, and uses a UUIDv7 surrogate primary key; domain-facing codes, user ids, role ids, credential hashes, and former composite keys remain unique business keys.
 - Admin usability: the admin UI should be compact, operational, and fast to scan.
 - Ownership-first: every short link belongs to its creator; access to another user's link must come from an explicit per-link share.
@@ -92,6 +98,51 @@ These are the most valuable improvements from the current app state.
 - Rate limit visibility in admin.
 - Docker Compose for API, frontend, PostgreSQL, and Redis.
 - CI coverage for build, tests, pack, and smoke flows.
+
+The original P0-P2 opportunities above are now represented by completed
+phases in this repository. The next roadmap is specifically focused on making
+the shipped library easier to embed in unrelated open-source and commercial
+applications.
+
+### Open-Source Integration Priorities
+
+#### Integration P0 - Remove host coupling
+
+- Pluggable authentication and authorization through `ICurrentUserAccessor`,
+  `IShortLinkAuthorizationEvaluator`, and configurable ASP.NET Core policy names.
+- Configurable endpoint mapping with route prefixes, endpoint selection, and
+  host-owned response/problem-details adapters.
+- Provider-neutral storage contracts so consumers can use the built-in EF Core
+  providers or implement a custom store without taking an EF dependency.
+- A small redirect-focused package/profile that does not require demo sessions,
+  API keys, admin UI, or security persistence.
+
+#### Integration P1 - Stable extension points
+
+- Pluggable short-code generation and collision policies while retaining the
+  random Base62 generator as the default.
+- Public lifecycle and redirect events with safe, non-secret payloads for
+  OpenTelemetry, webhooks, queues, audit systems, and custom analytics sinks.
+- Standard health checks, `ActivitySource`, meters, and documented logging
+  event names for database, cache, analytics, and configuration diagnostics.
+- Idempotent create/import operations for retrying API clients and webhook
+  consumers.
+- Backend bulk import/export contracts with dry-run validation, streaming, and
+  safe field boundaries.
+
+#### Integration P2 - Scale and ecosystem
+
+- Optional tenant partition hooks with tenant-aware authorization, uniqueness,
+  and cache-key boundaries; this does not introduce SaaS billing or public
+  multi-workspace management.
+- Optional expiration/background lifecycle services for expiry events, cleanup,
+  and retention without forcing a hosted worker on every consumer.
+- Compatibility-tested provider packages and migration/versioning guidance for
+  custom stores and future schema changes.
+- Official samples and adapters for Minimal API, MVC, Worker Service, JWT/OAuth,
+  custom persistence, Redis, and multi-tenant hosts.
+- Consumer contract-test kit and release matrix covering package dependencies,
+  clean installation, endpoint mapping, redirects, persistence, and upgrades.
 
 ## 6. Desired Architecture
 
@@ -249,6 +300,109 @@ Success criteria:
 - Local production-like stack starts from documented Docker Compose commands.
 - CI validates important flows on every PR.
 
+### Phase 024 - External Host Integration
+
+Goal: let an existing ASP.NET Core application adopt ShortenLink without
+replacing its authentication, authorization, routes, response conventions, or
+persistence choices.
+
+Scope:
+
+- Add pluggable current-user and authorization evaluator contracts.
+- Add configurable endpoint mapping and route/authorization policy options.
+- Define the minimum redirect-only integration profile and dependency boundary.
+- Add a clean external-host smoke sample using a non-demo authentication
+  boundary.
+
+Success criteria:
+
+- A consumer can use its own authenticated `ClaimsPrincipal` and authorization
+  policies without enabling demo sessions or API keys.
+- A consumer can choose route prefixes and endpoint subsets without editing
+  library source.
+- Redirect-only consumers do not need admin/security persistence components.
+- Package smoke, API contract, and authorization integration tests pass.
+
+### Phase 025 - Provider-Neutral Persistence
+
+Goal: make persistence replaceable while keeping the core short-link behavior
+and application contracts stable.
+
+Scope:
+
+- Define the public store/repository contract and provider contract-test suite.
+- Keep EF Core SQLite/PostgreSQL as maintained adapters.
+- Document custom store registration, transactions, concurrency, and schema
+  responsibilities.
+- Separate provider-specific package dependencies from the minimal host path.
+
+Success criteria:
+
+- A consumer can register a custom store without referencing demo API code.
+- Built-in providers pass the same behavior contract suite.
+- Cache, analytics, ownership, and authorization semantics remain unchanged.
+
+### Phase 026 - Library Extensibility And Observability
+
+Goal: expose stable, safe hooks for code generation, lifecycle events, metrics,
+and custom analytics without leaking secrets or HTTP concerns into Core.
+
+Scope:
+
+- Add code-generator and collision-policy abstractions.
+- Add lifecycle/redirect event contracts and configurable sinks.
+- Add health checks, OpenTelemetry activities/meters, and stable diagnostic
+  logging guidance.
+- Add event and extension contract tests with secret-exclusion assertions.
+
+Success criteria:
+
+- Consumers can replace code generation and analytics delivery through DI.
+- Event payloads are versioned, cancellation-aware, and contain no credentials,
+  tokens, hashes, or request-sensitive data by default.
+- Observability integrations are opt-in and do not slow successful redirects.
+
+### Phase 027 - Reliable Integration Workflows
+
+Goal: support retries, automation, and larger integrations without changing the
+simple local developer path.
+
+Scope:
+
+- Add idempotency for create and bulk import operations.
+- Add backend bulk import/export with dry-run and streaming boundaries.
+- Add optional tenant partition hooks and tenant-aware cache/authorization
+  contracts.
+- Add optional expiration lifecycle services and retention hooks.
+
+Success criteria:
+
+- Retried requests do not create unintended duplicate links when an idempotency
+  key is supplied.
+- Import failures are reported per item without exposing secrets.
+- Tenant-aware consumers cannot cross partition boundaries through list,
+  resolve, cache, analytics, or mutation paths.
+
+### Phase 028 - Open-Source Ecosystem And Compatibility
+
+Goal: make the package family approachable, upgradeable, and verifiable for
+external maintainers and adopters.
+
+Scope:
+
+- Publish official integration samples and provider adapters.
+- Add consumer contract-test helpers and a package compatibility matrix.
+- Document semantic versioning, migration/versioning, deprecation, and support
+  policies.
+- Extend clean consumer smoke tests across supported host shapes.
+
+Success criteria:
+
+- A new consumer can choose a documented integration path without reading demo
+  implementation details.
+- Package metadata, dependencies, samples, and upgrade guidance stay aligned.
+- CI verifies build, test, pack, smoke, and compatibility scenarios.
+
 ## 8. Non-Goals
 
 - Public SaaS billing or tenant management.
@@ -282,5 +436,16 @@ The product is considered complete for this vision when:
 - Link ownership is persisted, and per-link sharing supports `View` and `Edit`.
 - Authorization follows the invariant: Admin has unrestricted access; User manages owned links and accesses other links only through an adequate share.
 - Analytics and cache are implemented as configurable abstractions.
+- External hosts can bring their own authentication, authorization, routes, and
+  persistence through documented public integration contracts.
+- A redirect-only integration does not require demo security or admin
+  components.
+- Code generation, lifecycle events, analytics sinks, health checks, and
+  observability are replaceable through opt-in extension points.
+- Retry-safe create/import and optional tenant partition boundaries are
+  available without weakening ownership, authorization, or secret-exclusion
+  invariants.
+- Official samples, consumer contract tests, package compatibility guidance,
+  and release automation support external adopters.
 - Tests cover core logic, endpoint behavior, persistence, and the most important admin workflows.
 - README explains how to run, configure, test, pack, publish, and reuse the library.

@@ -1,4 +1,5 @@
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Features.Audit;
 using ShortenLink.Mediator;
 
 namespace ShortenLink.Application.Features.Security.ApiKeys;
@@ -8,7 +9,8 @@ public sealed record DisableCurrentUserApiKeyCommand(
 
 internal sealed class DisableCurrentUserApiKeyCommandHandler(
     ICurrentRequestContext requestContext,
-    IShortenLinkUserApiKeyRepository apiKeyRepository)
+    IShortenLinkUserApiKeyRepository apiKeyRepository,
+    ShortLinkAuditWriter auditWriter)
     : IRequestHandler<DisableCurrentUserApiKeyCommand, SecurityUserApiKeyDisabledResponse>
 {
     public async Task<SecurityUserApiKeyDisabledResponse> Handle(
@@ -28,6 +30,14 @@ internal sealed class DisableCurrentUserApiKeyCommandHandler(
             throw new NotFoundException(ErrorCodes.NotFound, "API key was not found.");
         }
 
+        await auditWriter.RecordAsync(
+            user.UserId,
+            ShortLinkAuditActions.UserApiKeyDisabled,
+            apiKey.ApiKeyKey,
+            user.UserId,
+            subjectUserId: user.UserId,
+            targetType: ShortLinkAuditTargetTypes.UserApiKey,
+            cancellationToken: cancellationToken);
         return new SecurityUserApiKeyDisabledResponse(request.Id, false);
     }
 }

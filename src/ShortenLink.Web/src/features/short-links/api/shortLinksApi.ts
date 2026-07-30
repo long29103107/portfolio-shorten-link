@@ -2,6 +2,8 @@ import { fetchJson } from "./http";
 import { appendQueryExpression } from "../../../shared/queryExpression";
 import { buildShortLinkFilterExpression, buildShortLinkSortExpression } from "../queryExpression";
 import type {
+  AuditLogPage,
+  AuditLogQuery,
   CreateShortLinkRequest,
   CreatedShortLink,
   DeactivatedShortLink,
@@ -30,10 +32,12 @@ import type {
   ShortLinkAdminPageResult,
   ShortLinkDiscoveryQuery,
   ShortLinkDetails,
+  RateLimitActivity,
   ShortLinkShare,
   ShortLinkSharesList,
   UpdateShortLinkRequest
 } from "../types";
+import { buildAuditLogUrl } from "../auditDiscovery";
 
 export async function loginSecurityUser(
   email: string,
@@ -48,6 +52,14 @@ export async function loginSecurityUser(
 
 export async function getCurrentSecurityUser(): Promise<SecurityCurrentUser> {
   return fetchJson<SecurityCurrentUser>("/api/security/me");
+}
+
+export async function listAuditLogEvents(query: AuditLogQuery = {}): Promise<AuditLogPage> {
+  return fetchJson<AuditLogPage>(buildAuditLogUrl(query));
+}
+
+export async function getRateLimitActivity(): Promise<RateLimitActivity> {
+  return fetchJson<RateLimitActivity>("/api/admin/rate-limits");
 }
 
 export async function createShortLink(

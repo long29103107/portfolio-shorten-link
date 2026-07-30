@@ -1,4 +1,5 @@
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Features.Audit;
 using ShortenLink.Core.Abstractions;
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
@@ -12,7 +13,8 @@ internal sealed class CreateCurrentUserApiKeyCommandHandler(
     ICurrentRequestContext requestContext,
     IShortenLinkUserApiKeyRepository apiKeyRepository,
     TimeProvider timeProvider,
-    ISecureTokenGenerator tokenGenerator)
+    ISecureTokenGenerator tokenGenerator,
+    ShortLinkAuditWriter auditWriter)
     : IRequestHandler<CreateCurrentUserApiKeyCommand, SecurityUserApiKeyCreatedResponse>
 {
     public async Task<SecurityUserApiKeyCreatedResponse> Handle(
@@ -42,6 +44,14 @@ internal sealed class CreateCurrentUserApiKeyCommandHandler(
             timeProvider.GetUtcNow());
 
         await apiKeyRepository.AddOrUpdateAsync(apiKey, cancellationToken);
+        await auditWriter.RecordAsync(
+            user.UserId,
+            ShortLinkAuditActions.UserApiKeyCreated,
+            apiKey.ApiKeyKey,
+            user.UserId,
+            subjectUserId: user.UserId,
+            targetType: ShortLinkAuditTargetTypes.UserApiKey,
+            cancellationToken: cancellationToken);
 
         return new SecurityUserApiKeyCreatedResponse(
             SecurityUserApiKeyResponse.FromDomain(apiKey),

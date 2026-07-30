@@ -4,20 +4,14 @@ using ShortenLink.Infrastructure.Persistence;
 
 namespace ShortenLink.Infrastructure.Repositories;
 
-public sealed class EfCoreShortenLinkSecurityRoleRepository : IShortenLinkSecurityRoleRepository
+public sealed class EfCoreShortenLinkSecurityRoleRepository(ShortLinkDbContext dbContext)
+    : EfCoreRepository<ShortenLinkCustomRolePersistenceEntity>(dbContext),
+        IShortenLinkSecurityRoleRepository
 {
-    private readonly ShortLinkDbContext dbContext;
-
-    public EfCoreShortenLinkSecurityRoleRepository(ShortLinkDbContext dbContext)
-    {
-        this.dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    }
-
     public async Task<IReadOnlyList<ShortenLinkCustomRole>> ListCustomRolesAsync(
         CancellationToken cancellationToken = default)
     {
-        var records = await dbContext.SecurityCustomRoles
-            .AsNoTracking()
+        var records = await ReadOnlyEntities
             .ToListAsync(cancellationToken)
             ;
 
@@ -34,8 +28,7 @@ public sealed class EfCoreShortenLinkSecurityRoleRepository : IShortenLinkSecuri
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-        var record = await dbContext.SecurityCustomRoles
-            .AsNoTracking()
+        var record = await ReadOnlyEntities
             .FirstOrDefaultAsync(role => role.RoleId == id, cancellationToken)
             ;
 
@@ -48,20 +41,20 @@ public sealed class EfCoreShortenLinkSecurityRoleRepository : IShortenLinkSecuri
     {
         ArgumentNullException.ThrowIfNull(role);
 
-        var record = await dbContext.SecurityCustomRoles
+        var record = await Entities
             .FirstOrDefaultAsync(candidate => candidate.RoleId == role.RoleKey, cancellationToken)
             ;
 
         if (record is null)
         {
-            dbContext.SecurityCustomRoles.Add(ShortenLinkCustomRolePersistenceEntity.FromDomain(role));
+            Entities.Add(ShortenLinkCustomRolePersistenceEntity.FromDomain(role));
         }
         else
         {
             record.UpdateFromDomain(role);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<ShortenLinkRolePermissionOverride>> ListPermissionOverridesAsync(
@@ -70,7 +63,7 @@ public sealed class EfCoreShortenLinkSecurityRoleRepository : IShortenLinkSecuri
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(roleId);
 
-        return await dbContext.SecurityRolePermissionOverrides
+        return await DbContext.SecurityRolePermissionOverrides
             .AsNoTracking()
             .Where(item => item.RoleId == roleId)
             .OrderBy(item => item.Permission)
@@ -87,18 +80,18 @@ public sealed class EfCoreShortenLinkSecurityRoleRepository : IShortenLinkSecuri
         ArgumentException.ThrowIfNullOrWhiteSpace(roleId);
         ArgumentNullException.ThrowIfNull(overrides);
 
-        var current = await dbContext.SecurityRolePermissionOverrides
+        var current = await DbContext.SecurityRolePermissionOverrides
             .Where(item => item.RoleId == roleId)
             .ToListAsync(cancellationToken)
             ;
-        dbContext.SecurityRolePermissionOverrides.RemoveRange(current);
-        dbContext.SecurityRolePermissionOverrides.AddRange(overrides.Select(item => new ShortenLinkRolePermissionOverridePersistenceEntity
+        DbContext.SecurityRolePermissionOverrides.RemoveRange(current);
+        DbContext.SecurityRolePermissionOverrides.AddRange(overrides.Select(item => new ShortenLinkRolePermissionOverridePersistenceEntity
         {
             RoleId = roleId,
             Permission = item.Permission,
             IsAllowed = item.IsAllowed
         }));
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> DeleteCustomRoleAsync(
@@ -107,7 +100,7 @@ public sealed class EfCoreShortenLinkSecurityRoleRepository : IShortenLinkSecuri
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-        var record = await dbContext.SecurityCustomRoles
+        var record = await Entities
             .FirstOrDefaultAsync(role => role.RoleId == id, cancellationToken)
             ;
         if (record is null)
@@ -115,13 +108,13 @@ public sealed class EfCoreShortenLinkSecurityRoleRepository : IShortenLinkSecuri
             return false;
         }
 
-        dbContext.SecurityCustomRoles.Remove(record);
-        var overrides = await dbContext.SecurityRolePermissionOverrides
+        Entities.Remove(record);
+        var overrides = await DbContext.SecurityRolePermissionOverrides
             .Where(item => item.RoleId == id)
             .ToListAsync(cancellationToken)
             ;
-        dbContext.SecurityRolePermissionOverrides.RemoveRange(overrides);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        DbContext.SecurityRolePermissionOverrides.RemoveRange(overrides);
+        await SaveChangesAsync(cancellationToken);
         return true;
     }
 }

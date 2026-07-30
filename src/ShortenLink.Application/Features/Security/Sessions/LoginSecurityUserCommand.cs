@@ -1,4 +1,5 @@
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Features.Audit;
 using ShortenLink.Mediator;
 
 namespace ShortenLink.Application.Features.Security.Sessions;
@@ -10,7 +11,8 @@ public sealed record LoginSecurityUserCommand(
 
 internal sealed class LoginSecurityUserCommandHandler(
     ISecuritySessionService sessionService,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ShortLinkAuditWriter auditWriter)
     : IRequestHandler<LoginSecurityUserCommand, SecurityLoginResponse>
 {
     public async Task<SecurityLoginResponse> Handle(
@@ -38,7 +40,16 @@ internal sealed class LoginSecurityUserCommandHandler(
         }
 
         var result = await sessionService.LoginAsync(email!, request.Password, cancellationToken);
-        return CreateResponse(result, timeProvider.GetUtcNow());
+        var response = CreateResponse(result, timeProvider.GetUtcNow());
+        await auditWriter.RecordAsync(
+            response.User.UserId,
+            ShortLinkAuditActions.AuthenticationLogin,
+            response.User.UserId,
+            response.User.UserId,
+            subjectUserId: response.User.UserId,
+            targetType: ShortLinkAuditTargetTypes.Authentication,
+            cancellationToken: cancellationToken);
+        return response;
     }
 
     internal static SecurityLoginResponse CreateResponse(

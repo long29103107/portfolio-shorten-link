@@ -1,4 +1,5 @@
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Features.Audit;
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
 
@@ -11,14 +12,17 @@ public sealed record ReplaceSecurityRolePermissionOverridesCommand(
 
 internal sealed class ReplaceSecurityRolePermissionOverridesCommandHandler(
     ICurrentRequestContext requestContext,
-    IShortenLinkSecurityRoleRepository roleRepository)
+    IShortenLinkSecurityRoleRepository roleRepository,
+    ShortLinkAuditWriter auditWriter)
     : IRequestHandler<ReplaceSecurityRolePermissionOverridesCommand, SecurityRoleResponse>
 {
     public async Task<SecurityRoleResponse> Handle(
         ReplaceSecurityRolePermissionOverridesCommand request,
         CancellationToken cancellationToken)
     {
-        await requestContext.EnsureAdminAsync(cancellationToken);
+        var actor = await requestContext.AuthorizeAsync(
+            SecurityFeatureSupport.AdminOnly,
+            cancellationToken);
         var roleId = request.Id.Trim();
         var isSystem = ShortenLinkSystemRoles.PermissionBundles.TryGetValue(roleId, out var defaults);
         var customRole = isSystem ? null : await roleRepository.FindCustomRoleAsync(roleId, cancellationToken);
@@ -36,8 +40,16 @@ internal sealed class ReplaceSecurityRolePermissionOverridesCommandHandler(
         }
 
         await roleRepository.ReplacePermissionOverridesAsync(roleId, normalized, cancellationToken);
-        return isSystem
+        var response = isSystem
             ? SecurityRoleResponse.System(roleId, defaults!, normalized)
             : SecurityRoleResponse.Custom(customRole!, normalized);
+        await auditWriter.RecordAsync(
+            actor,
+            ShortLinkAuditActions.SecurityRolePermissionsReplaced,
+            roleId,
+            ownerUserId: null,
+            cancellationToken: cancellationToken,
+            targetType: ShortLinkAuditTargetTypes.SecurityRole);
+        return response;
     }
 }

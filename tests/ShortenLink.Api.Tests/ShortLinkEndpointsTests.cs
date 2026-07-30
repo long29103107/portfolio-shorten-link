@@ -5,12 +5,15 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using ShortenLink.Api;
+using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Contracts.Responses;
 using ShortenLink.Hosting;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence.Entities;
@@ -71,15 +74,13 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal(HttpStatusCode.NoContent, revokeResponse.StatusCode);
         Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
 
-        using var response = await client.GetAsync(
-            $"/api/audit-logs?limit=20&targetId={created.Code}");
-        var json = await response.Content.ReadAsStringAsync();
-        var payload = JsonSerializer.Deserialize<ShortLinkAuditEventsResponse>(
-            json,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        const string auditPath = "/api/audit-logs?limit=20&targetId=";
+        var payload = await WaitForAuditPayloadAsync(
+            client,
+            $"{auditPath}{created.Code}",
+            audit => audit.Items.Count == 8);
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.NotNull(payload);
         Assert.Equal(8, payload.Items.Count);
         Assert.All(
             new[]
@@ -106,6 +107,10 @@ public sealed class ShortLinkEndpointsTests
         var first = await CreateShortLinkAsync(client, "https://example.com/first");
         var second = await CreateShortLinkAsync(client, "https://example.com/second");
 
+        _ = await WaitForAuditPayloadAsync(
+            client,
+            "/api/audit-logs?limit=200&action=short_link.created&actorId=system%3Aadmin",
+            audit => audit.Items.Count == 2);
         using var firstPageResponse = await client.GetAsync(
             "/api/audit-logs?limit=1&action=short_link.created&actorId=system%3Aadmin");
         var firstPage = await firstPageResponse.Content
@@ -157,6 +162,241 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal(ErrorCodes.Unauthorized, unauthorized?.ErrorCode);
         Assert.Equal(HttpStatusCode.Forbidden, forbiddenResponse.StatusCode);
         Assert.Equal(ErrorCodes.Forbidden, forbidden?.ErrorCode);
+    }
+
+    [Fact]
+    public async Task AuditLogs_RecordIdentityAndSecurityProducersWithoutSecretsAndEnforceUserScope()
+    {
+        await using var factory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            securityEnabled: true);
+        using var client = factory.CreateClient();
+        var adminToken = await LoginAsAdminAsync(client);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
+
+        using var createUserResponse = await client.PutAsJsonAsync("/api/security/users", new
+        {
+            id = "audit-user",
+            username = "audit-user",
+            displayName = "Audit User",
+            password = "audit-password",
+            roleIds = new[] { ShortenLinkRoles.User },
+            isEnabled = true
+        });
+        Assert.Equal(HttpStatusCode.OK, createUserResponse.StatusCode);
+
+        using var createRoleResponse = await client.PutAsJsonAsync("/api/security/roles/custom", new
+        {
+            id = "audit-role",
+            name = "Audit Role",
+            permissions = new[] { ShortenLinkPermissions.ShortLinksRead },
+            isEnabled = true
+        });
+        using var updateRoleResponse = await client.PutAsJsonAsync("/api/security/roles/custom", new
+        {
+            id = "audit-role",
+            name = "Updated Audit Role",
+            permissions = new[]
+            {
+                ShortenLinkPermissions.ShortLinksRead,
+                ShortenLinkPermissions.AnalyticsRead
+            },
+            isEnabled = true
+        });
+        using var overrideRoleResponse = await client.PutAsJsonAsync(
+            "/api/security/roles/audit-role/permission-overrides",
+            new
+            {
+                overrides = new[]
+                {
+                    new
+                    {
+                        permission = ShortenLinkPermissions.ShortLinksRead,
+                        isAllowed = false
+                    }
+                }
+            });
+        using var deleteRoleResponse = await client.DeleteAsync(
+            "/api/security/roles/custom/audit-role");
+        Assert.Equal(HttpStatusCode.OK, createRoleResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, updateRoleResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, overrideRoleResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, deleteRoleResponse.StatusCode);
+
+        const string credentialKey = "audit-assignment-secret";
+        using var createAssignmentResponse = await client.PutAsJsonAsync(
+            "/api/security/assignments",
+            new
+            {
+                name = "Audit Assignment",
+                credentialKey,
+                roles = new[] { ShortenLinkRoles.User },
+                permissions = Array.Empty<string>(),
+                isEnabled = true
+            });
+        var assignment = await createAssignmentResponse.Content
+            .ReadFromJsonAsync<SecurityAssignmentResponse>();
+        Assert.Equal(HttpStatusCode.OK, createAssignmentResponse.StatusCode);
+        Assert.NotNull(assignment);
+
+        using var updateAssignmentResponse = await client.PutAsJsonAsync(
+            "/api/security/assignments",
+            new
+            {
+                name = "Updated Audit Assignment",
+                credentialKey,
+                roles = new[] { ShortenLinkRoles.User },
+                permissions = new[] { ShortenLinkPermissions.AuditLogsRead },
+                isEnabled = true
+            });
+        using var disableAssignmentResponse = await client.PostAsync(
+            $"/api/security/assignments/{assignment.CredentialKeyHash}/disable",
+            null);
+        Assert.Equal(HttpStatusCode.OK, updateAssignmentResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, disableAssignmentResponse.StatusCode);
+
+        client.DefaultRequestHeaders.Authorization = null;
+        using var failedLoginResponse = await client.PostAsJsonAsync("/api/security/login", new
+        {
+            username = "audit-user",
+            password = "wrong-password"
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, failedLoginResponse.StatusCode);
+
+        using var loginResponse = await client.PostAsJsonAsync("/api/security/login", new
+        {
+            username = "audit-user",
+            password = "audit-password"
+        });
+        var userLogin = await loginResponse.Content.ReadFromJsonAsync<SecurityLoginResponse>();
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        Assert.NotNull(userLogin);
+
+        using var refreshResponse = await client.PostAsJsonAsync("/api/security/refresh", new
+        {
+            refreshToken = userLogin.RefreshToken
+        });
+        var refreshed = await refreshResponse.Content.ReadFromJsonAsync<SecurityLoginResponse>();
+        Assert.Equal(HttpStatusCode.OK, refreshResponse.StatusCode);
+        Assert.NotNull(refreshed);
+
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue(
+                "Bearer",
+                refreshed.AccessToken);
+        using var createApiKeyResponse = await client.PostAsJsonAsync(
+            "/api/security/api-keys",
+            new { displayName = "Audit automation" });
+        var apiKey = await createApiKeyResponse.Content
+            .ReadFromJsonAsync<SecurityUserApiKeyCreatedResponse>();
+        Assert.Equal(HttpStatusCode.OK, createApiKeyResponse.StatusCode);
+        Assert.NotNull(apiKey);
+
+        using var renameApiKeyResponse = await client.PutAsJsonAsync(
+            $"/api/security/api-keys/{apiKey.ApiKey.Id}",
+            new { displayName = "Updated audit automation" });
+        using var disableApiKeyResponse = await client.PostAsync(
+            $"/api/security/api-keys/{apiKey.ApiKey.Id}/disable",
+            null);
+        Assert.Equal(HttpStatusCode.OK, renameApiKeyResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, disableApiKeyResponse.StatusCode);
+
+        var userAudit = await WaitForAuditPayloadAsync(
+            client,
+            "/api/audit-logs?limit=200",
+            audit => audit.Items.Count == 5);
+        var userAuditJson = JsonSerializer.Serialize(userAudit, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(5, userAudit.Items.Count);
+        Assert.All(
+            userAudit.Items,
+            item =>
+            {
+                Assert.Equal("audit-user", item.OwnerUserId);
+                Assert.Contains(
+                    item.TargetType,
+                    new[]
+                    {
+                        ShortLinkAuditTargetTypes.Authentication,
+                        ShortLinkAuditTargetTypes.UserApiKey
+                    });
+            });
+        Assert.Single(
+            userAudit.Items,
+            item => item.Action == ShortLinkAuditActions.AuthenticationLogin);
+        Assert.Single(
+            userAudit.Items,
+            item => item.Action == ShortLinkAuditActions.AuthenticationRefresh);
+        Assert.DoesNotContain(
+            userAudit.Items,
+            item => item.TargetType == ShortLinkAuditTargetTypes.SecurityUser);
+
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminToken);
+        using var updateUserResponse = await client.PutAsJsonAsync("/api/security/users", new
+        {
+            id = "audit-user",
+            username = "audit-user",
+            displayName = "Updated Audit User",
+            password = (string?)null,
+            roleIds = new[] { ShortenLinkRoles.User },
+            isEnabled = true
+        });
+        using var disableUserResponse = await client.PostAsync(
+            "/api/security/users/audit-user/disable",
+            null);
+        Assert.Equal(HttpStatusCode.OK, updateUserResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, disableUserResponse.StatusCode);
+
+        var adminAudit = await WaitForAuditPayloadAsync(
+            client,
+            "/api/audit-logs?limit=200",
+            audit => audit.Items.Count == 16);
+        var adminAuditJson = JsonSerializer.Serialize(adminAudit, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(16, adminAudit.Items.Count);
+        Assert.Equal(
+            2,
+            adminAudit.Items.Count(
+                item => item.Action == ShortLinkAuditActions.AuthenticationLogin));
+        Assert.All(
+            new[]
+            {
+                ShortLinkAuditActions.AuthenticationRefresh,
+                ShortLinkAuditActions.UserApiKeyCreated,
+                ShortLinkAuditActions.UserApiKeyRenamed,
+                ShortLinkAuditActions.UserApiKeyDisabled,
+                ShortLinkAuditActions.SecurityUserCreated,
+                ShortLinkAuditActions.SecurityUserUpdated,
+                ShortLinkAuditActions.SecurityUserDisabled,
+                ShortLinkAuditActions.SecurityRoleCreated,
+                ShortLinkAuditActions.SecurityRoleUpdated,
+                ShortLinkAuditActions.SecurityRolePermissionsReplaced,
+                ShortLinkAuditActions.SecurityRoleDeleted,
+                ShortLinkAuditActions.SecurityAssignmentCreated,
+                ShortLinkAuditActions.SecurityAssignmentUpdated,
+                ShortLinkAuditActions.SecurityAssignmentDisabled
+            },
+            action => Assert.Single(adminAudit.Items, item => item.Action == action));
+
+        var assignmentEvents = adminAudit.Items
+            .Where(item => item.TargetType == ShortLinkAuditTargetTypes.SecurityAssignment)
+            .ToList();
+        Assert.Equal(3, assignmentEvents.Count);
+        Assert.Single(assignmentEvents.Select(item => item.TargetId).Distinct());
+        Assert.True(Guid.TryParse(assignmentEvents[0].TargetId, out _));
+
+        Assert.DoesNotContain("audit-password", adminAuditJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("wrong-password", adminAuditJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(userLogin.AccessToken, adminAuditJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(userLogin.RefreshToken, adminAuditJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(refreshed.AccessToken, adminAuditJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(refreshed.RefreshToken, adminAuditJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(apiKey.RawApiKey, adminAuditJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(credentialKey, adminAuditJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            assignment.CredentialKeyHash,
+            adminAuditJson,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -1879,6 +2119,59 @@ public sealed class ShortLinkEndpointsTests
     }
 
     [Fact]
+    public async Task RateLimiting_ExposesSafeAdminActivityAndRecentPolicyRejections()
+    {
+        await using var factory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            rateLimitingEnabled: true,
+            createPermitLimit: 1,
+            redirectPermitLimit: 10);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        await CreateShortLinkAsync(client, "https://example.com/one");
+        using var rejected = await client.PostAsJsonAsync("/api/short-links", new
+        {
+            originalUrl = "https://example.com/two",
+            expiredAtUtc = new DateTimeOffset(2026, 7, 20, 1, 0, 0, TimeSpan.Zero)
+        });
+        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+
+        using var response = await client.GetAsync("/api/admin/rate-limits");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var activity = await response.Content.ReadFromJsonAsync<RateLimitActivityResponse>();
+
+        Assert.NotNull(activity);
+        Assert.True(activity.Enabled);
+        Assert.Equal(1, activity.Create.PermitLimit);
+        Assert.Equal(1, activity.Create.RejectedCount);
+        Assert.Single(activity.RecentRejections);
+        Assert.Equal("create", activity.RecentRejections[0].Policy);
+
+        var payload = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("remoteIp", payload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("shortCode", payload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("originalUrl", payload, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RateLimiting_RejectsNonAdminActivityQueries()
+    {
+        await using var factory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            securityEnabled: true,
+            securityRoles: [ShortenLinkRoles.User]);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-ShortenLink-Api-Key", "test-admin-key");
+
+        using var response = await client.GetAsync("/api/admin/rate-limits");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task RateLimiting_ReturnsTooManyRequestsForRedirect_BeforeSecondAnalyticsRecord()
     {
         await using var factory = new ShortLinkApiFactory(
@@ -2631,5 +2924,71 @@ public sealed class ShortLinkEndpointsTests
         }
 
         return false;
+    }
+
+    [Fact]
+    public void AddShortenLink_PreservesConsumerAuthorizationOverrides()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShortenLink:Database:SqliteConnectionString"] = "Data Source=override-test.db"
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped<ICurrentRequestContext, ConsumerRequestContext>();
+        services.AddScoped<IShortenLinkAuthorizationService, ConsumerAuthorizationService>();
+        services.AddShortenLink(configuration);
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<ConsumerRequestContext>(provider.GetRequiredService<ICurrentRequestContext>());
+        Assert.IsType<ConsumerAuthorizationService>(provider.GetRequiredService<IShortenLinkAuthorizationService>());
+    }
+
+    private sealed class ConsumerRequestContext : ICurrentRequestContext
+    {
+        public Task EnsureAuthorizedAsync(string permission, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<CurrentRequestActor> AuthorizeAsync(string permission, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CurrentRequestActor("consumer-user", false, "consumer:user"));
+
+        public Task<CurrentUser?> GetCurrentUserAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<CurrentUser?>(new CurrentUser("consumer-user", "consumer", "Consumer", [], []));
+    }
+
+    private sealed class ConsumerAuthorizationService : IShortenLinkAuthorizationService
+    {
+        public Task<ShortenLinkAuthorizationResult> AuthorizeAsync(
+            HttpContext httpContext,
+            string permission,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ShortenLinkAuthorizationResult.Success("consumer-user", false, "consumer:user"));
+    }
+
+    private static async Task<ShortLinkAuditEventsResponse> WaitForAuditPayloadAsync(
+        HttpClient client,
+        string requestUri,
+        Func<ShortLinkAuditEventsResponse, bool> isReady)
+    {
+        ShortLinkAuditEventsResponse? lastPayload = null;
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            using var response = await client.GetAsync(requestUri);
+            if (response.IsSuccessStatusCode)
+            {
+                lastPayload = await response.Content.ReadFromJsonAsync<ShortLinkAuditEventsResponse>();
+                if (lastPayload is not null && isReady(lastPayload))
+                {
+                    return lastPayload;
+                }
+            }
+
+            await Task.Delay(50);
+        }
+
+        Assert.NotNull(lastPayload);
+        throw new InvalidOperationException("Audit worker did not persist the expected events in time.");
     }
 }

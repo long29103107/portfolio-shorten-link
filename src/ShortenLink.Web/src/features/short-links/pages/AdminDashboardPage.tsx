@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { listSecurityRoles, listSecurityUsers, listShortLinks } from "../api/shortLinksApi";
+import { getRateLimitActivity, listSecurityRoles, listSecurityUsers, listShortLinks } from "../api/shortLinksApi";
 import {
   composeDashboardSnapshot,
   type DashboardSnapshot,
   type DashboardSource
 } from "../adminDashboard";
-import type { ShortLinkStatusFilter } from "../types";
+import type { RateLimitActivity, ShortLinkStatusFilter } from "../types";
 import { formatDateTime } from "../types";
+import { buildRateLimitPolicyViews } from "../rateLimitPresentation";
 import { RefreshButton } from "../../../shared/components/RefreshButton";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Card, CardContent } from "../../../shared/components/ui/card";
@@ -28,16 +29,19 @@ function listLinksByStatus(status: ShortLinkStatusFilter, limit = 1) {
 
 export function AdminDashboardPage() {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [rateLimitActivity, setRateLimitActivity] = useState<RateLimitActivity | null>(null);
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadDashboard = async () => {
     setIsLoading(true);
-    const [allLinks, activeLinks, inactiveLinks, users, roles] = await Promise.allSettled([
+    const [allLinks, activeLinks, inactiveLinks, users, roles, rateLimits] = await Promise.allSettled([
       listLinksByStatus("all", 6),
       listLinksByStatus("active"),
       listLinksByStatus("inactive"),
       listSecurityUsers(),
-      listSecurityRoles()
+      listSecurityRoles(),
+      getRateLimitActivity()
     ]);
     const linksFailed = [allLinks, activeLinks, inactiveLinks].some(
       (result) => result.status === "rejected"
@@ -59,6 +63,13 @@ export function AdminDashboardPage() {
         : undefined,
       failedSources
     }));
+    if (rateLimits.status === "fulfilled") {
+      setRateLimitActivity(rateLimits.value);
+      setRateLimitError(null);
+    } else {
+      setRateLimitActivity(null);
+      setRateLimitError("Rate-limit activity is unavailable for this workspace.");
+    }
     setIsLoading(false);
   };
 
@@ -107,6 +118,48 @@ export function AdminDashboardPage() {
                 );
               })}
             </div>
+          </CardContent>
+        </Card>
+        <Card className="dashboard-rate-limit-card">
+          <CardContent>
+            <div className="dashboard-section-heading">
+              <div>
+                <p className="eyebrow">Traffic controls</p>
+                <h2>Rate limits</h2>
+              </div>
+              <Badge variant={isLoading ? "secondary" : rateLimitActivity?.enabled ? "default" : "secondary"}>
+                {isLoading ? "Checking" : rateLimitActivity?.enabled ? "Enabled" : "Disabled"}
+              </Badge>
+            </div>
+            {isLoading ? <p className="muted-copy">Loading rate-limit activity...</p> : null}
+            {!isLoading && rateLimitError ? <p className="feedback feedback-error">{rateLimitError}</p> : null}
+            {!isLoading && !rateLimitError && rateLimitActivity ? (
+              <>
+                <div className="rate-limit-policy-grid">
+                  {buildRateLimitPolicyViews(rateLimitActivity).map((policy) => (
+                    <div className="rate-limit-policy" key={policy.label}>
+                      <strong>{policy.label}</strong>
+                      <span>{policy.permitLimit} permits / {policy.window}</span>
+                      <span>Queue: {policy.queueLimit}</span>
+                      <span>Rejected: {policy.rejectedCount}</span>
+                    </div>
+                  ))}
+                </div>
+                {rateLimitActivity.recentRejections.length > 0 ? (
+                  <div className="rate-limit-rejection-list">
+                    <span className="dashboard-activity-note">Recent throttles</span>
+                    {rateLimitActivity.recentRejections.slice(0, 5).map((rejection, index) => (
+                      <div className="rate-limit-rejection" key={`${rejection.occurredAtUtc}-${rejection.policy}-${index}`}>
+                        <strong>{rejection.policy}</strong>
+                        <time dateTime={rejection.occurredAtUtc}>{formatDateTime(rejection.occurredAtUtc)}</time>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted-copy">No throttled requests recorded in this process.</p>
+                )}
+              </>
+            ) : null}
           </CardContent>
         </Card>
         <Card className="dashboard-activity-card">

@@ -7,7 +7,7 @@ using ShortenLink.Infrastructure.Persistence;
 namespace ShortenLink.Infrastructure.Repositories;
 
 public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
-    : IShortLinkAuditRepository
+    : EfCoreRepository<ShortLinkAuditEventPersistenceEntity>(dbContext), IShortLinkAuditRepository
 {
     public async Task AddAsync(
         ShortLinkAuditEvent auditEvent,
@@ -15,9 +15,9 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
 
-        dbContext.ShortLinkAuditEvents.Add(
-            ShortLinkAuditEventPersistenceEntity.FromDomain(auditEvent));
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await AddEntityAsync(
+            ShortLinkAuditEventPersistenceEntity.FromDomain(auditEvent),
+            cancellationToken);
     }
 
     public async Task<ShortLinkAuditPage> ListAsync(
@@ -26,8 +26,7 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        var records = await dbContext.ShortLinkAuditEvents
-            .AsNoTracking()
+        var records = await ReadOnlyEntities
             .ToListAsync(cancellationToken);
 
         var filtered = records
@@ -65,7 +64,11 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
         }
 
         return string.Equals(record.OwnerUserId, scope.UserId, StringComparison.Ordinal)
-            || scope.SharedShortCodes.Contains(record.TargetId);
+            || (string.Equals(
+                    record.TargetType,
+                    ShortLinkAuditTargetTypes.ShortLink,
+                    StringComparison.Ordinal)
+                && scope.SharedShortCodes.Contains(record.TargetId));
     }
 
     private static bool IsAfterCursor(

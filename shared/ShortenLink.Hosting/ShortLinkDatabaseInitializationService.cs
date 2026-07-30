@@ -9,10 +9,12 @@ namespace ShortenLink.Hosting;
 internal sealed class ShortLinkDatabaseInitializationService : IHostedService
 {
     private readonly IServiceScopeFactory scopeFactory;
+    private readonly bool initializeSecurity;
 
-    public ShortLinkDatabaseInitializationService(IServiceScopeFactory scopeFactory)
+    public ShortLinkDatabaseInitializationService(IServiceScopeFactory scopeFactory, bool initializeSecurity = true)
     {
         this.scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        this.initializeSecurity = initializeSecurity;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -20,14 +22,16 @@ internal sealed class ShortLinkDatabaseInitializationService : IHostedService
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ShortLinkDbContext>();
         await dbContext.Database.EnsureCreatedAsync(cancellationToken);
+        await ShortLinkDatabaseSchema.EnsureAuditEventsTableAsync(dbContext, cancellationToken);
 
-        var userRepository = scope.ServiceProvider.GetRequiredService<IShortenLinkSecurityUserRepository>();
-        await userRepository
-            .EnsureBootstrapAdminAsync(
+        if (initializeSecurity)
+        {
+            var userRepository = scope.ServiceProvider.GetRequiredService<IShortenLinkSecurityUserRepository>();
+            await userRepository.EnsureBootstrapAdminAsync(
                 ShortenLinkSecurityCredentialHasher.HashPassword("admin"),
                 DateTimeOffset.UtcNow,
-                cancellationToken)
-            ;
+                cancellationToken);
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

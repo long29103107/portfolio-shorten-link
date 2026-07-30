@@ -4,23 +4,17 @@ using ShortenLink.Infrastructure.Persistence;
 
 namespace ShortenLink.Infrastructure.Repositories;
 
-public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiKeyRepository
+public sealed class EfCoreShortenLinkUserApiKeyRepository(ShortLinkDbContext dbContext)
+    : EfCoreRepository<ShortenLinkUserApiKeyPersistenceEntity>(dbContext),
+        IShortenLinkUserApiKeyRepository
 {
-    private readonly ShortLinkDbContext dbContext;
-
-    public EfCoreShortenLinkUserApiKeyRepository(ShortLinkDbContext dbContext)
-    {
-        this.dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    }
-
     public async Task<IReadOnlyList<ShortenLinkUserApiKey>> ListByUserIdAsync(
         string userId,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-        var records = await dbContext.SecurityUserApiKeys
-            .AsNoTracking()
+        var records = await ReadOnlyEntities
             .Where(apiKey => apiKey.UserId == userId)
             .ToListAsync(cancellationToken)
             ;
@@ -38,8 +32,7 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-        var record = await dbContext.SecurityUserApiKeys
-            .AsNoTracking()
+        var record = await ReadOnlyEntities
             .FirstOrDefaultAsync(apiKey => apiKey.ApiKeyId == id, cancellationToken)
             ;
 
@@ -52,8 +45,7 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(keyHash);
 
-        var record = await dbContext.SecurityUserApiKeys
-            .AsNoTracking()
+        var record = await ReadOnlyEntities
             .FirstOrDefaultAsync(apiKey => apiKey.KeyHash == keyHash, cancellationToken)
             ;
 
@@ -66,20 +58,20 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
     {
         ArgumentNullException.ThrowIfNull(apiKey);
 
-        var record = await dbContext.SecurityUserApiKeys
+        var record = await Entities
             .FirstOrDefaultAsync(candidate => candidate.ApiKeyId == apiKey.ApiKeyKey, cancellationToken)
             ;
 
         if (record is null)
         {
-            dbContext.SecurityUserApiKeys.Add(ShortenLinkUserApiKeyPersistenceEntity.FromDomain(apiKey));
+            Entities.Add(ShortenLinkUserApiKeyPersistenceEntity.FromDomain(apiKey));
         }
         else
         {
             record.UpdateFromDomain(apiKey);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> DisableAsync(
@@ -88,7 +80,7 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
-        var record = await dbContext.SecurityUserApiKeys
+        var record = await Entities
             .FirstOrDefaultAsync(apiKey => apiKey.ApiKeyId == id, cancellationToken)
             ;
         if (record is null)
@@ -97,7 +89,7 @@ public sealed class EfCoreShortenLinkUserApiKeyRepository : IShortenLinkUserApiK
         }
 
         record.IsEnabled = false;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAsync(cancellationToken);
         return true;
     }
 }

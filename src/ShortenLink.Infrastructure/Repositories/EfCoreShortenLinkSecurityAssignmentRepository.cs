@@ -4,20 +4,14 @@ using ShortenLink.Infrastructure.Persistence;
 
 namespace ShortenLink.Infrastructure.Repositories;
 
-public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLinkSecurityAssignmentRepository
+public sealed class EfCoreShortenLinkSecurityAssignmentRepository(ShortLinkDbContext dbContext)
+    : EfCoreRepository<ShortenLinkSecurityAssignmentPersistenceEntity>(dbContext),
+        IShortenLinkSecurityAssignmentRepository
 {
-    private readonly ShortLinkDbContext dbContext;
-
-    public EfCoreShortenLinkSecurityAssignmentRepository(ShortLinkDbContext dbContext)
-    {
-        this.dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-    }
-
     public async Task<IReadOnlyList<ShortenLinkSecurityAssignment>> ListAsync(
         CancellationToken cancellationToken = default)
     {
-        var records = await dbContext.SecurityAssignments
-            .AsNoTracking()
+        var records = await ReadOnlyEntities
             .ToListAsync(cancellationToken)
             ;
 
@@ -34,8 +28,7 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(credentialKeyHash);
 
-        var record = await dbContext.SecurityAssignments
-            .AsNoTracking()
+        var record = await ReadOnlyEntities
             .FirstOrDefaultAsync(
                 assignment => assignment.CredentialKeyHash == credentialKeyHash,
                 cancellationToken)
@@ -50,7 +43,7 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
     {
         ArgumentNullException.ThrowIfNull(assignment);
 
-        var record = await dbContext.SecurityAssignments
+        var record = await Entities
             .FirstOrDefaultAsync(
                 candidate => candidate.CredentialKeyHash == assignment.CredentialKeyHash,
                 cancellationToken)
@@ -58,14 +51,14 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
 
         if (record is null)
         {
-            dbContext.SecurityAssignments.Add(ShortenLinkSecurityAssignmentPersistenceEntity.FromDomain(assignment));
+            Entities.Add(ShortenLinkSecurityAssignmentPersistenceEntity.FromDomain(assignment));
         }
         else
         {
             record.UpdateFromDomain(assignment);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> DisableAsync(
@@ -74,7 +67,7 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(credentialKeyHash);
 
-        var record = await dbContext.SecurityAssignments
+        var record = await Entities
             .FirstOrDefaultAsync(
                 assignment => assignment.CredentialKeyHash == credentialKeyHash,
                 cancellationToken)
@@ -85,7 +78,7 @@ public sealed class EfCoreShortenLinkSecurityAssignmentRepository : IShortenLink
         }
 
         record.IsEnabled = false;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await SaveChangesAsync(cancellationToken);
         return true;
     }
 }

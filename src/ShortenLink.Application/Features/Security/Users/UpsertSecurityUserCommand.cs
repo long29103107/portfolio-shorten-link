@@ -1,4 +1,5 @@
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Features.Audit;
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
 
@@ -16,14 +17,17 @@ internal sealed class UpsertSecurityUserCommandHandler(
     ICurrentRequestContext requestContext,
     IShortenLinkSecurityUserRepository userRepository,
     IShortenLinkSecurityRoleRepository roleRepository,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ShortLinkAuditWriter auditWriter)
     : IRequestHandler<UpsertSecurityUserCommand, SecurityUserResponse>
 {
     public async Task<SecurityUserResponse> Handle(
         UpsertSecurityUserCommand request,
         CancellationToken cancellationToken)
     {
-        await requestContext.EnsureAdminAsync(cancellationToken);
+        var actor = await requestContext.AuthorizeAsync(
+            SecurityFeatureSupport.AdminOnly,
+            cancellationToken);
         if (string.IsNullOrWhiteSpace(request.Id))
             throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityUser, "User id is required.", "id");
         if (string.IsNullOrWhiteSpace(request.Username))
@@ -64,6 +68,16 @@ internal sealed class UpsertSecurityUserCommandHandler(
             isBootstrap: false,
             existing?.CreatedAt ?? timeProvider.GetUtcNow());
         await userRepository.AddOrUpdateAsync(user, cancellationToken);
+        await auditWriter.RecordAsync(
+            actor,
+            existing is null
+                ? ShortLinkAuditActions.SecurityUserCreated
+                : ShortLinkAuditActions.SecurityUserUpdated,
+            user.UserKey,
+            ownerUserId: null,
+            subjectUserId: user.UserKey,
+            cancellationToken: cancellationToken,
+            targetType: ShortLinkAuditTargetTypes.SecurityUser);
         return SecurityUserResponse.FromDomain(user);
     }
 }

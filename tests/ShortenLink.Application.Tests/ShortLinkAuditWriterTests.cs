@@ -12,10 +12,10 @@ public sealed class ShortLinkAuditWriterTests
     [Fact]
     public async Task RecordAsync_AppendsStableActorTargetAndNonSecretContext()
     {
-        var repository = new CapturingAuditRepository();
+        var eventBuffer = new AuditEventBuffer();
         var occurredAt = new DateTimeOffset(2026, 7, 25, 9, 0, 0, TimeSpan.Zero);
         var writer = new ShortLinkAuditWriter(
-            repository,
+            eventBuffer,
             new FixedTimeProvider(occurredAt));
 
         await writer.RecordAsync(
@@ -26,7 +26,7 @@ public sealed class ShortLinkAuditWriterTests
             "user-2",
             "View");
 
-        var auditEvent = Assert.Single(repository.Events);
+        var auditEvent = Assert.Single(eventBuffer.Drain());
         Assert.Equal("user-1", auditEvent.ActorId);
         Assert.Equal("abc1234", auditEvent.TargetId);
         Assert.Equal("owner-1", auditEvent.OwnerUserId);
@@ -39,9 +39,9 @@ public sealed class ShortLinkAuditWriterTests
     [Fact]
     public async Task RecordAsync_UsesStableSystemActorWhenCredentialHasNoUser()
     {
-        var repository = new CapturingAuditRepository();
+        var eventBuffer = new AuditEventBuffer();
         var writer = new ShortLinkAuditWriter(
-            repository,
+            eventBuffer,
             new FixedTimeProvider(DateTimeOffset.UnixEpoch));
 
         await writer.RecordAsync(
@@ -50,25 +50,30 @@ public sealed class ShortLinkAuditWriterTests
             "abc1234",
             null);
 
-        Assert.Equal("system:admin", Assert.Single(repository.Events).ActorId);
+        Assert.Equal("system:admin", Assert.Single(eventBuffer.Drain()).ActorId);
     }
 
-    private sealed class CapturingAuditRepository : IShortLinkAuditRepository
+    [Fact]
+    public async Task RecordAsync_WritesIdentityTargetWithoutSecretContext()
     {
-        public List<ShortLinkAuditEvent> Events { get; } = [];
+        var eventBuffer = new AuditEventBuffer();
+        var writer = new ShortLinkAuditWriter(
+            eventBuffer,
+            new FixedTimeProvider(DateTimeOffset.UnixEpoch));
 
-        public Task AddAsync(
-            ShortLinkAuditEvent auditEvent,
-            CancellationToken cancellationToken = default)
-        {
-            Events.Add(auditEvent);
-            return Task.CompletedTask;
-        }
+        await writer.RecordAsync(
+            "user-1",
+            ShortLinkAuditActions.AuthenticationRefresh,
+            "user-1",
+            "user-1",
+            subjectUserId: "user-1",
+            targetType: ShortLinkAuditTargetTypes.Authentication);
 
-        public Task<ShortLinkAuditPage> ListAsync(
-            ShortLinkAuditQuery query,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ShortLinkAuditPage(Events));
+        var auditEvent = Assert.Single(eventBuffer.Drain());
+        Assert.Equal(ShortLinkAuditTargetTypes.Authentication, auditEvent.TargetType);
+        Assert.Equal("user-1", auditEvent.ActorId);
+        Assert.Equal("user-1", auditEvent.OwnerUserId);
+        Assert.Null(auditEvent.Detail);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

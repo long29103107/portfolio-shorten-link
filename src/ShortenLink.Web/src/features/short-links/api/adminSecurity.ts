@@ -38,6 +38,7 @@ export type AdminPermissionState = {
   canDeactivate: boolean;
   canDelete: boolean;
   canReadAnalytics: boolean;
+  canReadAuditLogs: boolean;
   canManageSecurityAssignments: boolean;
 };
 
@@ -108,6 +109,7 @@ export function getAdminPermissionState(): AdminPermissionState {
     canDeactivate: permissions.has(shortLinkPermissions.status),
     canDelete: permissions.has(shortLinkPermissions.delete),
     canReadAnalytics: permissions.has(shortLinkPermissions.analyticsRead),
+    canReadAuditLogs: permissions.has(shortLinkPermissions.auditLogsRead),
     canManageSecurityAssignments: getStoredCurrentUser()?.roles
       .some((role) => role.toLowerCase() === "admin") ?? false
   };

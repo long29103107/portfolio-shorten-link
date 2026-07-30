@@ -50,5 +50,6 @@ public sealed class ShortLinkAuditEventPersistenceEntity : BaseEntity<Guid>
             Outcome,
             SubjectUserId,
             Detail,
-            Id);
+            Id,
+            TargetType);
 }

@@ -2,6 +2,7 @@ export type AppRoute =
   | { kind: "home" }
   | { kind: "admin" }
   | { kind: "dashboard" }
+  | { kind: "audit" }
   | { kind: "security"; section: SecuritySection }
   | { kind: "login" }
   | { kind: "detail"; code: string }
@@ -88,6 +89,57 @@ export type ShortLinkClickActivity = {
   remoteIpAddress: string | null;
   userAgent: string | null;
   referrer: string | null;
+};
+
+export type AuditLogEvent = {
+  id: string;
+  actorId: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  ownerUserId: string | null;
+  outcome: string;
+  occurredAtUtc: string;
+  subjectUserId: string | null;
+  detail: string | null;
+};
+
+export type AuditLogPage = {
+  items: AuditLogEvent[];
+  nextCursor: string | null;
+};
+
+export type AuditLogFilters = {
+  action: string;
+  targetId: string;
+  actorId: string;
+  from: string;
+  to: string;
+};
+
+export type AuditLogQuery = {
+  limit?: number;
+  cursor?: string | null;
+  filters?: AuditLogFilters;
+};
+
+export type RateLimitPolicyActivity = {
+  permitLimit: number;
+  windowSeconds: number;
+  queueLimit: number;
+  rejectedCount: number;
+};
+
+export type RateLimitRejection = {
+  policy: string;
+  occurredAtUtc: string;
+};
+
+export type RateLimitActivity = {
+  enabled: boolean;
+  create: RateLimitPolicyActivity;
+  redirect: RateLimitPolicyActivity;
+  recentRejections: RateLimitRejection[];
 };
 
 export type DeactivatedShortLink = {

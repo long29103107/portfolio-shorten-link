@@ -13,6 +13,10 @@ export function parseRoute(pathname: string): AppRoute {
     return { kind: "dashboard" };
   }
 
+  if (pathname === "/audit-logs") {
+    return { kind: "audit" };
+  }
+
   if (pathname === "/admin/security") {
     return { kind: "security", section: "users" };
   }

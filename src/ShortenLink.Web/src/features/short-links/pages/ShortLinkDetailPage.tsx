@@ -3,6 +3,7 @@ import { ApiError } from "../api/http";
 import { deactivateShortLink, getShortLinkDetails } from "../api/shortLinksApi";
 import type { ShortLinkDetails } from "../types";
 import { formatDateTime, toFriendlyErrorMessage } from "../types";
+import { getExpiryPresentation } from "../expiryPresentation";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Button } from "../../../shared/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../shared/components/ui/card";
@@ -138,7 +139,17 @@ export function ShortLinkDetailPage({ code, onBackHome }: ShortLinkDetailPagePro
         </div>
         <div>
           <dt>Expiry</dt>
-          <dd>{formatDateTime(details.expiredAtUtc)}</dd>
+          <dd className="expiry-detail-value">
+            {(() => {
+              const expiry = getExpiryPresentation(details, new Date());
+              return (
+                <>
+                  <time dateTime={details.expiredAtUtc ?? undefined}>{expiry.dateTime}</time>
+                  <span className="expiry-detail-status">{expiry.detail}</span>
+                </>
+              );
+            })()}
+          </dd>
         </div>
       </dl>
 
