@@ -129,11 +129,10 @@ public static class ShortenLinkServiceCollectionExtensions
         services.TryAddScoped<IShortLinkService, ShortLinkService>();
         if (!hostOptions.UseExternalPersistence)
         {
-            services.TryAddEnumerable(
-                ServiceDescriptor.Singleton<IHostedService>(_ =>
-                    new ShortLinkDatabaseInitializationService(
-                        _.GetRequiredService<IServiceScopeFactory>(),
-                        !hostOptions.RedirectOnly)));
+            services.AddSingleton<IHostedService>(_ =>
+                new ShortLinkDatabaseInitializationService(
+                    _.GetRequiredService<IServiceScopeFactory>(),
+                    !hostOptions.RedirectOnly));
         }
 
         RegisterCache(services, configuration);

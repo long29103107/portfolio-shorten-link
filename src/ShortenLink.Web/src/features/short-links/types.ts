@@ -109,6 +109,10 @@ export type AuditLogPage = {
   nextCursor: string | null;
 };
 
+export type AuditLogActions = {
+  items: string[];
+};
+
 export type AuditLogFilters = {
   action: string;
   targetId: string;

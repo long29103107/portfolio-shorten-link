@@ -4,9 +4,9 @@ title: Provider-Neutral Persistence
 status: active
 created_at: 2026-07-30
 updated_at: 2026-07-30
-current_task: 025_002
-task_count: 2
-done_count: 1
+current_task: null
+task_count: 4
+done_count: 2
 depends_on:
   - 024
 ---
@@ -30,18 +30,23 @@ the public repository and transaction contracts used by Application.
 | Task | Title | Status | Done At |
 |---|---|---|---|
 | 025_001 | External store registration boundary | done | 2026-07-30 |
-| 025_002 | Repository provider contract-test fixture | active | - |
+| 025_002 | Repository provider contract-test fixture | done | 2026-07-30 |
+| 025_003 | Transaction, expiry, and concurrency contract coverage | done | 2026-07-30 |
+| 025_004 | Provider adapter contract runs | done | 2026-07-30 |
 
 ## Current Task
 
-`025_002` is active and adds the reusable repository provider contract fixture.
+`025_004` completed the adapter verification boundary and documented the
+SQLite/PostgreSQL execution paths.
 
 ## Next Task Proposal
 
-Add a provider contract-test fixture covering create, resolve, expiry, and
-concurrency semantics.
+Phase 025 implementation is complete; run the documented provider suites when
+the dependency feed is available, then close the phase.
 
 ## Task Notes
 
 - `025_001-external-store-registration-boundary.md`
 - `025_002-repository-provider-contract-test-fixture.md`
+- `025_003-transaction-expiry-concurrency-contracts.md`
+- `025_004-provider-adapter-contract-runs.md`

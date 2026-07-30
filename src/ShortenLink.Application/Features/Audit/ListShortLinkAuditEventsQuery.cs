@@ -18,6 +18,33 @@ public sealed record ListShortLinkAuditEventsQuery(
     DateTimeOffset? From,
     DateTimeOffset? To) : IRequest<ShortLinkAuditEventsResponse>;
 
+public sealed record ListShortLinkAuditActionsQuery : IRequest<ShortLinkAuditActionsResponse>;
+
+internal sealed class ListShortLinkAuditActionsQueryHandler(
+    IShortLinkAuditRepository auditRepository,
+    IShortLinkShareRepository shareRepository,
+    ICurrentRequestContext requestContext)
+    : IRequestHandler<ListShortLinkAuditActionsQuery, ShortLinkAuditActionsResponse>
+{
+    public async Task<ShortLinkAuditActionsResponse> Handle(
+        ListShortLinkAuditActionsQuery request,
+        CancellationToken cancellationToken)
+    {
+        var actor = await requestContext.AuthorizeAsync(
+            ShortenLinkPermissionCatalog.AuditLogsRead,
+            cancellationToken);
+        var sharedCodes = actor.IsAdmin || string.IsNullOrWhiteSpace(actor.UserId)
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : (await shareRepository.ListSharedAccessAsync(actor.UserId, cancellationToken))
+                .Keys
+                .ToHashSet(StringComparer.Ordinal);
+        var actions = await auditRepository.ListActionsAsync(
+            new ShortLinkAuditAccessScope(actor.UserId, actor.IsAdmin, sharedCodes),
+            cancellationToken);
+        return new ShortLinkAuditActionsResponse(actions);
+    }
+}
+
 internal sealed class ListShortLinkAuditEventsQueryHandler(
     IShortLinkAuditRepository auditRepository,
     IShortLinkShareRepository shareRepository,

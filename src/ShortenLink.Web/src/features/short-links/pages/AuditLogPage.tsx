@@ -10,6 +10,7 @@ import {
   CardTitle
 } from "../../../shared/components/ui/card";
 import { Input } from "../../../shared/components/ui/input";
+import { DiscoverySelect } from "../../../shared/components/DiscoverySelect";
 import {
   emptyAuditLogFilters,
   formatAuditLabel,
@@ -17,7 +18,7 @@ import {
   toAuditFilterIso,
   validateAuditTimeRange
 } from "../auditDiscovery";
-import { listAuditLogEvents } from "../api/shortLinksApi";
+import { listAuditLogActions, listAuditLogEvents } from "../api/shortLinksApi";
 import {
   formatDateTime,
   type AuditLogEvent,
@@ -44,12 +45,19 @@ export function AuditLogPage() {
   const [draft, setDraft] = useState<AuditFilterDraft>(emptyDraft);
   const [filters, setFilters] = useState<AuditLogFilters>(emptyAuditLogFilters);
   const [events, setEvents] = useState<AuditLogEvent[]>([]);
+  const [actions, setActions] = useState<string[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [failure, setFailure] = useState<RecoveryNotice | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [reloadVersion, setReloadVersion] = useState(0);
+
+  useEffect(() => {
+    void listAuditLogActions()
+      .then((response) => setActions(response.items))
+      .catch(() => setActions([]));
+  }, []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -148,18 +156,17 @@ export function AuditLogPage() {
       <CardContent>
         <form className="audit-filter-panel" onSubmit={applyFilters}>
           <div className="audit-filter-grid">
-            <label>
-              <span>Action</span>
-              <Input
-                aria-label="Filter by action"
-                placeholder="short_link.updated"
-                value={draft.action}
-                onChange={(event) => setDraft((current) => ({
-                  ...current,
-                  action: event.target.value
-                }))}
-              />
-            </label>
+            <DiscoverySelect
+              label="Action"
+              value={draft.action}
+              onChange={(action) => setDraft((current) => ({
+                ...current,
+                action
+              }))}
+            >
+              <option value="">All actions</option>
+              {actions.map((action) => <option key={action} value={action}>{formatAuditLabel(action)}</option>)}
+            </DiscoverySelect>
             <label>
               <span>Target ID</span>
               <Input

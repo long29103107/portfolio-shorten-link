@@ -306,6 +306,17 @@ builder.Services.AddShortenLink(
 External providers own transactions, concurrency, schema/migrations, and the
 durability guarantees of their repository implementations.
 
+The maintained EF adapters are covered by the infrastructure test suite. Run
+the SQLite contract-backed checks locally with:
+
+```powershell
+dotnet test tests\ShortenLink.Infrastructure.Tests\ShortenLink.Infrastructure.Tests.csproj --no-restore --verbosity minimal
+```
+
+PostgreSQL adapter verification uses the same repository contracts when a
+PostgreSQL connection is supplied by the test environment; it is opt-in and
+does not affect the SQLite default path.
+
 Minimum `appsettings.json` configuration for SQLite default mode:
 
 ```json

@@ -1,5 +1,6 @@
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
+using System.Text.RegularExpressions;
 
 namespace ShortenLink.Application.Features.ShortLinks.List;
 
@@ -12,6 +13,50 @@ public sealed record ListShortLinksQuery(
     string? Status,
     string? SortBy,
     string? SortDirection) : IRequest<ShortLinkAdminListResponse>;
+
+public sealed record ShortLinkListQueryParameters(
+    string? Search,
+    string Status,
+    string SortBy,
+    string SortDirection);
+
+public static partial class ShortLinkListQueryParameterParser
+{
+    public static ShortLinkListQueryParameters Parse(string? filter, string? sort)
+    {
+        var search = SearchPattern().Match(filter ?? string.Empty).Groups[1].Value;
+        var status = StatusPattern().Match(filter ?? string.Empty).Groups[1].Value.ToLowerInvariant() switch
+        {
+            "true" => "active",
+            "false" => "inactive",
+            _ => "all"
+        };
+        var sortMatch = SortPattern().Match(sort ?? string.Empty);
+        var field = sortMatch.Groups[2].Value.ToLowerInvariant() switch
+        {
+            "expiresat" => "expiry",
+            "originalurl" => "destination",
+            "code" => "code",
+            "isactive" => "status",
+            _ => "created"
+        };
+
+        return new ShortLinkListQueryParameters(
+            string.IsNullOrWhiteSpace(search) ? null : search,
+            status,
+            field,
+            sortMatch.Success && sortMatch.Groups[1].Value == "-" ? "desc" : "asc");
+    }
+
+    [GeneratedRegex(@"(?:Code|OriginalUrl) contains `([^`]*)`", RegexOptions.IgnoreCase)]
+    private static partial Regex SearchPattern();
+
+    [GeneratedRegex(@"IsActive eq `(true|false)`", RegexOptions.IgnoreCase)]
+    private static partial Regex StatusPattern();
+
+    [GeneratedRegex(@"^([+-]?)([A-Za-z][A-Za-z0-9.]*)$")]
+    private static partial Regex SortPattern();
+}
 
 internal sealed class ListShortLinksQueryHandler(
     IShortLinkService shortLinkService,

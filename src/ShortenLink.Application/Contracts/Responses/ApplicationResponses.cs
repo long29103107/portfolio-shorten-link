@@ -280,6 +280,8 @@ public sealed record ShortLinkAuditEventsResponse(
     IReadOnlyList<ShortLinkAuditEventResponse> Items,
     string? NextCursor);
 
+public sealed record ShortLinkAuditActionsResponse(IReadOnlyList<string> Items);
+
 public sealed record ShortLinkAuditEventResponse(
     Guid Id,
     string ActorId,

@@ -12,11 +12,18 @@ const sortFields: Record<Exclude<ShortLinkDiscoveryQuery["sortBy"], "status">, S
 
 export function buildShortLinkFilterExpression(query: ShortLinkDiscoveryQuery): FilterExpression | undefined {
   const search = query.search.trim();
-  if (!search) return undefined;
-  return filter.or(
-    filter.condition("Code", "contains", search),
-    filter.condition("OriginalUrl", "contains", search)
-  );
+  const expressions: FilterExpression[] = [];
+  if (search) {
+    expressions.push(filter.or(
+      filter.condition("Code", "contains", search),
+      filter.condition("OriginalUrl", "contains", search)
+    ));
+  }
+  if (query.status === "active" || query.status === "inactive") {
+    expressions.push(filter.condition("IsActive", "eq", query.status === "active"));
+  }
+  if (expressions.length === 0) return undefined;
+  return expressions.length === 1 ? expressions[0] : filter.and(...expressions);
 }
 
 export function buildShortLinkSortExpression(query: ShortLinkDiscoveryQuery): SortExpression<ShortLinkQueryField>[] {

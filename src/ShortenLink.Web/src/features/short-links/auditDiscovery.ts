@@ -21,7 +21,7 @@ export function buildAuditLogUrl(query: AuditLogQuery = {}): string {
     params.set("cursor", query.cursor.trim());
   }
 
-  const filters = query.filters ?? emptyAuditLogFilters;
+  const filters = { ...emptyAuditLogFilters, ...(query.filters ?? {}) };
   setTrimmed(params, "action", filters.action);
   setTrimmed(params, "targetId", filters.targetId);
   setTrimmed(params, "actorId", filters.actorId);

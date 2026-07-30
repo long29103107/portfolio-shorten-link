@@ -34,6 +34,13 @@ internal static class AuditLogEndpoints
             .WithTags("Audit Logs")
             .WithName("ListAuditLogs");
 
+        endpoints.MapGet(
+                "/api/audit-logs/actions",
+                static (ISender sender, CancellationToken cancellationToken) =>
+                    sender.Send(new ListShortLinkAuditActionsQuery(), cancellationToken))
+            .WithTags("Audit Logs")
+            .WithName("ListAuditLogActions");
+
         return endpoints;
     }
 }

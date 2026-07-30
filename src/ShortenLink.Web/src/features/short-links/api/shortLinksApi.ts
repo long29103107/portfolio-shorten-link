@@ -3,6 +3,7 @@ import { appendQueryExpression } from "../../../shared/queryExpression";
 import { buildShortLinkFilterExpression, buildShortLinkSortExpression } from "../queryExpression";
 import type {
   AuditLogPage,
+  AuditLogActions,
   AuditLogQuery,
   CreateShortLinkRequest,
   CreatedShortLink,
@@ -58,6 +59,10 @@ export async function listAuditLogEvents(query: AuditLogQuery = {}): Promise<Aud
   return fetchJson<AuditLogPage>(buildAuditLogUrl(query));
 }
 
+export async function listAuditLogActions(): Promise<AuditLogActions> {
+  return fetchJson<AuditLogActions>("/api/audit-logs/actions");
+}
+
 export async function getRateLimitActivity(): Promise<RateLimitActivity> {
   return fetchJson<RateLimitActivity>("/api/admin/rate-limits");
 }
@@ -87,7 +92,7 @@ export async function listShortLinks(
   return fetchJson<ShortLinkAdminPageResult>(buildShortLinkListUrl(limit, page, discovery));
 }
 
-export function buildShortLinkListUrl(
+export function buildShortLinkQueryParams(
   limit = 25,
   page = 1,
   discovery?: ShortLinkDiscoveryQuery
@@ -98,20 +103,21 @@ export function buildShortLinkListUrl(
   });
 
   if (discovery) {
-    const search = discovery.search.trim();
-    if (search) {
-      params.set("search", search);
-    }
-    params.set("status", discovery.status);
-    params.set("sortBy", discovery.sortBy);
-    params.set("sortDirection", discovery.sortDirection);
     appendQueryExpression(params, {
       filter: buildShortLinkFilterExpression(discovery),
       sort: buildShortLinkSortExpression(discovery)
     });
   }
 
-  return `/api/short-links?${params.toString()}`;
+  return params;
+}
+
+export function buildShortLinkListUrl(
+  limit = 25,
+  page = 1,
+  discovery?: ShortLinkDiscoveryQuery
+) {
+  return `/api/short-links?${buildShortLinkQueryParams(limit, page, discovery).toString()}`;
 }
 
 export async function deactivateShortLink(code: string): Promise<DeactivatedShortLink> {

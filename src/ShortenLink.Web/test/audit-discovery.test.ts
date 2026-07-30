@@ -26,6 +26,11 @@ describe("audit investigation discovery", () => {
     );
   });
 
+  test("serializes a selected action for the audit API", () => {
+    expect(buildAuditLogUrl({ filters: { action: "short_link.created" } }))
+      .toBe("/api/audit-logs?limit=50&action=short_link.created");
+  });
+
   test("omits blank filters and uses the newest-page defaults", () => {
     expect(buildAuditLogUrl()).toBe("/api/audit-logs?limit=50");
   });

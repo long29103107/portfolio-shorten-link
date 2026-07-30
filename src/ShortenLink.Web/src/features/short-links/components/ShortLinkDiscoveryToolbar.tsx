@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Button } from "../../../shared/components/ui/button";
 import { Input } from "../../../shared/components/ui/input";
 import type { ShortLinkDiscoveryQuery } from "../types";
 import { DiscoverySelect } from "../../../shared/components/DiscoverySelect";
@@ -7,7 +6,7 @@ import { useDebouncedCallback } from "../../../shared/hooks/useDebouncedCallback
 
 export const defaultShortLinkDiscoveryQuery: ShortLinkDiscoveryQuery = {
   search: "",
-  status: "active",
+  status: "all",
   sortBy: "created",
   sortDirection: "desc"
 };
@@ -62,23 +61,11 @@ export function ShortLinkDiscoveryToolbar({
       </div>
 
       <DiscoverySelect label="Status" value={value.status} disabled={disabled} onChange={(status) => onChange({ ...value, status })}>
+          <option value="all">All</option>
           <option value="active">Active</option>
-          <option value="inactive">Deactivated</option>
+          <option value="inactive">Deactive</option>
       </DiscoverySelect>
 
-      {hasShortLinkDiscoveryCriteria(value) || search !== value.search ? (
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={disabled}
-          onClick={() => {
-            debouncedSearch.cancel();
-            onChange(defaultShortLinkDiscoveryQuery);
-          }}
-        >
-          Reset
-        </Button>
-      ) : null}
       {action ? <div className="admin-discovery-action">{action}</div> : null}
     </div>
   );

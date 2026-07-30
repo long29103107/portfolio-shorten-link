@@ -13,6 +13,9 @@ public abstract class ShortLinkRepositoryContractTests
 {
     protected abstract Task<IShortLinkRepository> CreateRepositoryAsync();
 
+    protected virtual Task<IUnitOfWork?> CreateUnitOfWorkAsync() =>
+        Task.FromResult<IUnitOfWork?>(null);
+
     [Fact]
     public async Task AddFindAndExistsMustRoundTripByCode()
     {
@@ -53,6 +56,42 @@ public abstract class ShortLinkRepositoryContractTests
 
         Assert.Null(await repository.FindByCodeAsync(link.Code));
         Assert.False(await repository.ExistsByCodeAsync(link.Code));
+    }
+
+    [Fact]
+    public void ExpiredLinksMustRemainExpiredAccordingToTheDomainContract()
+    {
+        var link = new ShortLink(
+            "contract-expired",
+            new Uri("https://example.com/contract-expired"),
+            DateTimeOffset.UtcNow.AddMinutes(-2),
+            expiresAt: DateTimeOffset.UtcNow.AddMinutes(-1));
+
+        Assert.True(link.IsExpired(DateTimeOffset.UtcNow));
+        Assert.False(link.CanResolve(DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
+    public async Task DuplicateCodesMustBeRejectedByTheProvider()
+    {
+        var repository = await CreateRepositoryAsync();
+        await repository.AddAsync(NewLink("contract-duplicate"));
+
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            repository.AddAsync(NewLink("contract-duplicate")));
+    }
+
+    [Fact]
+    public async Task UnitOfWorkMustReturnTheOperationResult()
+    {
+        var unitOfWork = await CreateUnitOfWorkAsync();
+        if (unitOfWork is null)
+        {
+            return;
+        }
+
+        var result = await unitOfWork.ExecuteAsync(_ => Task.FromResult(42));
+        Assert.Equal(42, result);
     }
 
     private static ShortLink NewLink(string code) => new(

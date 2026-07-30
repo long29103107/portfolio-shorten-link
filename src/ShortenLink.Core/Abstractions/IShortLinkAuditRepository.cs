@@ -12,4 +12,8 @@ public interface IShortLinkAuditRepository
     Task<ShortLinkAuditPage> ListAsync(
         ShortLinkAuditQuery query,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> ListActionsAsync(
+        ShortLinkAuditAccessScope accessScope,
+        CancellationToken cancellationToken = default);
 }

@@ -49,6 +49,19 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
         return new ShortLinkAuditPage(filtered);
     }
 
+    public async Task<IReadOnlyList<string>> ListActionsAsync(
+        ShortLinkAuditAccessScope accessScope,
+        CancellationToken cancellationToken = default)
+    {
+        var records = await ReadOnlyEntities.ToListAsync(cancellationToken);
+        return records
+            .Where(record => IsAccessible(record, accessScope))
+            .Select(record => record.Action)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(action => action, StringComparer.Ordinal)
+            .ToList();
+    }
+
     private static bool IsAccessible(
         ShortLinkAuditEventPersistenceEntity record,
         ShortLinkAuditAccessScope scope)

@@ -97,21 +97,29 @@ internal static class ShortLinkManagementEndpoints
         string? status,
         string? sortBy,
         string? sortDirection,
+        string? fe,
+        string? sort,
         ISender sender,
         IOptions<ShortenLinkOptions> options,
         HttpContext httpContext,
         CancellationToken cancellationToken) =>
         sender.Send(
-            new ListShortLinksQuery(
-                GetBaseUrl(options.Value, httpContext),
-                limit,
-                page,
-                cursor,
-                search,
-                status,
-                sortBy,
-                sortDirection),
+            CreateListQuery(GetBaseUrl(options.Value, httpContext), limit, page, cursor,
+                search, status, sortBy, sortDirection, fe, sort),
             cancellationToken);
+
+    private static ListShortLinksQuery CreateListQuery(
+        string baseUrl, int? limit, int? page, string? cursor,
+        string? search, string? status, string? sortBy, string? sortDirection,
+        string? filter, string? sort)
+    {
+        if (string.IsNullOrWhiteSpace(filter) && string.IsNullOrWhiteSpace(sort))
+            return new ListShortLinksQuery(baseUrl, limit, page, cursor, search, status, sortBy, sortDirection);
+
+        var parsed = ShortLinkListQueryParameterParser.Parse(filter, sort);
+        return new ListShortLinksQuery(
+            baseUrl, limit, page, cursor, parsed.Search, parsed.Status, parsed.SortBy, parsed.SortDirection);
+    }
 
     private static Task<ShortLinkAdminListItemResponse> UpdateShortLinkAsync(
         string code,
