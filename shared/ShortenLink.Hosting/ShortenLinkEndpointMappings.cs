@@ -102,13 +102,12 @@ public static class ShortenLinkEndpointMappings
     }
 
     private static Task<ShortLinkAdminListResponse> ListShortLinksAsync(
-        int? limit, int? page, string? cursor, string? search, string? status,
-        string? sortBy, string? sortDirection, string? fe, string? sort,
+        [AsParameters] ShortLinkListEndpointRequest request,
         ISender sender, IOptions<ShortenLinkOptions> options,
         HttpContext httpContext, CancellationToken cancellationToken) =>
         sender.Send(CreateListQuery(
-            GetBaseUrl(options.Value, httpContext), limit, page, cursor,
-            search, status, sortBy, sortDirection, fe, sort),
+            GetBaseUrl(options.Value, httpContext), request.Limit, request.Page, request.Cursor,
+            request.Search, request.Status, request.SortBy, request.SortDirection, request.Fe, request.Sort),
             cancellationToken);
 
     private static ListShortLinksQuery CreateListQuery(

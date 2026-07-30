@@ -12,24 +12,18 @@ internal static class AuditLogEndpoints
         endpoints.MapGet(
                 "/api/audit-logs",
                 static (
-                    int? limit,
-                    string? cursor,
-                    string? action,
-                    string? targetId,
-                    string? actorId,
-                    DateTimeOffset? from,
-                    DateTimeOffset? to,
+                    [AsParameters] AuditLogEndpointRequest request,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                     sender.Send(
                         new ListShortLinkAuditEventsQuery(
-                            limit,
-                            cursor,
-                            action,
-                            targetId,
-                            actorId,
-                            from,
-                            to),
+                            request.Limit,
+                            request.Cursor,
+                            request.Action,
+                            request.TargetId,
+                            request.ActorId,
+                            request.From,
+                            request.To),
                         cancellationToken))
             .WithTags("Audit Logs")
             .WithName("ListAuditLogs");
