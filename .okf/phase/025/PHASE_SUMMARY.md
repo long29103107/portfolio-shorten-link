@@ -4,9 +4,9 @@ title: Provider-Neutral Persistence
 status: active
 created_at: 2026-07-30
 updated_at: 2026-07-30
-current_task: null
-task_count: 4
-done_count: 2
+current_task: 025_005
+task_count: 5
+done_count: 4
 depends_on:
   - 024
 ---
@@ -33,16 +33,17 @@ the public repository and transaction contracts used by Application.
 | 025_002 | Repository provider contract-test fixture | done | 2026-07-30 |
 | 025_003 | Transaction, expiry, and concurrency contract coverage | done | 2026-07-30 |
 | 025_004 | Provider adapter contract runs | done | 2026-07-30 |
+| 025_005 | MyBlog base contract prototype review | active | - |
 
 ## Current Task
 
-`025_004` completed the adapter verification boundary and documented the
-SQLite/PostgreSQL execution paths.
+`025_005` is active and prototypes shared request/list/paging/response bases for
+review before any production DTO migration.
 
 ## Next Task Proposal
 
-Phase 025 implementation is complete; run the documented provider suites when
-the dependency feed is available, then close the phase.
+After review, selectively migrate compatible list DTOs without changing API
+JSON contracts.
 
 ## Task Notes
 
@@ -50,3 +51,4 @@ the dependency feed is available, then close the phase.
 - `025_002-repository-provider-contract-test-fixture.md`
 - `025_003-transaction-expiry-concurrency-contracts.md`
 - `025_004-provider-adapter-contract-runs.md`
+- `025_005-myb​​log-base-contract-prototype.md`
