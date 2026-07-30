@@ -1,12 +1,12 @@
 ---
 phase: 025
 title: Provider-Neutral Persistence
-status: active
+status: complete
 created_at: 2026-07-30
 updated_at: 2026-07-30
-current_task: 025_005
+current_task: null
 task_count: 5
-done_count: 4
+done_count: 5
 depends_on:
   - 024
 ---
@@ -33,17 +33,16 @@ the public repository and transaction contracts used by Application.
 | 025_002 | Repository provider contract-test fixture | done | 2026-07-30 |
 | 025_003 | Transaction, expiry, and concurrency contract coverage | done | 2026-07-30 |
 | 025_004 | Provider adapter contract runs | done | 2026-07-30 |
-| 025_005 | MyBlog base contract prototype review | active | - |
+| 025_005 | MyBlog base contract prototype review | done | 2026-07-30 |
 
 ## Current Task
 
-`025_005` is active and prototypes shared request/list/paging/response bases for
-review before any production DTO migration.
+`025_005` completed the shared request/list/paging/response base migration for
+the multi-parameter list endpoints.
 
 ## Next Task Proposal
 
-After review, selectively migrate compatible list DTOs without changing API
-JSON contracts.
+Phase 025 implementation and final verification are complete.
 
 ## Task Notes
 

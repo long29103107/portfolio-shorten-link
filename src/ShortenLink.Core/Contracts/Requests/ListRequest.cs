@@ -5,15 +5,15 @@ namespace ShortenLink.Core.Contracts.Requests;
 public class ListRequest : Request
 {
     [JsonIgnore]
-    public int Count { get; set; }
+    public int? Count { get; set; }
 
-    public string Fe { get; set; } = string.Empty;
+    public string? Fe { get; set; }
 
-    public string Sort { get; set; } = string.Empty;
-
-    [JsonIgnore]
-    public bool OrderDesc => Sort.TrimStart().StartsWith("-", StringComparison.Ordinal);
+    public string? Sort { get; set; }
 
     [JsonIgnore]
-    public string OrderBy => Sort.Trim().TrimStart('+', '-');
+    public bool OrderDesc => Sort?.TrimStart().StartsWith("-", StringComparison.Ordinal) == true;
+
+    [JsonIgnore]
+    public string OrderBy => Sort?.Trim().TrimStart('+', '-') ?? string.Empty;
 }

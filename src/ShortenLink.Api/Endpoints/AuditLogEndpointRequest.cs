@@ -2,8 +2,12 @@ using ShortenLink.Core.Contracts.Requests;
 
 namespace ShortenLink.Api.Endpoints;
 
-internal sealed class AuditLogEndpointRequest : PagingListRequest
+internal sealed class AuditLogEndpointRequest : ListRequest
 {
+    public int? Page { get; set; }
+
+    public int? PageSize { get; set; }
+
     public int? Limit { get; set; }
 
     public string? Cursor { get; set; }

@@ -2,9 +2,11 @@ using ShortenLink.Core.Contracts.Requests;
 
 namespace ShortenLink.Hosting;
 
-public sealed class ShortLinkListEndpointRequest : PagingListRequest
+public sealed class ShortLinkListEndpointRequest : ListRequest
 {
-    public new int? Page { get; set; }
+    public int? Page { get; set; }
+
+    public int? PageSize { get; set; }
 
     public int? Limit { get; set; }
 

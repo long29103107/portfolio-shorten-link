@@ -5,5 +5,5 @@ namespace ShortenLink.Core.Contracts.Requests;
 public abstract class Request
 {
     [JsonIgnore]
-    public object? ScopedContext { get; set; }
+    internal object? ScopedContext { get; set; }
 }
