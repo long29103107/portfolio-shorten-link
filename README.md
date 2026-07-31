@@ -323,6 +323,10 @@ Minimum `appsettings.json` configuration for SQLite default mode:
 {
   "ShortenLink": {
     "BaseUrl": "https://localhost:5001",
+    "Code": {
+      "DefaultLength": 7,
+      "MaxRetry": 5
+    },
     "Database": {
       "UsePostgres": false,
       "SqliteConnectionString": "Data Source=shorten-link.db",
@@ -371,6 +375,18 @@ Minimum `appsettings.json` configuration for SQLite default mode:
   }
 }
 ```
+
+`Code:DefaultLength` controls the length of generated random Base62 codes.
+`Code:MaxRetry` limits how many candidates are checked when a generated code
+already exists. The defaults are 7 and 10 respectively; the demo app overrides
+`MaxRetry` to 5 in its local settings.
+
+Lifecycle and redirect events are opt-in. Register an `IShortLinkEventSink`
+before resolving the short-link service; the sink should enqueue work and
+return promptly so event delivery does not add redirect latency. Event payloads
+contain only a version, event type, short code, timestamp, expiry, and active
+state; destination URLs, identities, credentials, tokens, hashes, and request
+metadata are intentionally excluded.
 
 ### Validation Error Contract
 
@@ -554,6 +570,124 @@ The demo host still uses `AddShortenLink(builder.Configuration);` with no applic
 ## Configuration Defaults And Optional Providers
 
 SQLite is the safe default and requires no external infrastructure. PostgreSQL, Redis cache, click analytics, and rate limiting are opt-in through configuration. A consumer can install the same `ShortenLink.Hosting` package and choose behavior through `ShortenLink:*` settings instead of changing application code.
+
+## Idempotent Create Requests
+
+Create requests may include an `Idempotency-Key` header up to 256 characters:
+
+```http
+POST /api/short-links
+Idempotency-Key: import-item-42
+Content-Type: application/json
+```
+
+The first request persists the key with the generated link. An equivalent retry
+returns the same link with HTTP `200` and does not create another link or audit
+event. Reusing a key with a different destination, expiry, or actor returns the
+stable `idempotency_conflict` error. Requests without the header retain the
+normal random-code behavior and response status.
+
+The reusable store boundary is `IShortLinkIdempotencyRepository`. Custom
+providers that accept idempotency keys must implement its lookup and enforce a
+unique key at their own persistence boundary, translating a concurrent winner
+into `ShortLinkIdempotencyConflictException`. Keys are not returned in API
+responses, lifecycle events, analytics, or diagnostic logs.
+
+## Bulk Import Dry-Run
+
+Administrators with `short_links.import` can validate a bounded import batch
+without writing links, cache entries, audit events, or lifecycle events:
+
+```http
+POST /api/short-links/import/dry-run
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "originalUrl": "https://example.com/docs",
+      "expiredAtUtc": "2026-07-20T00:00:00Z",
+      "idempotencyKey": "batch-item-1"
+    }
+  ]
+}
+```
+
+The response contains `totalCount`, `validCount`, `invalidCount`, `truncated`,
+and one `{ itemNumber, succeeded, errorCode, errorMessage }` result per
+processed item. Validation is async-enumerable compatible and currently
+bounded at 1,000 items. Errors are stable (`invalid_url`,
+`invalid_expiration`, `invalid_idempotency_key`, or
+`duplicate_idempotency_key`) and never echo URLs, keys, credentials, or other
+input data. Persistence and streaming workers can consume this boundary in a
+later import task.
+
+To execute the bounded batch, use the same payload with the import endpoint:
+
+```http
+POST /api/short-links/import
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "originalUrl": "https://example.com/docs",
+      "expiredAtUtc": "2026-12-31T00:00:00Z",
+      "idempotencyKey": "docs-1"
+    }
+  ]
+}
+```
+
+Execution persists each valid item through the normal create/idempotency
+boundary and returns `succeededCount`, `failedCount`, `replayedCount`, and
+per-item `shortCode`/`replayed` fields. A validation, conflict, or persistence
+failure is isolated to its item so later items continue. Replayed items reuse
+their existing code and do not create another audit event; the endpoint never
+returns original URLs or idempotency keys in error details.
+
+## Observability And Health Checks
+
+Observability is opt-in. The default configuration does not create redirect
+activities or record meters, so a minimal host keeps the existing redirect
+path. Enable the Core diagnostics when an OpenTelemetry listener or another
+`ActivityListener`/`MeterListener` is registered:
+
+```json
+{
+  "ShortenLink": {
+    "Observability": {
+      "Enabled": true,
+      "HealthChecksEnabled": true
+    }
+  }
+}
+```
+
+The stable diagnostics are `ShortenLink` (`ActivitySource` and `Meter`) with
+the `ShortenLink.Redirect` activity and these low-cardinality meters:
+`shortenlink.redirects`, `shortenlink.redirect.failures`,
+`shortenlink.redirect.cache.hits`, and `shortenlink.redirect.cache.misses`.
+Only cache-hit and outcome dimensions are emitted; destination URLs, short-link
+codes, identities, request metadata, connection strings, credentials, tokens,
+and exception messages are intentionally excluded.
+
+When `HealthChecksEnabled` is true, `AddShortenLink` registers configuration,
+database, cache, and analytics checks. A host can map them to its own route:
+
+```csharp
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+```
+
+Hosts that need explicit registration can call
+`builder.Services.AddShortenLinkHealthChecks()`; the extension is idempotent.
+Health checks never return connection strings or provider exception messages.
+Mediator diagnostics use stable event names (`ShortenLinkRequestCompleted` and
+`ShortenLinkRequestFailed`) and log only request type, elapsed time, and safe
+exception type.
 
 ## Click Analytics
 

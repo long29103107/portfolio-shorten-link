@@ -8,6 +8,32 @@ namespace ShortenLink.Infrastructure.Persistence;
 /// </summary>
 public static class ShortLinkDatabaseSchema
 {
+    public static async Task EnsureIdempotencySchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+
+        if (dbContext.Database.IsSqlite())
+        {
+            await EnsureSqliteIdempotencyColumnAsync(dbContext, cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_short_links_IdempotencyKey\" ON \"short_links\" (\"IdempotencyKey\");",
+                cancellationToken);
+            return;
+        }
+
+        if (dbContext.Database.IsNpgsql())
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"IdempotencyKey\" character varying(256);",
+                cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_short_links_IdempotencyKey\" ON \"short_links\" (\"IdempotencyKey\");",
+                cancellationToken);
+        }
+    }
+
     public static Task EnsureAuditEventsTableAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken = default)
@@ -23,6 +49,34 @@ public static class ShortLinkDatabaseSchema
         return sql is null
             ? Task.CompletedTask
             : dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static async Task EnsureSqliteIdempotencyColumnAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA table_info('short_links');";
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (string.Equals(reader.GetString(1), "IdempotencyKey", StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+        }
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_links\" ADD COLUMN \"IdempotencyKey\" TEXT NULL;",
+            cancellationToken);
     }
 
     private const string SqliteAuditEventsSchema = """

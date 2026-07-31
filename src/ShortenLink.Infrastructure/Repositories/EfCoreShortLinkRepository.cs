@@ -1,12 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
+using Npgsql;
 using ShortenLink.Core.Domain;
+using ShortenLink.Core.Exceptions;
 using ShortenLink.Core.Services;
 using ShortenLink.Infrastructure.Persistence;
 
 namespace ShortenLink.Infrastructure.Repositories;
 
 public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
-    : EfCoreRepository<ShortLinkPersistenceEntity>(dbContext), IShortLinkRepository
+    : EfCoreRepository<ShortLinkPersistenceEntity>(dbContext), IShortLinkRepository, IShortLinkIdempotencyRepository
 {
     public async Task<IReadOnlyList<ShortLink>> ListRecentAsync(
         int limit,
@@ -138,6 +141,18 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
         return record?.ToDomain();
     }
 
+    public async Task<ShortLink?> FindByIdempotencyKeyAsync(
+        string idempotencyKey,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
+
+        var record = await ReadOnlyEntities
+            .FirstOrDefaultAsync(link => link.IdempotencyKey == idempotencyKey, cancellationToken);
+
+        return record?.ToDomain();
+    }
+
     private static bool MatchesSearch(ShortLinkPersistenceEntity record, string? search)
     {
         if (string.IsNullOrWhiteSpace(search))
@@ -225,9 +240,21 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
     {
         ArgumentNullException.ThrowIfNull(shortLink);
 
-        await AddEntityAsync(
-            ShortLinkPersistenceEntity.FromDomain(shortLink),
-            cancellationToken);
+        var persistenceEntity = ShortLinkPersistenceEntity.FromDomain(shortLink);
+        try
+        {
+            await AddEntityAsync(persistenceEntity, cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsIdempotencyConflict(exception))
+        {
+            DbContext.Entry(persistenceEntity).State = EntityState.Detached;
+            throw new ShortLinkIdempotencyConflictException(exception);
+        }
+        catch (DbUpdateException exception) when (IsCodeConflict(exception))
+        {
+            DbContext.Entry(persistenceEntity).State = EntityState.Detached;
+            throw new ShortLinkCodeConflictException(shortLink.Code, exception);
+        }
     }
 
     public async Task UpdateAsync(
@@ -265,5 +292,51 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             Entities.Remove(record);
             await SaveChangesAsync(cancellationToken);
         }
+    }
+
+    private static bool IsCodeConflict(DbUpdateException exception)
+    {
+        var providerException = exception.InnerException;
+        if (providerException is SqliteException sqliteException)
+        {
+            return sqliteException.SqliteErrorCode == 19
+                && sqliteException.Message.Contains(
+                    "short_links.Code",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (providerException is PostgresException postgresException)
+        {
+            return postgresException.SqlState == PostgresErrorCodes.UniqueViolation
+                && string.Equals(
+                    postgresException.ConstraintName,
+                    "IX_short_links_Code",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
+    private static bool IsIdempotencyConflict(DbUpdateException exception)
+    {
+        var providerException = exception.InnerException;
+        if (providerException is SqliteException sqliteException)
+        {
+            return sqliteException.SqliteErrorCode == 19
+                && sqliteException.Message.Contains(
+                    "short_links.IdempotencyKey",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (providerException is PostgresException postgresException)
+        {
+            return postgresException.SqlState == PostgresErrorCodes.UniqueViolation
+                && string.Equals(
+                    postgresException.ConstraintName,
+                    "IX_short_links_IdempotencyKey",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
     }
 }

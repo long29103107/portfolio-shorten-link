@@ -1,9 +1,9 @@
 ---
 phase: 024
 title: External Host Integration
-status: active
+status: complete
 created_at: 2026-07-30
-updated_at: 2026-07-30
+updated_at: 2026-07-31
 current_task: null
 task_count: 4
 done_count: 4
@@ -42,8 +42,7 @@ its authentication, authorization, or request-context conventions.
 
 ## Current Task
 
-`024_003` completed the minimal redirect-only registration profile on top of
-the package-owned endpoint mapping seam.
+No task is active.
 
 ## Completed Notes
 

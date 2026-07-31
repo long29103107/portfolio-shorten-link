@@ -6,6 +6,8 @@ public sealed class ShortenLinkOptions
 
     public string? BaseUrl { get; set; }
 
+    public ShortenLinkCodeOptions Code { get; set; } = new();
+
     public ShortenLinkDatabaseOptions Database { get; set; } = new();
 
     public ShortenLinkRedirectOptions Redirect { get; set; } = new();
@@ -14,9 +16,18 @@ public sealed class ShortenLinkOptions
 
     public ShortenLinkCacheOptions Cache { get; set; } = new();
 
+    public ShortenLinkObservabilityOptions Observability { get; set; } = new();
+
     public ShortenLinkRateLimitingOptions RateLimiting { get; set; } = new();
 
     public ShortenLinkSecurityOptions Security { get; set; } = new();
+}
+
+public sealed class ShortenLinkCodeOptions
+{
+    public int DefaultLength { get; set; } = 7;
+
+    public int MaxRetry { get; set; } = 10;
 }
 
 public sealed class ShortenLinkDatabaseOptions
@@ -53,6 +64,20 @@ public sealed class ShortenLinkCacheOptions
     public string RedisConnectionString { get; set; } = string.Empty;
 
     public int EntryTtlSeconds { get; set; } = 3600;
+}
+
+public sealed class ShortenLinkObservabilityOptions
+{
+    /// <summary>
+    /// Enables the Core ActivitySource and meters for short-link redirects.
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Registers the built-in configuration, database, cache, and analytics
+    /// health checks with ASP.NET Core health checks.
+    /// </summary>
+    public bool HealthChecksEnabled { get; set; }
 }
 
 public sealed class ShortenLinkRateLimitingOptions

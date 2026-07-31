@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ShortenLink.Core.Domain;
+using ShortenLink.Core.Exceptions;
 using ShortenLink.Core.Security;
 using ShortenLink.Core.Services;
 using ShortenLink.Infrastructure.Persistence;
@@ -150,8 +151,34 @@ public sealed class EfCoreShortLinkRepositoryTests
         await repository.AddAsync(new ShortLink("dupe", new Uri("https://example.com/one"), DateTimeOffset.UtcNow));
         var secondRepository = database.CreateRepository();
 
-        await Assert.ThrowsAsync<DbUpdateException>(() =>
+        await Assert.ThrowsAsync<ShortLinkCodeConflictException>(() =>
             secondRepository.AddAsync(new ShortLink("dupe", new Uri("https://example.com/two"), DateTimeOffset.UtcNow)));
+
+        await secondRepository.AddAsync(new ShortLink("fresh", new Uri("https://example.com/fresh"), DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
+    public async Task AddAsync_EnforcesUniqueIdempotencyKeyAndFindsOriginalLink()
+    {
+        await using var database = await SqliteTestDatabase.CreateAsync();
+        var repository = database.CreateRepository();
+        var first = new ShortLink(
+            "idem001",
+            new Uri("https://example.com/one"),
+            DateTimeOffset.UtcNow,
+            idempotencyKey: "create-123");
+        await repository.AddAsync(first);
+        var secondRepository = database.CreateRepository();
+
+        var found = await secondRepository.FindByIdempotencyKeyAsync("create-123");
+
+        Assert.Equal(first.Code, found?.Code);
+        await Assert.ThrowsAsync<ShortLinkIdempotencyConflictException>(() =>
+            secondRepository.AddAsync(new ShortLink(
+                "idem002",
+                new Uri("https://example.com/two"),
+                DateTimeOffset.UtcNow,
+                idempotencyKey: "create-123")));
     }
 
     [Fact]
@@ -165,6 +192,7 @@ public sealed class EfCoreShortLinkRepositoryTests
         Assert.Contains("IX_short_links_CreatedAt", indexes);
         Assert.Contains("IX_short_links_ExpiresAt", indexes);
         Assert.Contains("IX_short_links_IsActive", indexes);
+        Assert.Contains("IX_short_links_IdempotencyKey", indexes);
     }
 
     [Fact]
@@ -189,6 +217,7 @@ public sealed class EfCoreShortLinkRepositoryTests
         Assert.Contains("IX_short_links_CreatedAt", indexNames);
         Assert.Contains("IX_short_links_ExpiresAt", indexNames);
         Assert.Contains("IX_short_links_IsActive", indexNames);
+        Assert.Contains("IX_short_links_IdempotencyKey", indexNames);
     }
 
     private sealed class SqliteTestDatabase : IAsyncDisposable

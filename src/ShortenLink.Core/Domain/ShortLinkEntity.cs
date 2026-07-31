@@ -11,7 +11,8 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         string? createdByUserId = null,
         string? createdByDisplayName = null,
         string? createdByUsername = null,
-        Guid? technicalId = null)
+        Guid? technicalId = null,
+        string? idempotencyKey = null)
         : base(createdAt, technicalId ?? Guid.CreateVersion7())
     {
         ShortCodeValidator.ValidateCodeOrThrow(code);
@@ -29,6 +30,7 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         CreatedByUserId = Normalize(createdByUserId);
         CreatedByDisplayName = Normalize(createdByDisplayName);
         CreatedByUsername = Normalize(createdByUsername);
+        IdempotencyKey = Normalize(idempotencyKey);
     }
 
     public string Code { get; }
@@ -44,6 +46,8 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
     public string? CreatedByDisplayName { get; }
 
     public string? CreatedByUsername { get; }
+
+    public string? IdempotencyKey { get; }
 
     public bool IsExpired(DateTimeOffset now) => ExpiresAt is not null && ExpiresAt <= now;
 

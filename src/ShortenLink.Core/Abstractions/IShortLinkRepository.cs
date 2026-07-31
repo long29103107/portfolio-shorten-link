@@ -42,3 +42,16 @@ public interface IShortLinkRepository
 
     Task DeleteAsync(string code, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Optional provider contract for durable create-request idempotency.
+/// Providers implementing this contract must enforce a unique key at their
+/// persistence boundary and throw <see cref="ShortLinkIdempotencyConflictException"/>
+/// when concurrent writers race on the same key.
+/// </summary>
+public interface IShortLinkIdempotencyRepository
+{
+    Task<ShortLink?> FindByIdempotencyKeyAsync(
+        string idempotencyKey,
+        CancellationToken cancellationToken = default);
+}

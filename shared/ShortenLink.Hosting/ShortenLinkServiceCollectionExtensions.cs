@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using ShortenLink.Core.Generation;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Services;
+using ShortenLink.Core.Abstractions;
 using ShortenLink.Application.Services;
 using ShortenLink.Application.Abstractions;
 using ShortenLink.Application.Features.Audit;
@@ -51,6 +52,12 @@ public static class ShortenLinkServiceCollectionExtensions
                     || Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var baseUri)
                         && (baseUri.Scheme == Uri.UriSchemeHttp || baseUri.Scheme == Uri.UriSchemeHttps),
                 "ShortenLink:BaseUrl must be an absolute HTTP or HTTPS URL when provided.")
+            .Validate(
+                static options => options.Code.DefaultLength > 0,
+                "ShortenLink:Code:DefaultLength must be greater than 0.")
+            .Validate(
+                static options => options.Code.MaxRetry > 0,
+                "ShortenLink:Code:MaxRetry must be greater than 0.")
             .Validate(
                 static options => IsValidFrontendFallbackPath(options.Redirect.FrontendFallbackPath),
                 "ShortenLink:Redirect:FrontendFallbackPath must be a root-relative path or an absolute HTTP/HTTPS URL.")
@@ -108,6 +115,7 @@ public static class ShortenLinkServiceCollectionExtensions
             serviceProvider.GetRequiredService<ShortenLinkRateLimitMonitor>());
         services.TryAddSingleton<ISecureTokenGenerator, SecureTokenGenerator>();
         services.TryAddSingleton<IShortCodeGenerator, Base62ShortCodeGenerator>();
+        services.TryAddSingleton<IShortLinkImportValidator, ShortLinkImportValidator>();
         if (!hostOptions.UseExternalPersistence)
         {
             services.TryAddScoped<IShortLinkRepository, EfCoreShortLinkRepository>();
@@ -126,7 +134,19 @@ public static class ShortenLinkServiceCollectionExtensions
             services.TryAddScoped<IShortenLinkAuthorizationService, ShortenLinkAuthorizationService>();
             services.TryAddScoped<IShortenLinkUserSessionService, ShortenLinkUserSessionService>();
         }
-        services.TryAddScoped<IShortLinkService, ShortLinkService>();
+        services.TryAddScoped<IShortLinkService>(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<ShortenLinkOptions>>().Value;
+            return new ShortLinkService(
+                serviceProvider.GetRequiredService<IShortLinkRepository>(),
+                serviceProvider.GetRequiredService<IShortCodeGenerator>(),
+                serviceProvider.GetRequiredService<IShortLinkCache>(),
+                serviceProvider.GetRequiredService<TimeProvider>(),
+                options.Code.DefaultLength,
+                options.Code.MaxRetry,
+                serviceProvider.GetService<IShortLinkEventSink>(),
+                options.Observability.Enabled);
+        });
         if (!hostOptions.UseExternalPersistence)
         {
             services.AddSingleton<IHostedService>(_ =>
@@ -139,6 +159,15 @@ public static class ShortenLinkServiceCollectionExtensions
         RegisterRateLimiting(services);
         RegisterAnalytics(services);
         RegisterAuditQueue(services);
+
+        var observability = configuration
+            .GetSection(ShortenLinkOptions.SectionName)
+            .Get<ShortenLinkOptions>()?
+            .Observability;
+        if (observability?.HealthChecksEnabled == true)
+        {
+            services.AddShortenLinkHealthChecks();
+        }
 
         return services;
     }

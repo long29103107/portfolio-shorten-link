@@ -1,29 +1,54 @@
+using System.Diagnostics;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Generation;
 using ShortenLink.Core.Services;
 using ShortenLink.Core;
+using ShortenLink.Core.Abstractions;
+using ShortenLink.Core.Exceptions;
+using ShortenLink.Core.Events;
+using ShortenLink.Core.Diagnostics;
 
 namespace ShortenLink.Application.Services;
 
 public sealed class ShortLinkService : IShortLinkService
 {
-    private const int MaxCodeGenerationAttempts = 10;
-
     private readonly IShortLinkRepository repository;
     private readonly IShortLinkCache cache;
     private readonly IShortCodeGenerator codeGenerator;
     private readonly TimeProvider timeProvider;
+    private readonly int codeLength;
+    private readonly int maxCodeGenerationAttempts;
+    private readonly IShortLinkEventSink? eventSink;
+    private readonly bool diagnosticsEnabled;
 
     public ShortLinkService(
         IShortLinkRepository repository,
         IShortCodeGenerator codeGenerator,
         IShortLinkCache? cache = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        int codeLength = Base62ShortCodeGenerator.DefaultCodeLength,
+        int maxCodeGenerationAttempts = 10,
+        IShortLinkEventSink? eventSink = null,
+        bool diagnosticsEnabled = false)
     {
         this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         this.codeGenerator = codeGenerator ?? throw new ArgumentNullException(nameof(codeGenerator));
         this.cache = cache ?? new DisabledShortLinkCache();
         this.timeProvider = timeProvider ?? TimeProvider.System;
+        if (codeLength <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(codeLength), codeLength, "Code length must be greater than zero.");
+        }
+
+        if (maxCodeGenerationAttempts <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxCodeGenerationAttempts), maxCodeGenerationAttempts, "Maximum code generation attempts must be greater than zero.");
+        }
+
+        this.codeLength = codeLength;
+        this.maxCodeGenerationAttempts = maxCodeGenerationAttempts;
+        this.eventSink = eventSink;
+        this.diagnosticsEnabled = diagnosticsEnabled;
     }
 
     public Task<IReadOnlyList<ShortLink>> ListRecentAsync(
@@ -120,6 +145,22 @@ public sealed class ShortLinkService : IShortLinkService
                 "Original URL must be an absolute HTTP or HTTPS URL.");
         }
 
+        if (!ShortLinkIdempotencyKey.IsValid(request.IdempotencyKey))
+        {
+            return CreateShortLinkResult.Failure(
+                ShortLinkErrorCodes.InvalidIdempotencyKey,
+                $"Idempotency-Key must be at most {ShortLinkIdempotencyKey.MaxLength} characters.");
+        }
+
+        var idempotencyKey = ShortLinkIdempotencyKey.Normalize(request.IdempotencyKey);
+        var idempotencyRepository = repository as IShortLinkIdempotencyRepository;
+        if (idempotencyKey is not null && idempotencyRepository is null)
+        {
+            return CreateShortLinkResult.Failure(
+                ShortLinkErrorCodes.IdempotencyNotSupported,
+                "The configured persistence provider does not support idempotent creates.");
+        }
+
         var now = timeProvider.GetUtcNow();
         if (request.ExpiresAt is null)
         {
@@ -135,26 +176,94 @@ public sealed class ShortLinkService : IShortLinkService
                 "Expiration must be in the future.");
         }
 
-        var code = await GenerateUniqueCodeAsync(cancellationToken);
-        if (code is null)
+        if (idempotencyKey is not null)
         {
-            return CreateShortLinkResult.Failure(
-                ShortLinkErrorCodes.UnableToGenerateCode,
-                "A unique short code could not be generated.");
+            var existing = await idempotencyRepository!
+                .FindByIdempotencyKeyAsync(idempotencyKey, cancellationToken);
+            var replay = ResolveIdempotencyReplay(
+                existing,
+                originalUrl,
+                request.ExpiresAt.Value,
+                request.CreatedByUserId);
+            if (replay is not null)
+            {
+                return replay;
+            }
         }
 
-        var shortLink = new ShortLink(
-            code,
-            originalUrl,
-            now,
-            request.ExpiresAt.Value,
-            createdByUserId: request.CreatedByUserId,
-            createdByDisplayName: request.CreatedByDisplayName,
-            createdByUsername: request.CreatedByUsername);
-        await repository.AddAsync(shortLink, cancellationToken);
+        for (var attempt = 0; attempt < maxCodeGenerationAttempts; attempt++)
+        {
+            var code = codeGenerator.Generate(codeLength);
+            if (!ShortCodeValidator.IsValid(code)
+                || await repository.ExistsByCodeAsync(code, cancellationToken))
+            {
+                continue;
+            }
 
-        return CreateShortLinkResult.Success(shortLink);
+            var shortLink = new ShortLink(
+                code,
+                originalUrl,
+                now,
+                request.ExpiresAt.Value,
+                createdByUserId: request.CreatedByUserId,
+                createdByDisplayName: request.CreatedByDisplayName,
+                createdByUsername: request.CreatedByUsername,
+                idempotencyKey: idempotencyKey);
+
+            try
+            {
+                await repository.AddAsync(shortLink, cancellationToken);
+                PublishEvent(ShortLinkEventTypes.Created, shortLink, cancellationToken);
+                return CreateShortLinkResult.Success(shortLink);
+            }
+            catch (ShortLinkCodeConflictException)
+            {
+                // Another writer won the race after ExistsByCodeAsync. Generate
+                // a fresh candidate while preserving unrelated persistence errors.
+            }
+            catch (ShortLinkIdempotencyConflictException)
+            {
+                var existing = await idempotencyRepository!
+                    .FindByIdempotencyKeyAsync(idempotencyKey!, cancellationToken);
+                var replay = ResolveIdempotencyReplay(
+                    existing,
+                    originalUrl,
+                    request.ExpiresAt.Value,
+                    request.CreatedByUserId);
+                return replay
+                    ?? CreateShortLinkResult.Failure(
+                        ShortLinkErrorCodes.IdempotencyConflict,
+                        "The Idempotency-Key was already used for a different request.");
+            }
+        }
+
+        return CreateShortLinkResult.Failure(
+            ShortLinkErrorCodes.UnableToGenerateCode,
+            "A unique short code could not be generated.");
     }
+
+    private static CreateShortLinkResult? ResolveIdempotencyReplay(
+        ShortLink? existing,
+        Uri originalUrl,
+        DateTimeOffset expiresAt,
+        string? createdByUserId)
+    {
+        if (existing is null)
+        {
+            return null;
+        }
+
+        return string.Equals(existing.OriginalUrl.AbsoluteUri, originalUrl.AbsoluteUri, StringComparison.Ordinal)
+            && existing.ExpiresAt == expiresAt
+            && string.Equals(existing.CreatedByUserId, NormalizeIdentity(createdByUserId), StringComparison.Ordinal)
+            ? CreateShortLinkResult.Replay(existing)
+            : CreateShortLinkResult.Failure(
+                ShortLinkErrorCodes.IdempotencyConflict,
+                "The Idempotency-Key was already used for a different request.");
+    }
+
+    private static string? NormalizeIdentity(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     public async Task<ResolveShortLinkResult> ResolveAsync(
         string code,
@@ -168,29 +277,44 @@ public sealed class ShortLinkService : IShortLinkService
 
         var normalizedCode = code.Trim();
         var now = timeProvider.GetUtcNow();
+        using var activity = diagnosticsEnabled
+            ? ShortenLinkDiagnostics.StartRedirectActivity()
+            : null;
         var shortLink = await cache.FindByCodeAsync(normalizedCode, cancellationToken);
         if (shortLink is not null)
         {
-            return await ResolveCachedAsync(shortLink, now, cancellationToken);
+            var cachedResult = await ResolveCachedAsync(shortLink, now, cancellationToken);
+            CompleteRedirectDiagnostics(activity, cacheHit: true, cachedResult.Succeeded);
+            if (cachedResult.Succeeded && cachedResult.ShortLink is not null)
+            {
+                PublishEvent(ShortLinkEventTypes.Redirected, cachedResult.ShortLink, cancellationToken);
+            }
+
+            return cachedResult;
         }
 
         shortLink = await repository.FindByCodeAsync(normalizedCode, cancellationToken);
         if (shortLink is null)
         {
+            CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
         }
 
         if (!shortLink.IsActive)
         {
+            CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.Inactive, "Short link is inactive.");
         }
 
         if (shortLink.IsExpired(now))
         {
+            CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.Expired, "Short link has expired.");
         }
 
         await cache.SetAsync(shortLink, cancellationToken);
+        CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: true);
+        PublishEvent(ShortLinkEventTypes.Redirected, shortLink, cancellationToken);
 
         return ResolveShortLinkResult.Success(shortLink);
     }
@@ -230,6 +354,7 @@ public sealed class ShortLinkService : IShortLinkService
         shortLink.Deactivate();
         await repository.UpdateAsync(shortLink, cancellationToken);
         await cache.RemoveAsync(shortLink.Code, cancellationToken);
+        PublishEvent(ShortLinkEventTypes.Deactivated, shortLink, cancellationToken);
 
         return DeactivateShortLinkResult.Success();
     }
@@ -253,6 +378,7 @@ public sealed class ShortLinkService : IShortLinkService
         shortLink.Activate();
         await repository.UpdateAsync(shortLink, cancellationToken);
         await cache.RemoveAsync(shortLink.Code, cancellationToken);
+        PublishEvent(ShortLinkEventTypes.Activated, shortLink, cancellationToken);
 
         return DeactivateShortLinkResult.Success();
     }
@@ -310,6 +436,7 @@ public sealed class ShortLinkService : IShortLinkService
 
         await repository.UpdateAsync(updated, cancellationToken);
         await cache.RemoveAsync(updated.Code, cancellationToken);
+        PublishEvent(ShortLinkEventTypes.Updated, updated, cancellationToken);
 
         return ShortLinkDetailsResult.Success(updated);
     }
@@ -332,6 +459,12 @@ public sealed class ShortLinkService : IShortLinkService
 
         await repository.DeleteAsync(normalizedCode, cancellationToken);
         await cache.RemoveAsync(normalizedCode, cancellationToken);
+        PublishEvent(
+            ShortLinkLifecycleEvent.ForCode(
+                ShortLinkEventTypes.Deleted,
+                normalizedCode,
+                timeProvider.GetUtcNow()),
+            cancellationToken);
 
         return DeactivateShortLinkResult.Success();
     }
@@ -356,25 +489,6 @@ public sealed class ShortLinkService : IShortLinkService
         return ResolveShortLinkResult.Success(shortLink);
     }
 
-    private async Task<string?> GenerateUniqueCodeAsync(CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; attempt < MaxCodeGenerationAttempts; attempt++)
-        {
-            var candidate = codeGenerator.Generate();
-            if (!ShortCodeValidator.IsValid(candidate))
-            {
-                continue;
-            }
-
-            if (!await repository.ExistsByCodeAsync(candidate, cancellationToken))
-            {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
-
     private static (string ErrorCode, string ErrorMessage)? ValidateCode(string code)
     {
         if (!ShortCodeValidator.IsValid(code?.Trim()))
@@ -385,5 +499,55 @@ public sealed class ShortLinkService : IShortLinkService
         }
 
         return null;
+    }
+
+    private void PublishEvent(
+        string eventType,
+        ShortLink shortLink,
+        CancellationToken cancellationToken) =>
+        PublishEvent(
+            ShortLinkLifecycleEvent.FromShortLink(
+                eventType,
+                shortLink,
+                timeProvider.GetUtcNow()),
+            cancellationToken);
+
+    private void PublishEvent(
+        ShortLinkLifecycleEvent @event,
+        CancellationToken cancellationToken)
+    {
+        if (eventSink is null || cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = eventSink.TryPublish(@event, cancellationToken);
+        }
+        catch
+        {
+            // Event delivery is opt-in and fail-open; it must not change the
+            // outcome or latency contract of the short-link operation.
+        }
+    }
+
+    private void CompleteRedirectDiagnostics(
+        Activity? activity,
+        bool cacheHit,
+        bool succeeded)
+    {
+        if (!diagnosticsEnabled)
+        {
+            return;
+        }
+
+        if (activity is not null)
+        {
+            activity.SetTag(ShortenLinkDiagnostics.CacheHitTagName, cacheHit);
+            activity.SetTag(ShortenLinkDiagnostics.OutcomeTagName, succeeded ? "success" : "failure");
+        }
+
+        ShortenLinkDiagnostics.RecordRedirect(cacheHit, succeeded);
     }
 }

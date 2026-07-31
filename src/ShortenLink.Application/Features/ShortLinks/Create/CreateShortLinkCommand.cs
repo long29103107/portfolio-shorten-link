@@ -10,15 +10,16 @@ namespace ShortenLink.Application.Features.ShortLinks.Create;
 
 public sealed record CreateShortLinkCommand(
     string OriginalUrl,
-    DateTimeOffset? ExpiresAt) : IRequest<ShortLink>;
+    DateTimeOffset? ExpiresAt,
+    string? IdempotencyKey = null) : IRequest<CreateShortLinkResult>;
 
 internal sealed class CreateShortLinkCommandHandler(
     IShortLinkService shortLinkService,
     ICurrentRequestContext requestContext,
     ShortLinkAuditWriter auditWriter)
-    : IRequestHandler<CreateShortLinkCommand, ShortLink>
+    : IRequestHandler<CreateShortLinkCommand, CreateShortLinkResult>
 {
-    public async Task<ShortLink> Handle(
+    public async Task<CreateShortLinkResult> Handle(
         CreateShortLinkCommand request,
         CancellationToken cancellationToken)
     {
@@ -35,7 +36,8 @@ internal sealed class CreateShortLinkCommandHandler(
                 request.ExpiresAt,
                 creator?.UserId,
                 creator?.DisplayName,
-                creator?.Username),
+                creator?.Username,
+                request.IdempotencyKey),
             cancellationToken);
 
         if (!result.Succeeded || result.ShortLink is null)
@@ -45,21 +47,27 @@ internal sealed class CreateShortLinkCommandHandler(
                 result.ErrorMessage ?? "The short link could not be created.");
         }
 
-        await auditWriter.RecordAsync(
-            actor,
-            ShortLinkAuditActions.Created,
-            result.ShortLink.Code,
-            result.ShortLink.CreatedByUserId,
-            cancellationToken: cancellationToken);
+        if (!result.Replayed)
+        {
+            await auditWriter.RecordAsync(
+                actor,
+                ShortLinkAuditActions.Created,
+                result.ShortLink.Code,
+                result.ShortLink.CreatedByUserId,
+                cancellationToken: cancellationToken);
+        }
 
-        return result.ShortLink;
+        return result;
     }
 
     private static ShortenLinkException CreateException(string errorCode, string message) =>
         errorCode switch
         {
-            ShortLinkErrorCodes.InvalidUrl or ShortLinkErrorCodes.InvalidExpiration =>
+            ShortLinkErrorCodes.InvalidUrl
+                or ShortLinkErrorCodes.InvalidExpiration
+                or ShortLinkErrorCodes.InvalidIdempotencyKey =>
                 new RequestValidationException(errorCode, message),
+            ShortLinkErrorCodes.IdempotencyConflict => new ConflictException(errorCode, message),
             ShortLinkErrorCodes.NotFound => new NotFoundException(errorCode, message),
             ShortLinkErrorCodes.Expired or ShortLinkErrorCodes.Inactive =>
                 new ResourceGoneException(errorCode, message),

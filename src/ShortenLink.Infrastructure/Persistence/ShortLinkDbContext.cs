@@ -62,9 +62,14 @@ public sealed class ShortLinkDbContext : DbContext
             entity.Property(link => link.CreatedByUsername)
                 .HasMaxLength(256);
 
+            entity.Property(link => link.IdempotencyKey)
+                .HasMaxLength(256);
+
             entity.HasIndex(link => link.CreatedAt);
             entity.HasIndex(link => link.ExpiresAt);
             entity.HasIndex(link => link.IsActive);
+            entity.HasIndex(link => link.IdempotencyKey)
+                .IsUnique();
         });
 
         modelBuilder.Entity<ShortLinkClickPersistenceEntity>(entity =>

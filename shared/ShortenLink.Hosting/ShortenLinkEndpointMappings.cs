@@ -9,6 +9,7 @@ using ShortenLink.Application.Features.ShortLinks.Create;
 using ShortenLink.Application.Features.ShortLinks.Delete;
 using ShortenLink.Application.Features.ShortLinks.Details;
 using ShortenLink.Application.Features.ShortLinks.List;
+using ShortenLink.Application.Features.ShortLinks.Import;
 using ShortenLink.Application.Features.ShortLinks.Shares;
 using ShortenLink.Application.Features.ShortLinks.Status;
 using ShortenLink.Application.Features.ShortLinks.Update;
@@ -44,6 +45,10 @@ public static class ShortenLinkEndpointMappings
 
         group.MapGet("/", ListShortLinksAsync).WithName("ListShortenLinkEndpoints");
         var createEndpoint = group.MapPost("/", CreateShortLinkAsync).WithName("CreateShortenLinkEndpoint");
+        group.MapPost("/import", ExecuteShortLinkImportAsync)
+            .WithName("ExecuteShortenLinkImportEndpoint");
+        group.MapPost("/import/dry-run", DryRunShortLinkImportAsync)
+            .WithName("DryRunShortenLinkImportEndpoint");
         group.MapGet("/{code}", static (string code, ISender sender, CancellationToken ct) =>
             sender.Send(new GetShortLinkDetailsQuery(code), ct));
         group.MapGet("/{code}/analytics", static (string code, int? limit, ISender sender, CancellationToken ct) =>
@@ -94,11 +99,17 @@ public static class ShortenLinkEndpointMappings
         ShortLinkCreateRequest request, ISender sender, IOptions<ShortenLinkOptions> options,
         HttpContext httpContext, CancellationToken cancellationToken)
     {
-        var shortLink = await sender.Send(
-            new CreateShortLinkCommand(request.OriginalUrl, request.ExpiredAtUtc), cancellationToken);
+        var result = await sender.Send(
+            new CreateShortLinkCommand(
+                request.OriginalUrl,
+                request.ExpiredAtUtc,
+                GetIdempotencyKey(httpContext)), cancellationToken);
+        var shortLink = result.ShortLink!;
         var response = ShortLinkCreatedResponse.FromDomain(
             shortLink, BuildShortUrl(shortLink.Code, options.Value, httpContext));
-        return TypedResults.Created($"/api/short-links/{shortLink.Code}", response);
+        return result.Replayed
+            ? TypedResults.Ok(response)
+            : TypedResults.Created($"/api/short-links/{shortLink.Code}", response);
     }
 
     private static Task<ShortLinkAdminListResponse> ListShortLinksAsync(
@@ -109,6 +120,18 @@ public static class ShortenLinkEndpointMappings
             GetBaseUrl(options.Value, httpContext), request.Limit, request.Page, request.Cursor,
             request.Search, request.Status, request.SortBy, request.SortDirection, request.Fe, request.Sort),
             cancellationToken);
+
+    private static Task<ShortLinkImportDryRunResult> DryRunShortLinkImportAsync(
+        ShortLinkImportRequest request,
+        ISender sender,
+        CancellationToken cancellationToken) =>
+        sender.Send(new DryRunShortLinkImportCommand(request.Items), cancellationToken);
+
+    private static Task<ShortLinkImportExecutionResult> ExecuteShortLinkImportAsync(
+        ShortLinkImportRequest request,
+        ISender sender,
+        CancellationToken cancellationToken) =>
+        sender.Send(new ExecuteShortLinkImportCommand(request.Items), cancellationToken);
 
     private static ListShortLinksQuery CreateListQuery(
         string baseUrl, int? limit, int? page, string? cursor,
@@ -143,6 +166,11 @@ public static class ShortenLinkEndpointMappings
         Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var configured)
             ? configured.AbsoluteUri
             : $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/";
+
+    private static string? GetIdempotencyKey(HttpContext httpContext) =>
+        httpContext.Request.Headers.TryGetValue("Idempotency-Key", out var value)
+            ? value.ToString()
+            : null;
 
     private static string NormalizePrefix(string value) =>
         string.IsNullOrWhiteSpace(value) ? string.Empty : "/" + value.Trim().Trim('/');

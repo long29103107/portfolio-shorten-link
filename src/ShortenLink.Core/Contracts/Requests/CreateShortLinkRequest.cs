@@ -5,4 +5,5 @@ public sealed record CreateShortLinkRequest(
     DateTimeOffset? ExpiresAt = null,
     string? CreatedByUserId = null,
     string? CreatedByDisplayName = null,
-    string? CreatedByUsername = null);
+    string? CreatedByUsername = null,
+    string? IdempotencyKey = null);

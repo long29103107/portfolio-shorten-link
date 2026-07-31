@@ -1,5 +1,9 @@
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Generation;
+using ShortenLink.Core.Exceptions;
+using ShortenLink.Core.Abstractions;
+using ShortenLink.Core.Events;
+using ShortenLink.Core;
 using ShortenLink.Application.Services;
 using ShortenLink.Core.Services;
 using Xunit;
@@ -44,6 +48,187 @@ public sealed class ShortLinkServiceTests
         Assert.Equal("user-1", result.ShortLink.CreatedByUserId);
         Assert.Equal("Ada Lovelace", result.ShortLink.CreatedByDisplayName);
         Assert.Equal("ada@example.com", result.ShortLink.CreatedByUsername);
+    }
+
+    [Fact]
+    public async Task CreateAsync_StopsAfterConfiguredCodeGenerationAttempts()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var repository = new InMemoryShortLinkRepository();
+        await repository.AddAsync(new ShortLink("taken01", new Uri("https://example.com"), now));
+        var service = new ShortLinkService(
+            repository,
+            new SequenceCodeGenerator("taken01", "taken01", "fresh01"),
+            timeProvider: new FixedTimeProvider(now),
+            maxCodeGenerationAttempts: 2);
+
+        var result = await service.CreateAsync(
+            new CreateShortLinkRequest("https://openai.com", now.AddDays(1)));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(ShortLinkErrorCodes.UnableToGenerateCode, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task CreateAsync_RetriesWhenRepositoryReportsCodeConflict()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var repository = new InMemoryShortLinkRepository { RemainingCodeConflicts = 1 };
+        var service = new ShortLinkService(
+            repository,
+            new SequenceCodeGenerator("first01", "fresh01"),
+            timeProvider: new FixedTimeProvider(now),
+            maxCodeGenerationAttempts: 2);
+
+        var result = await service.CreateAsync(
+            new CreateShortLinkRequest("https://openai.com", now.AddDays(1)));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("fresh01", result.ShortLink?.Code);
+        Assert.Equal(2, repository.AddAttemptCount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReplaysEquivalentIdempotencyKeyWithoutCreatingAnotherLink()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var repository = new InMemoryShortLinkRepository();
+        var service = CreateService(
+            repository,
+            new SequenceCodeGenerator("idem001", "idem002"),
+            timeProvider: new FixedTimeProvider(now));
+        var request = new CreateShortLinkRequest(
+            "https://example.com/retry",
+            now.AddDays(1),
+            "user-1",
+            IdempotencyKey: "create-123");
+
+        var first = await service.CreateAsync(request);
+        var replay = await service.CreateAsync(request);
+
+        Assert.True(first.Succeeded);
+        Assert.False(first.Replayed);
+        Assert.True(replay.Succeeded);
+        Assert.True(replay.Replayed);
+        Assert.Equal(first.ShortLink?.Code, replay.ShortLink?.Code);
+        Assert.Equal(1, repository.Count);
+        Assert.Equal(1, repository.AddAttemptCount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsIdempotencyKeyReuseForDifferentRequest()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var repository = new InMemoryShortLinkRepository();
+        var service = CreateService(
+            repository,
+            new SequenceCodeGenerator("idem001", "idem002"),
+            timeProvider: new FixedTimeProvider(now));
+
+        var first = await service.CreateAsync(new CreateShortLinkRequest(
+            "https://example.com/first",
+            now.AddDays(1),
+            "user-1",
+            IdempotencyKey: "create-123"));
+        var conflict = await service.CreateAsync(new CreateShortLinkRequest(
+            "https://example.com/second",
+            now.AddDays(1),
+            "user-1",
+            IdempotencyKey: "create-123"));
+
+        Assert.True(first.Succeeded);
+        Assert.False(conflict.Succeeded);
+        Assert.Equal(ShortLinkErrorCodes.IdempotencyConflict, conflict.ErrorCode);
+        Assert.Equal(1, repository.Count);
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsOversizedIdempotencyKey()
+    {
+        var service = CreateService();
+
+        var result = await service.CreateAsync(new CreateShortLinkRequest(
+            "https://example.com",
+            DateTimeOffset.UtcNow.AddDays(1),
+            IdempotencyKey: new string('x', ShortLinkIdempotencyKey.MaxLength + 1)));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(ShortLinkErrorCodes.InvalidIdempotencyKey, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DoesNotRetryUnexpectedPersistenceFailures()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var repository = new InMemoryShortLinkRepository { ThrowUnexpectedAddFailure = true };
+        var service = CreateService(
+            repository,
+            new SequenceCodeGenerator("first01"),
+            timeProvider: new FixedTimeProvider(now));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateAsync(new CreateShortLinkRequest("https://openai.com", now.AddDays(1))));
+
+        Assert.Equal(1, repository.AddAttemptCount);
+    }
+
+    [Fact]
+    public async Task LifecycleOperations_PublishVersionedSafeEvents()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var repository = new InMemoryShortLinkRepository();
+        var sink = new CapturingEventSink();
+        var service = CreateService(
+            repository,
+            new SequenceCodeGenerator("event01"),
+            timeProvider: new FixedTimeProvider(now),
+            eventSink: sink);
+
+        var created = await service.CreateAsync(
+            new CreateShortLinkRequest(
+                "https://example.com/private-destination",
+                now.AddDays(1),
+                "user-1"));
+        await service.UpdateAsync(
+            "event01",
+            new UpdateShortLinkRequest("https://example.com/updated", now.AddDays(2)));
+        await service.DeactivateAsync("event01");
+        await service.ActivateAsync("event01");
+        var redirected = await service.ResolveAsync("event01");
+        await service.DeleteAsync("event01");
+
+        Assert.True(created.Succeeded);
+        Assert.True(redirected.Succeeded);
+        Assert.Equal(
+            new[]
+            {
+                ShortLinkEventTypes.Created,
+                ShortLinkEventTypes.Updated,
+                ShortLinkEventTypes.Deactivated,
+                ShortLinkEventTypes.Activated,
+                ShortLinkEventTypes.Redirected,
+                ShortLinkEventTypes.Deleted
+            },
+            sink.Events.Select(item => item.EventType));
+        Assert.All(sink.Events, item => Assert.Equal(ShortLinkLifecycleEvent.CurrentVersion, item.Version));
+        Assert.DoesNotContain(sink.Events, item => item.Code == "user-1");
+        Assert.DoesNotContain(
+            sink.SerializedEvents,
+            serialized => serialized.Contains("private-destination", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task EventSinkFailures_DoNotFailSuccessfulOperations()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var service = CreateService(
+            timeProvider: new FixedTimeProvider(now),
+            eventSink: new ThrowingEventSink());
+
+        var result = await service.CreateAsync(
+            new CreateShortLinkRequest("https://example.com", now.AddDays(1)));
+
+        Assert.True(result.Succeeded);
     }
 
     [Fact]
@@ -191,20 +376,30 @@ public sealed class ShortLinkServiceTests
         InMemoryShortLinkRepository? repository = null,
         IShortCodeGenerator? generator = null,
         IShortLinkCache? cache = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IShortLinkEventSink? eventSink = null)
     {
         return new ShortLinkService(
             repository ?? new InMemoryShortLinkRepository(),
             generator ?? new SequenceCodeGenerator("abc1234"),
             cache,
-            timeProvider);
+            timeProvider,
+            eventSink: eventSink);
     }
 
-    private sealed class InMemoryShortLinkRepository : IShortLinkRepository
+    private sealed class InMemoryShortLinkRepository : IShortLinkRepository, IShortLinkIdempotencyRepository
     {
         private readonly Dictionary<string, ShortLink> links = new(StringComparer.Ordinal);
 
         public int FindByCodeCallCount { get; private set; }
+
+        public int AddAttemptCount { get; private set; }
+
+        public int Count => links.Count;
+
+        public int RemainingCodeConflicts { get; set; }
+
+        public bool ThrowUnexpectedAddFailure { get; set; }
 
         public Task<IReadOnlyList<ShortLink>> ListRecentAsync(
             int limit,
@@ -309,11 +504,38 @@ public sealed class ShortLinkServiceTests
             return Task.FromResult(shortLink);
         }
 
+        public Task<ShortLink?> FindByIdempotencyKeyAsync(
+            string idempotencyKey,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(links.Values.FirstOrDefault(link =>
+                string.Equals(link.IdempotencyKey, idempotencyKey, StringComparison.Ordinal)));
+
         public Task<bool> ExistsByCodeAsync(string code, CancellationToken cancellationToken = default) =>
             Task.FromResult(links.ContainsKey(code));
 
         public Task AddAsync(ShortLink shortLink, CancellationToken cancellationToken = default)
         {
+            AddAttemptCount++;
+            if (ThrowUnexpectedAddFailure)
+            {
+                throw new InvalidOperationException("persistence unavailable");
+            }
+
+            if (RemainingCodeConflicts > 0)
+            {
+                RemainingCodeConflicts--;
+                throw new ShortLinkCodeConflictException(shortLink.Code);
+            }
+
+            if (shortLink.IdempotencyKey is not null
+                && links.Values.Any(link => string.Equals(
+                    link.IdempotencyKey,
+                    shortLink.IdempotencyKey,
+                    StringComparison.Ordinal)))
+            {
+                throw new ShortLinkIdempotencyConflictException();
+            }
+
             links.Add(shortLink.Code, shortLink);
             return Task.CompletedTask;
         }
@@ -352,6 +574,26 @@ public sealed class ShortLinkServiceTests
             links.Remove(code);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class CapturingEventSink : IShortLinkEventSink
+    {
+        public List<ShortLinkLifecycleEvent> Events { get; } = new();
+
+        public List<string> SerializedEvents { get; } = new();
+
+        public bool TryPublish(ShortLinkLifecycleEvent @event, CancellationToken cancellationToken = default)
+        {
+            Events.Add(@event);
+            SerializedEvents.Add(System.Text.Json.JsonSerializer.Serialize(@event));
+            return true;
+        }
+    }
+
+    private sealed class ThrowingEventSink : IShortLinkEventSink
+    {
+        public bool TryPublish(ShortLinkLifecycleEvent @event, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("sink unavailable");
     }
 
     private sealed class SequenceCodeGenerator : IShortCodeGenerator

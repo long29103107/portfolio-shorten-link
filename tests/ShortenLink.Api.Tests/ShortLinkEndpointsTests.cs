@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using ShortenLink.Api;
 using ShortenLink.Application.Abstractions;
@@ -18,6 +19,7 @@ using ShortenLink.Hosting;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence.Entities;
 using ShortenLink.Core.Services;
+using ShortenLink.Core.Contracts.Results;
 using ShortenLink.Core.Security;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Repositories;
@@ -455,6 +457,182 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal(7, firstPayload.Code.Length);
         Assert.Equal(7, secondPayload.Code.Length);
         Assert.NotEqual(firstPayload.Code, secondPayload.Code);
+    }
+
+    [Fact]
+    public async Task PostCreate_IdempotencyKeyReplaysOriginalLinkWithoutDuplicateAudit()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        static HttpRequestMessage CreateRequest() =>
+            new(HttpMethod.Post, "/api/short-links")
+            {
+                Content = JsonContent.Create(new
+                {
+                    originalUrl = "https://example.com/idempotent",
+                    expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero)
+                })
+            };
+
+        using var firstRequest = CreateRequest();
+        firstRequest.Headers.Add("Idempotency-Key", "api-create-123");
+        using var firstResponse = await client.SendAsync(firstRequest);
+        var firstPayload = await firstResponse.Content.ReadFromJsonAsync<ShortLinkCreatedResponse>();
+
+        using var replayRequest = CreateRequest();
+        replayRequest.Headers.Add("Idempotency-Key", "api-create-123");
+        using var replayResponse = await client.SendAsync(replayRequest);
+        var replayPayload = await replayResponse.Content.ReadFromJsonAsync<ShortLinkCreatedResponse>();
+
+        Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
+        Assert.NotNull(firstPayload);
+        Assert.NotNull(replayPayload);
+        Assert.Equal(firstPayload.Code, replayPayload.Code);
+
+        var audit = await WaitForAuditPayloadAsync(
+            client,
+            $"/api/audit-logs?limit=20&targetId={firstPayload.Code}",
+            payload => payload.Items.Count == 1);
+        Assert.Single(audit.Items);
+        Assert.Equal(ShortLinkAuditActions.Created, audit.Items[0].Action);
+    }
+
+    [Fact]
+    public async Task PostImportDryRun_ReturnsPerItemErrorsWithoutPersistingLinks()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/short-links/import/dry-run",
+            new
+            {
+                items = new object[]
+                {
+                    new
+                    {
+                        originalUrl = "https://example.com/import-valid",
+                        expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+                        idempotencyKey = "batch-1"
+                    },
+                    new
+                    {
+                        originalUrl = "ftp://example.com/import-invalid",
+                        expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+                        idempotencyKey = "batch-2"
+                    },
+                    new
+                    {
+                        originalUrl = "https://example.com/import-duplicate",
+                        expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+                        idempotencyKey = "batch-1"
+                    }
+                }
+            });
+        var payload = await response.Content.ReadFromJsonAsync<ShortLinkImportDryRunResult>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(payload);
+        Assert.Equal(3, payload.TotalCount);
+        Assert.Equal(1, payload.ValidCount);
+        Assert.Equal(2, payload.InvalidCount);
+        Assert.Equal("invalid_url", payload.Items[1].ErrorCode);
+        Assert.Equal("duplicate_idempotency_key", payload.Items[2].ErrorCode);
+
+        using var listResponse = await client.GetAsync("/api/short-links?limit=10");
+        var listPayload = await listResponse.Content.ReadFromJsonAsync<ShortLinkAdminListResponse>();
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        Assert.NotNull(listPayload);
+        Assert.Empty(listPayload.Items);
+    }
+
+    [Fact]
+    public async Task PostImport_PersistsValidItemsAndContinuesAfterPerItemFailures()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/short-links/import",
+            new
+            {
+                items = new object[]
+                {
+                    new
+                    {
+                        originalUrl = "https://example.com/import-execute-one",
+                        expiredAtUtc = new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero),
+                        idempotencyKey = "execute-1"
+                    },
+                    new
+                    {
+                        originalUrl = "ftp://example.com/import-execute-invalid",
+                        expiredAtUtc = new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero),
+                        idempotencyKey = "execute-invalid"
+                    },
+                    new
+                    {
+                        originalUrl = "https://example.com/import-execute-duplicate",
+                        expiredAtUtc = new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero),
+                        idempotencyKey = "execute-1"
+                    },
+                    new
+                    {
+                        originalUrl = "https://example.com/import-execute-two",
+                        expiredAtUtc = new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero),
+                        idempotencyKey = "execute-2"
+                    }
+                }
+            });
+        var payload = await response.Content.ReadFromJsonAsync<ShortLinkImportExecutionResult>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(payload);
+        Assert.Equal(4, payload.TotalCount);
+        Assert.Equal(2, payload.SucceededCount);
+        Assert.Equal(2, payload.FailedCount);
+        Assert.Equal(0, payload.ReplayedCount);
+        Assert.False(payload.Truncated);
+        Assert.True(payload.Items[0].Succeeded);
+        Assert.NotNull(payload.Items[0].ShortCode);
+        Assert.Equal("invalid_url", payload.Items[1].ErrorCode);
+        Assert.Equal("duplicate_idempotency_key", payload.Items[2].ErrorCode);
+        Assert.True(payload.Items[3].Succeeded);
+        Assert.NotNull(payload.Items[3].ShortCode);
+
+        using var replayResponse = await client.PostAsJsonAsync(
+            "/api/short-links/import",
+            new
+            {
+                items = new[]
+                {
+                    new
+                    {
+                        originalUrl = "https://example.com/import-execute-one",
+                        expiredAtUtc = new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero),
+                        idempotencyKey = "execute-1"
+                    }
+                }
+            });
+        var replayPayload = await replayResponse.Content.ReadFromJsonAsync<ShortLinkImportExecutionResult>();
+
+        Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
+        Assert.NotNull(replayPayload);
+        Assert.Equal(1, replayPayload.SucceededCount);
+        Assert.Equal(1, replayPayload.ReplayedCount);
+        Assert.True(replayPayload.Items[0].Replayed);
+        Assert.Equal(payload.Items[0].ShortCode, replayPayload.Items[0].ShortCode);
+
+        using var listResponse = await client.GetAsync("/api/short-links?limit=10");
+        var listPayload = await listResponse.Content.ReadFromJsonAsync<ShortLinkAdminListResponse>();
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+        Assert.NotNull(listPayload);
+        Assert.Equal(2, listPayload.Items.Count);
     }
 
     [Fact]
@@ -2308,6 +2486,49 @@ public sealed class ShortLinkEndpointsTests
         var cache = services.GetRequiredService<IShortLinkCache>();
 
         Assert.IsType<DisabledShortLinkCache>(cache);
+    }
+
+    [Fact]
+    public void AddShortenLink_ObservabilityIsDisabledByDefault()
+    {
+        using var services = BuildServiceProvider(new Dictionary<string, string?>());
+
+        var options = services.GetRequiredService<IOptions<ShortenLinkOptions>>().Value;
+
+        Assert.False(options.Observability.Enabled);
+        Assert.False(options.Observability.HealthChecksEnabled);
+        Assert.Null(services.GetService<HealthCheckService>());
+    }
+
+    [Fact]
+    public async Task AddShortenLink_RegistersSafeHealthChecksWhenOptedIn()
+    {
+        using var services = BuildServiceProvider(new Dictionary<string, string?>
+        {
+            ["ShortenLink:Observability:HealthChecksEnabled"] = "true",
+            ["ShortenLink:Cache:Enabled"] = "false",
+            ["ShortenLink:Analytics:Enabled"] = "false"
+        });
+
+        using (var scope = services.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<ShortLinkDbContext>().Database.EnsureCreatedAsync();
+        }
+
+        var healthChecks = services.GetRequiredService<HealthCheckService>();
+        var report = await healthChecks.CheckHealthAsync();
+
+        Assert.Equal(HealthStatus.Healthy, report.Status);
+        Assert.Equal(
+            [
+                ShortenLinkHealthCheckNames.Analytics,
+                ShortenLinkHealthCheckNames.Cache,
+                ShortenLinkHealthCheckNames.Configuration,
+                ShortenLinkHealthCheckNames.Database
+            ],
+            report.Entries.Keys.OrderBy(static name => name).ToArray());
+        Assert.All(report.Entries.Values, entry =>
+            Assert.DoesNotContain("ConnectionString", entry.Description, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

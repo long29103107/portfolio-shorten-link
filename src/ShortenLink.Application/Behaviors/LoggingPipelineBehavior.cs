@@ -18,13 +18,13 @@ public sealed class LoggingPipelineBehavior<TRequest, TResponse>
         {
             var response = await next();
             System.Diagnostics.Trace.WriteLine(
-                $"Mediator request {requestName} completed in {stopwatch.ElapsedMilliseconds} ms.");
+                $"ShortenLinkRequestCompleted request={requestName} elapsed_ms={stopwatch.ElapsedMilliseconds}.");
             return response;
         }
         catch (Exception exception)
         {
             System.Diagnostics.Trace.WriteLine(
-                $"Mediator request {requestName} failed after {stopwatch.ElapsedMilliseconds} ms: {exception.Message}");
+                $"ShortenLinkRequestFailed request={requestName} elapsed_ms={stopwatch.ElapsedMilliseconds} exception_type={exception.GetType().Name}.");
             throw;
         }
     }
