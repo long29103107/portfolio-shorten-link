@@ -646,6 +646,59 @@ failure is isolated to its item so later items continue. Replayed items reuse
 their existing code and do not create another audit event; the endpoint never
 returns original URLs or idempotency keys in error details.
 
+## Streaming Bulk Export
+
+Callers with `short_links.read` can stream their recent accessible links as a
+JSON array:
+
+```http
+GET /api/short-links/export?limit=500
+```
+
+The application exposes records through an `IAsyncEnumerable` boundary and
+pages through the provider-neutral recent-link service contract. Results use a
+stable newest-first order. The default limit is 100 and requests are clamped to
+1,000 records.
+
+Each record contains only `code`, `originalUrl`, `createdAtUtc`, `expiredAtUtc`,
+`isActive`, and `accessLevel`. Creator identities, idempotency keys, shares,
+audit details, and other secrets are never exported. Regular users receive only
+owned or explicitly shared links; administrators retain their existing global
+read scope.
+
+## Optional Tenant Partitions
+
+Tenancy is opt-in and trusted-host driven. The built-in request context returns
+no tenant, so existing consumers keep the single-tenant behavior. A host that
+already resolves tenants can include the normalized identifier when its custom
+`ICurrentRequestContext` authorizes a request:
+
+```csharp
+return new CurrentRequestActor(
+    userId,
+    isAdmin,
+    actorId,
+    TenantId: resolvedTenantId);
+```
+
+Do not populate this value directly from an untrusted header without validating
+that the authenticated caller belongs to that tenant. Tenant identifiers are
+trimmed and limited to 128 characters.
+
+The tenant flows through create and import persistence plus list/export access
+scopes. Tenant mismatch is rejected before owner, share, or Admin bypass checks.
+Idempotency keys are unique within a tenant, so two tenants may safely use the
+same key; short codes remain globally unique so public redirects stay
+unambiguous. Tenant identifiers are internal partition data and are not added to
+link API responses or export records.
+
+Custom persistence providers must explicitly implement
+`IShortLinkTenantRepository` before tenant-scoped requests are accepted. This
+capability promises that tenant access scopes are enforced and supplies the
+tenant-aware idempotency lookup. Providers that only implement the original
+repository contracts remain valid for the default single-tenant path and fail
+closed if a tenant-aware host tries to use them.
+
 ## Observability And Health Checks
 
 Observability is opt-in. The default configuration does not create redirect

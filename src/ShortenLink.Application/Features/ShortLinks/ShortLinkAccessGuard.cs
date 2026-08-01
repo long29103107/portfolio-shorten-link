@@ -1,5 +1,7 @@
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Core;
 using ShortenLink.Core.Security;
+using ShortenLink.Core.Services;
 
 namespace ShortenLink.Application.Features.ShortLinks;
 
@@ -16,10 +18,11 @@ public sealed class ShortLinkAccessGuard(
         CurrentRequestActor user,
         CancellationToken cancellationToken)
     {
+        var tenantId = GetTenantId(user);
         var sharedAccess = user.IsAdmin || string.IsNullOrWhiteSpace(user.UserId)
             ? new Dictionary<string, ShortLinkShareAccess>(StringComparer.Ordinal)
             : await shareRepository.ListSharedAccessAsync(user.UserId, cancellationToken);
-        return new ShortLinkAccessScope(user.UserId, user.IsAdmin, sharedAccess);
+        return new ShortLinkAccessScope(user.UserId, user.IsAdmin, sharedAccess, tenantId);
     }
 
     internal async Task EnsureAccessAsync(
@@ -30,6 +33,13 @@ public sealed class ShortLinkAccessGuard(
         string message,
         CancellationToken cancellationToken)
     {
+        if (!string.Equals(shortLink.TenantId, GetTenantId(user), StringComparison.Ordinal))
+        {
+            throw new ForbiddenException(
+                ErrorCodes.Forbidden,
+                "You do not have access to this tenant partition.");
+        }
+
         if (user.IsAdmin
             || string.Equals(shortLink.CreatedByUserId, user.UserId, StringComparison.Ordinal))
             return;
@@ -51,6 +61,18 @@ public sealed class ShortLinkAccessGuard(
         return scope.SharedAccess.TryGetValue(shortLink.Code, out var access)
             ? access.ToString()
             : "None";
+    }
+
+    private static string? GetTenantId(CurrentRequestActor user)
+    {
+        if (!ShortLinkTenantId.IsValid(user.TenantId))
+        {
+            throw new BusinessRuleException(
+                ShortLinkErrorCodes.InvalidTenantId,
+                $"Tenant identifier must be at most {ShortLinkTenantId.MaxLength} characters.");
+        }
+
+        return ShortLinkTenantId.Normalize(user.TenantId);
     }
 
 }

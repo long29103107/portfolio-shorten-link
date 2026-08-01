@@ -37,7 +37,8 @@ internal sealed class CreateShortLinkCommandHandler(
                 creator?.UserId,
                 creator?.DisplayName,
                 creator?.Username,
-                request.IdempotencyKey),
+                request.IdempotencyKey,
+                actor.TenantId),
             cancellationToken);
 
         if (!result.Succeeded || result.ShortLink is null)
@@ -65,7 +66,8 @@ internal sealed class CreateShortLinkCommandHandler(
         {
             ShortLinkErrorCodes.InvalidUrl
                 or ShortLinkErrorCodes.InvalidExpiration
-                or ShortLinkErrorCodes.InvalidIdempotencyKey =>
+                or ShortLinkErrorCodes.InvalidIdempotencyKey
+                or ShortLinkErrorCodes.InvalidTenantId =>
                 new RequestValidationException(errorCode, message),
             ShortLinkErrorCodes.IdempotencyConflict => new ConflictException(errorCode, message),
             ShortLinkErrorCodes.NotFound => new NotFoundException(errorCode, message),

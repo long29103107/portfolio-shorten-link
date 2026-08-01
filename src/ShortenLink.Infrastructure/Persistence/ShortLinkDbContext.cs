@@ -65,10 +65,16 @@ public sealed class ShortLinkDbContext : DbContext
             entity.Property(link => link.IdempotencyKey)
                 .HasMaxLength(256);
 
+            entity.Property(link => link.TenantId)
+                .HasMaxLength(128)
+                .HasDefaultValue(string.Empty)
+                .IsRequired();
+
             entity.HasIndex(link => link.CreatedAt);
             entity.HasIndex(link => link.ExpiresAt);
             entity.HasIndex(link => link.IsActive);
-            entity.HasIndex(link => link.IdempotencyKey)
+            entity.HasIndex(link => new { link.TenantId, link.IdempotencyKey })
+                .HasDatabaseName("IX_short_links_TenantId_IdempotencyKey")
                 .IsUnique();
         });
 

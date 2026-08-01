@@ -16,9 +16,21 @@ public static class ShortLinkDatabaseSchema
 
         if (dbContext.Database.IsSqlite())
         {
-            await EnsureSqliteIdempotencyColumnAsync(dbContext, cancellationToken);
+            await EnsureSqliteColumnAsync(
+                dbContext,
+                "IdempotencyKey",
+                "ALTER TABLE \"short_links\" ADD COLUMN \"IdempotencyKey\" TEXT NULL;",
+                cancellationToken);
+            await EnsureSqliteColumnAsync(
+                dbContext,
+                "TenantId",
+                "ALTER TABLE \"short_links\" ADD COLUMN \"TenantId\" TEXT NOT NULL DEFAULT '';",
+                cancellationToken);
             await dbContext.Database.ExecuteSqlRawAsync(
-                "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_short_links_IdempotencyKey\" ON \"short_links\" (\"IdempotencyKey\");",
+                "DROP INDEX IF EXISTS \"IX_short_links_IdempotencyKey\";",
+                cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_short_links_TenantId_IdempotencyKey\" ON \"short_links\" (\"TenantId\", \"IdempotencyKey\");",
                 cancellationToken);
             return;
         }
@@ -29,7 +41,13 @@ public static class ShortLinkDatabaseSchema
                 "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"IdempotencyKey\" character varying(256);",
                 cancellationToken);
             await dbContext.Database.ExecuteSqlRawAsync(
-                "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_short_links_IdempotencyKey\" ON \"short_links\" (\"IdempotencyKey\");",
+                "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"TenantId\" character varying(128) NOT NULL DEFAULT '';",
+                cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "DROP INDEX IF EXISTS \"IX_short_links_IdempotencyKey\";",
+                cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_short_links_TenantId_IdempotencyKey\" ON \"short_links\" (\"TenantId\", \"IdempotencyKey\");",
                 cancellationToken);
         }
     }
@@ -51,8 +69,10 @@ public static class ShortLinkDatabaseSchema
             : dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 
-    private static async Task EnsureSqliteIdempotencyColumnAsync(
+    private static async Task EnsureSqliteColumnAsync(
         ShortLinkDbContext dbContext,
+        string columnName,
+        string alterSql,
         CancellationToken cancellationToken)
     {
         var connection = dbContext.Database.GetDbConnection();
@@ -67,7 +87,7 @@ public static class ShortLinkDatabaseSchema
         {
             while (await reader.ReadAsync(cancellationToken))
             {
-                if (string.Equals(reader.GetString(1), "IdempotencyKey", StringComparison.Ordinal))
+                if (string.Equals(reader.GetString(1), columnName, StringComparison.Ordinal))
                 {
                     return;
                 }
@@ -75,7 +95,7 @@ public static class ShortLinkDatabaseSchema
         }
 
         await dbContext.Database.ExecuteSqlRawAsync(
-            "ALTER TABLE \"short_links\" ADD COLUMN \"IdempotencyKey\" TEXT NULL;",
+            alterSql,
             cancellationToken);
     }
 

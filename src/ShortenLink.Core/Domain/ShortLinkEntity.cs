@@ -12,7 +12,8 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         string? createdByDisplayName = null,
         string? createdByUsername = null,
         Guid? technicalId = null,
-        string? idempotencyKey = null)
+        string? idempotencyKey = null,
+        string? tenantId = null)
         : base(createdAt, technicalId ?? Guid.CreateVersion7())
     {
         ShortCodeValidator.ValidateCodeOrThrow(code);
@@ -31,6 +32,14 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         CreatedByDisplayName = Normalize(createdByDisplayName);
         CreatedByUsername = Normalize(createdByUsername);
         IdempotencyKey = Normalize(idempotencyKey);
+        if (!ShortLinkTenantId.IsValid(tenantId))
+        {
+            throw new ArgumentException(
+                $"Tenant identifier must be at most {ShortLinkTenantId.MaxLength} characters.",
+                nameof(tenantId));
+        }
+
+        TenantId = ShortLinkTenantId.Normalize(tenantId);
     }
 
     public string Code { get; }
@@ -48,6 +57,8 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
     public string? CreatedByUsername { get; }
 
     public string? IdempotencyKey { get; }
+
+    public string? TenantId { get; }
 
     public bool IsExpired(DateTimeOffset now) => ExpiresAt is not null && ExpiresAt <= now;
 

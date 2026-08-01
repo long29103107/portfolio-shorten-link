@@ -8,6 +8,7 @@ using ShortenLink.Application.Features.ShortLinks.Analytics;
 using ShortenLink.Application.Features.ShortLinks.Create;
 using ShortenLink.Application.Features.ShortLinks.Delete;
 using ShortenLink.Application.Features.ShortLinks.Details;
+using ShortenLink.Application.Features.ShortLinks.Export;
 using ShortenLink.Application.Features.ShortLinks.List;
 using ShortenLink.Application.Features.ShortLinks.Import;
 using ShortenLink.Application.Features.ShortLinks.Shares;
@@ -49,6 +50,8 @@ public static class ShortenLinkEndpointMappings
             .WithName("ExecuteShortenLinkImportEndpoint");
         group.MapPost("/import/dry-run", DryRunShortLinkImportAsync)
             .WithName("DryRunShortenLinkImportEndpoint");
+        group.MapGet("/export", ExportShortLinksAsync)
+            .WithName("ExportShortenLinkEndpoint");
         group.MapGet("/{code}", static (string code, ISender sender, CancellationToken ct) =>
             sender.Send(new GetShortLinkDetailsQuery(code), ct));
         group.MapGet("/{code}/analytics", static (string code, int? limit, ISender sender, CancellationToken ct) =>
@@ -132,6 +135,12 @@ public static class ShortenLinkEndpointMappings
         ISender sender,
         CancellationToken cancellationToken) =>
         sender.Send(new ExecuteShortLinkImportCommand(request.Items), cancellationToken);
+
+    private static Task<IAsyncEnumerable<ShortLinkExportRecord>> ExportShortLinksAsync(
+        int? limit,
+        ISender sender,
+        CancellationToken cancellationToken) =>
+        sender.Send(new ExportShortLinksQuery(limit), cancellationToken);
 
     private static ListShortLinksQuery CreateListQuery(
         string baseUrl, int? limit, int? page, string? cursor,

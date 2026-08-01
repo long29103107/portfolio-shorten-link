@@ -55,3 +55,17 @@ public interface IShortLinkIdempotencyRepository
         string idempotencyKey,
         CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Optional provider capability for tenant-partitioned short links. Providers
+/// implementing this contract must persist <see cref="ShortLink.TenantId"/>,
+/// enforce tenant filters whenever an access scope is supplied, and scope
+/// idempotency uniqueness to the normalized tenant identifier.
+/// </summary>
+public interface IShortLinkTenantRepository
+{
+    Task<ShortLink?> FindByTenantIdempotencyKeyAsync(
+        string tenantId,
+        string idempotencyKey,
+        CancellationToken cancellationToken = default);
+}

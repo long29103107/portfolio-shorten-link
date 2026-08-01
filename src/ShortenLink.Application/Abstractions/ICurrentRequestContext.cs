@@ -24,4 +24,5 @@ public sealed record CurrentUser(
 public sealed record CurrentRequestActor(
     string? UserId,
     bool IsAdmin,
-    string? ActorId = null);
+    string? ActorId = null,
+    string? TenantId = null);

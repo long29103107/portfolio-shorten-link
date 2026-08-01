@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using ShortenLink.Api;
@@ -664,6 +665,125 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal(second.ShortUrl, secondItem.ShortUrl);
         Assert.Equal("https://example.com/two", secondItem.OriginalUrl);
         Assert.True(secondItem.IsActive);
+    }
+
+    [Fact]
+    public async Task GetExport_StreamsBoundedRecentRecordsWithoutPrivateFields()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+
+        await CreateShortLinkAsync(client, "https://example.com/export-one");
+        await CreateShortLinkAsync(client, "https://example.com/export-two");
+        await CreateShortLinkAsync(client, "https://example.com/export-three");
+
+        using var response = await client.GetAsync("/api/short-links/export?limit=2");
+        var json = await response.Content.ReadAsStringAsync();
+        var records = JsonSerializer.Deserialize<IReadOnlyList<ShortLinkExportRecord>>(
+            json,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(records);
+        Assert.Equal(2, records.Count);
+        Assert.True(records[0].CreatedAtUtc >= records[1].CreatedAtUtc);
+        Assert.All(records, record => Assert.Equal("Admin", record.AccessLevel));
+        Assert.DoesNotContain("idempotencyKey", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("createdBy", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetExport_RequiresReadPermission()
+    {
+        await using var missingCredentialFactory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            securityEnabled: true);
+        using var missingCredentialClient = missingCredentialFactory.CreateClient();
+        using var unauthorized = await missingCredentialClient.GetAsync("/api/short-links/export");
+
+        await using var missingPermissionFactory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            securityEnabled: true,
+            securityRoles: Array.Empty<string>(),
+            securityPermissions: Array.Empty<string>());
+        using var missingPermissionClient = missingPermissionFactory.CreateClient();
+        missingPermissionClient.DefaultRequestHeaders.Add("X-ShortenLink-Api-Key", "test-admin-key");
+        using var forbidden = await missingPermissionClient.GetAsync("/api/short-links/export");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+    }
+
+    [Fact]
+    public async Task TenantContext_IsolatesCreateImportListExportAndIdempotency()
+    {
+        await using var factory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            tenantHeaderContext: true);
+        using var tenantAClient = factory.CreateClient();
+        tenantAClient.DefaultRequestHeaders.Add("X-Test-Tenant-Id", "tenant-a");
+        using var tenantBClient = factory.CreateClient();
+        tenantBClient.DefaultRequestHeaders.Add("X-Test-Tenant-Id", "tenant-b");
+
+        static HttpRequestMessage CreateRequest(string destination) =>
+            new(HttpMethod.Post, "/api/short-links")
+            {
+                Content = JsonContent.Create(new
+                {
+                    originalUrl = destination,
+                    expiredAtUtc = new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero)
+                })
+            };
+
+        using var tenantARequest = CreateRequest("https://example.com/tenant-a");
+        tenantARequest.Headers.Add("Idempotency-Key", "shared-key");
+        using var tenantAResponse = await tenantAClient.SendAsync(tenantARequest);
+        var tenantALink = await tenantAResponse.Content.ReadFromJsonAsync<ShortLinkCreatedResponse>();
+
+        using var tenantBRequest = CreateRequest("https://example.com/tenant-b");
+        tenantBRequest.Headers.Add("Idempotency-Key", "shared-key");
+        using var tenantBResponse = await tenantBClient.SendAsync(tenantBRequest);
+        var tenantBLink = await tenantBResponse.Content.ReadFromJsonAsync<ShortLinkCreatedResponse>();
+
+        using var tenantAReplayRequest = CreateRequest("https://example.com/tenant-a");
+        tenantAReplayRequest.Headers.Add("Idempotency-Key", "shared-key");
+        using var tenantAReplayResponse = await tenantAClient.SendAsync(tenantAReplayRequest);
+
+        using var importResponse = await tenantAClient.PostAsJsonAsync(
+            "/api/short-links/import",
+            new
+            {
+                items = new[]
+                {
+                    new
+                    {
+                        originalUrl = "https://example.com/tenant-a/imported",
+                        expiredAtUtc = new DateTimeOffset(2026, 8, 20, 0, 0, 0, TimeSpan.Zero),
+                        idempotencyKey = "tenant-a-import"
+                    }
+                }
+            });
+        using var tenantAListResponse = await tenantAClient.GetAsync("/api/short-links?limit=10");
+        var tenantAList = await tenantAListResponse.Content.ReadFromJsonAsync<ShortLinkAdminListResponse>();
+        using var tenantBExportResponse = await tenantBClient.GetAsync("/api/short-links/export?limit=10");
+        var tenantBExport = await tenantBExportResponse.Content
+            .ReadFromJsonAsync<IReadOnlyList<ShortLinkExportRecord>>();
+        using var crossTenantDetails = await tenantBClient.GetAsync($"/api/short-links/{tenantALink!.Code}");
+        var persisted = await factory.GetShortLinksAsync();
+
+        Assert.Equal(HttpStatusCode.Created, tenantAResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, tenantBResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, tenantAReplayResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, importResponse.StatusCode);
+        Assert.NotNull(tenantBLink);
+        Assert.NotEqual(tenantALink.Code, tenantBLink.Code);
+        Assert.NotNull(tenantAList);
+        Assert.Equal(2, tenantAList.Items.Count);
+        Assert.NotNull(tenantBExport);
+        Assert.Equal(tenantBLink.Code, Assert.Single(tenantBExport).Code);
+        Assert.Equal(HttpStatusCode.Forbidden, crossTenantDetails.StatusCode);
+        Assert.Equal(2, persisted.Count(link => link.TenantId == "tenant-a"));
+        Assert.Equal(1, persisted.Count(link => link.TenantId == "tenant-b"));
     }
 
     [Fact]
@@ -1555,6 +1675,12 @@ public sealed class ShortLinkEndpointsTests
         Assert.NotNull(privateList);
         Assert.Empty(privateList.Items);
 
+        using var privateExportResponse = await sharedClient.GetAsync("/api/short-links/export");
+        var privateExport = await privateExportResponse.Content
+            .ReadFromJsonAsync<IReadOnlyList<ShortLinkExportRecord>>();
+        Assert.NotNull(privateExport);
+        Assert.Empty(privateExport);
+
         using var privateUpdateResponse = await sharedClient.PutAsJsonAsync(
             $"/api/short-links/{created.Code}",
             new
@@ -1575,6 +1701,13 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal(created.Code, sharedLink.Code);
         Assert.Equal("View", sharedLink.AccessLevel);
 
+        using var exportResponse = await sharedClient.GetAsync("/api/short-links/export");
+        var export = await exportResponse.Content
+            .ReadFromJsonAsync<IReadOnlyList<ShortLinkExportRecord>>();
+        var sharedExport = Assert.Single(export!);
+        Assert.Equal(created.Code, sharedExport.Code);
+        Assert.Equal("View", sharedExport.AccessLevel);
+
         using var updateResponse = await sharedClient.PutAsJsonAsync(
             $"/api/short-links/{created.Code}",
             new
@@ -1592,6 +1725,12 @@ public sealed class ShortLinkEndpointsTests
         var revokedList = await revokedListResponse.Content.ReadFromJsonAsync<ShortLinkAdminListResponse>();
         Assert.NotNull(revokedList);
         Assert.Empty(revokedList.Items);
+
+        using var revokedExportResponse = await sharedClient.GetAsync("/api/short-links/export");
+        var revokedExport = await revokedExportResponse.Content
+            .ReadFromJsonAsync<IReadOnlyList<ShortLinkExportRecord>>();
+        Assert.NotNull(revokedExport);
+        Assert.Empty(revokedExport);
 
         using var adminClient = factory.CreateClient();
         adminClient.DefaultRequestHeaders.Authorization =
@@ -2653,6 +2792,7 @@ public sealed class ShortLinkEndpointsTests
         private readonly string securityApiKey;
         private readonly IReadOnlyList<string> securityRoles;
         private readonly IReadOnlyList<string> securityPermissions;
+        private readonly bool tenantHeaderContext;
 
         public ShortLinkApiFactory(
             bool enableFrontendFallback,
@@ -2666,7 +2806,8 @@ public sealed class ShortLinkEndpointsTests
             bool securityEnabled = false,
             string securityApiKey = "test-admin-key",
             IReadOnlyList<string>? securityRoles = null,
-            IReadOnlyList<string>? securityPermissions = null)
+            IReadOnlyList<string>? securityPermissions = null,
+            bool tenantHeaderContext = false)
         {
             this.enableFrontendFallback = enableFrontendFallback;
             this.frontendFallbackPath = frontendFallbackPath;
@@ -2680,6 +2821,7 @@ public sealed class ShortLinkEndpointsTests
             this.securityApiKey = securityApiKey;
             this.securityRoles = securityRoles ?? new[] { ShortenLinkRoles.Owner };
             this.securityPermissions = securityPermissions ?? Array.Empty<string>();
+            this.tenantHeaderContext = tenantHeaderContext;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -2749,7 +2891,22 @@ public sealed class ShortLinkEndpointsTests
             {
                 services.AddSingleton<TimeProvider>(
                     new FixedTimeProvider(new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero)));
+                if (tenantHeaderContext)
+                {
+                    services.RemoveAll<ICurrentRequestContext>();
+                    services.AddScoped<ICurrentRequestContext, TenantHeaderRequestContext>();
+                }
             });
+        }
+
+        public async Task<List<ShortLinkPersistenceEntity>> GetShortLinksAsync()
+        {
+            using var scope = Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ShortLinkDbContext>();
+            return await dbContext.ShortLinks
+                .AsNoTracking()
+                .OrderBy(link => link.Code)
+                .ToListAsync();
         }
 
         public async Task<List<ShortLinkClickPersistenceEntity>> GetRecordedClicksAsync()
@@ -2865,6 +3022,36 @@ public sealed class ShortLinkEndpointsTests
             base.Dispose();
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class TenantHeaderRequestContext(IHttpContextAccessor httpContextAccessor)
+        : ICurrentRequestContext
+    {
+        public Task EnsureAuthorizedAsync(
+            string permission,
+            CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<CurrentRequestActor> AuthorizeAsync(
+            string permission,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CurrentRequestActor(
+                "tenant-admin",
+                IsAdmin: true,
+                ActorId: "tenant-admin",
+                TenantId: GetTenantId()));
+
+        public Task<CurrentUser?> GetCurrentUserAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<CurrentUser?>(new CurrentUser(
+                "tenant-admin",
+                "tenant-admin",
+                "Tenant Admin",
+                [ShortenLinkRoles.Admin],
+                ShortenLinkPermissionCatalog.All.ToList()));
+
+        private string? GetTenantId() =>
+            httpContextAccessor.HttpContext?.Request.Headers["X-Test-Tenant-Id"].ToString();
     }
 
     private static ServiceProvider BuildServiceProvider(IDictionary<string, string?> overrides)

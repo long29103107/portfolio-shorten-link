@@ -15,7 +15,8 @@ public sealed record ShortLinkListQuery(
 public sealed record ShortLinkAccessScope(
     string? UserId,
     bool IsAdmin,
-    IReadOnlyDictionary<string, ShortLinkShareAccess> SharedAccess);
+    IReadOnlyDictionary<string, ShortLinkShareAccess> SharedAccess,
+    string? TenantId = null);
 
 public enum ShortLinkListStatus
 {

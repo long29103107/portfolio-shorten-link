@@ -69,13 +69,16 @@ public sealed class ShortLinkService : IShortLinkService
         DateTimeOffset? beforeCreatedAt,
         string? beforeCode,
         ShortLinkAccessScope accessScope,
-        CancellationToken cancellationToken = default) =>
-        repository.ListAccessibleRecentAsync(
+        CancellationToken cancellationToken = default)
+    {
+        accessScope = NormalizeTenantScope(accessScope);
+        return repository.ListAccessibleRecentAsync(
             Math.Clamp(limit, 1, 500),
             beforeCreatedAt,
             beforeCode,
             accessScope,
             cancellationToken);
+    }
 
     public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
         repository.CountAsync(cancellationToken);
@@ -115,7 +118,7 @@ public sealed class ShortLinkService : IShortLinkService
         ShortLinkAccessScope accessScope,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(accessScope);
+        accessScope = NormalizeTenantScope(accessScope);
         var now = timeProvider.GetUtcNow();
         var query = new ShortLinkListQuery(
             string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
@@ -153,6 +156,22 @@ public sealed class ShortLinkService : IShortLinkService
         }
 
         var idempotencyKey = ShortLinkIdempotencyKey.Normalize(request.IdempotencyKey);
+        if (!ShortLinkTenantId.IsValid(request.TenantId))
+        {
+            return CreateShortLinkResult.Failure(
+                ShortLinkErrorCodes.InvalidTenantId,
+                $"Tenant identifier must be at most {ShortLinkTenantId.MaxLength} characters.");
+        }
+
+        var tenantId = ShortLinkTenantId.Normalize(request.TenantId);
+        var tenantRepository = repository as IShortLinkTenantRepository;
+        if (tenantId is not null && tenantRepository is null)
+        {
+            return CreateShortLinkResult.Failure(
+                ShortLinkErrorCodes.TenantNotSupported,
+                "The configured persistence provider does not support tenant partitions.");
+        }
+
         var idempotencyRepository = repository as IShortLinkIdempotencyRepository;
         if (idempotencyKey is not null && idempotencyRepository is null)
         {
@@ -178,13 +197,17 @@ public sealed class ShortLinkService : IShortLinkService
 
         if (idempotencyKey is not null)
         {
-            var existing = await idempotencyRepository!
-                .FindByIdempotencyKeyAsync(idempotencyKey, cancellationToken);
+            var existing = tenantId is null
+                ? await idempotencyRepository!
+                    .FindByIdempotencyKeyAsync(idempotencyKey, cancellationToken)
+                : await tenantRepository!
+                    .FindByTenantIdempotencyKeyAsync(tenantId, idempotencyKey, cancellationToken);
             var replay = ResolveIdempotencyReplay(
                 existing,
                 originalUrl,
                 request.ExpiresAt.Value,
-                request.CreatedByUserId);
+                request.CreatedByUserId,
+                tenantId);
             if (replay is not null)
             {
                 return replay;
@@ -208,7 +231,8 @@ public sealed class ShortLinkService : IShortLinkService
                 createdByUserId: request.CreatedByUserId,
                 createdByDisplayName: request.CreatedByDisplayName,
                 createdByUsername: request.CreatedByUsername,
-                idempotencyKey: idempotencyKey);
+                idempotencyKey: idempotencyKey,
+                tenantId: tenantId);
 
             try
             {
@@ -223,13 +247,17 @@ public sealed class ShortLinkService : IShortLinkService
             }
             catch (ShortLinkIdempotencyConflictException)
             {
-                var existing = await idempotencyRepository!
-                    .FindByIdempotencyKeyAsync(idempotencyKey!, cancellationToken);
+                var existing = tenantId is null
+                    ? await idempotencyRepository!
+                        .FindByIdempotencyKeyAsync(idempotencyKey!, cancellationToken)
+                    : await tenantRepository!
+                        .FindByTenantIdempotencyKeyAsync(tenantId, idempotencyKey!, cancellationToken);
                 var replay = ResolveIdempotencyReplay(
                     existing,
                     originalUrl,
                     request.ExpiresAt.Value,
-                    request.CreatedByUserId);
+                    request.CreatedByUserId,
+                    tenantId);
                 return replay
                     ?? CreateShortLinkResult.Failure(
                         ShortLinkErrorCodes.IdempotencyConflict,
@@ -246,7 +274,8 @@ public sealed class ShortLinkService : IShortLinkService
         ShortLink? existing,
         Uri originalUrl,
         DateTimeOffset expiresAt,
-        string? createdByUserId)
+        string? createdByUserId,
+        string? tenantId)
     {
         if (existing is null)
         {
@@ -256,6 +285,7 @@ public sealed class ShortLinkService : IShortLinkService
         return string.Equals(existing.OriginalUrl.AbsoluteUri, originalUrl.AbsoluteUri, StringComparison.Ordinal)
             && existing.ExpiresAt == expiresAt
             && string.Equals(existing.CreatedByUserId, NormalizeIdentity(createdByUserId), StringComparison.Ordinal)
+            && string.Equals(existing.TenantId, tenantId, StringComparison.Ordinal)
             ? CreateShortLinkResult.Replay(existing)
             : CreateShortLinkResult.Failure(
                 ShortLinkErrorCodes.IdempotencyConflict,
@@ -432,7 +462,10 @@ public sealed class ShortLinkService : IShortLinkService
             existing.IsActive,
             existing.CreatedByUserId,
             existing.CreatedByDisplayName,
-            existing.CreatedByUsername);
+            existing.CreatedByUsername,
+            technicalId: existing.Id,
+            idempotencyKey: existing.IdempotencyKey,
+            tenantId: existing.TenantId);
 
         await repository.UpdateAsync(updated, cancellationToken);
         await cache.RemoveAsync(updated.Code, cancellationToken);
@@ -499,6 +532,27 @@ public sealed class ShortLinkService : IShortLinkService
         }
 
         return null;
+    }
+
+    private ShortLinkAccessScope NormalizeTenantScope(ShortLinkAccessScope accessScope)
+    {
+        ArgumentNullException.ThrowIfNull(accessScope);
+        if (!ShortLinkTenantId.IsValid(accessScope.TenantId))
+        {
+            throw new RequestValidationException(
+                ShortLinkErrorCodes.InvalidTenantId,
+                $"Tenant identifier must be at most {ShortLinkTenantId.MaxLength} characters.");
+        }
+
+        var tenantId = ShortLinkTenantId.Normalize(accessScope.TenantId);
+        if (tenantId is not null && repository is not IShortLinkTenantRepository)
+        {
+            throw new BusinessRuleException(
+                ShortLinkErrorCodes.TenantNotSupported,
+                "The configured persistence provider does not support tenant partitions.");
+        }
+
+        return accessScope with { TenantId = tenantId };
     }
 
     private void PublishEvent(

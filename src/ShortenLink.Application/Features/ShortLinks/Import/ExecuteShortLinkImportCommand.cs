@@ -51,7 +51,8 @@ internal sealed class ExecuteShortLinkImportCommandHandler(
                         creator?.UserId,
                         creator?.DisplayName,
                         creator?.Username,
-                        validation.Item.IdempotencyKey),
+                        validation.Item.IdempotencyKey,
+                        actor.TenantId),
                     cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

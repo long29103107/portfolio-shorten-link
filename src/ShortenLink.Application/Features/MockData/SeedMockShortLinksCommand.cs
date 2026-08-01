@@ -23,9 +23,10 @@ internal sealed class SeedMockShortLinksCommandHandler(
         CancellationToken cancellationToken)
     {
         var currentUser = await requestContext.GetCurrentUserAsync(cancellationToken);
+        CurrentRequestActor? actor = null;
         if (currentUser is not null)
         {
-            await requestContext.EnsureAuthorizedAsync(
+            actor = await requestContext.AuthorizeAsync(
                 ShortenLinkPermissionCatalog.ShortLinksCreate,
                 cancellationToken);
         }
@@ -43,7 +44,8 @@ internal sealed class SeedMockShortLinksCommandHandler(
                     expiresAtUtc,
                     currentUser?.UserId,
                     currentUser?.DisplayName,
-                    currentUser?.Username),
+                    currentUser?.Username,
+                    TenantId: actor?.TenantId),
                 cancellationToken);
 
             if (result.Succeeded && result.ShortLink is not null)

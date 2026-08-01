@@ -9,7 +9,10 @@ using ShortenLink.Infrastructure.Persistence;
 namespace ShortenLink.Infrastructure.Repositories;
 
 public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
-    : EfCoreRepository<ShortLinkPersistenceEntity>(dbContext), IShortLinkRepository, IShortLinkIdempotencyRepository
+    : EfCoreRepository<ShortLinkPersistenceEntity>(dbContext),
+      IShortLinkRepository,
+      IShortLinkIdempotencyRepository,
+      IShortLinkTenantRepository
 {
     public async Task<IReadOnlyList<ShortLink>> ListRecentAsync(
         int limit,
@@ -24,6 +27,7 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             ;
 
         return records
+            .Where(record => string.IsNullOrEmpty(record.TenantId))
             .OrderByDescending(link => link.CreatedAt)
             .ThenBy(link => link.Code, StringComparer.Ordinal)
             .Where(link => IsAfterCursor(link, beforeCreatedAt, beforeCode))
@@ -85,6 +89,7 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             ;
 
         return records
+            .Where(record => string.IsNullOrEmpty(record.TenantId))
             .OrderByDescending(link => link.CreatedAt)
             .ThenBy(link => link.Code, StringComparer.Ordinal)
             .Skip(safeSkip)
@@ -94,7 +99,7 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
     }
 
     public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
-        Entities.CountAsync(cancellationToken);
+        Entities.CountAsync(link => link.TenantId == string.Empty, cancellationToken);
 
     public async Task<ShortLinkListPage> ListPageAsync(
         int skip,
@@ -111,7 +116,9 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             ;
 
         var filtered = records
-            .Where(record => query.AccessScope is null || IsAccessible(record, query.AccessScope))
+            .Where(record => query.AccessScope is null
+                ? string.IsNullOrEmpty(record.TenantId)
+                : IsAccessible(record, query.AccessScope))
             .Where(record => MatchesSearch(record, query.Search))
             .Where(record => MatchesStatus(record, query))
             .ToList();
@@ -125,10 +132,11 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
     }
 
     private static bool IsAccessible(ShortLinkPersistenceEntity record, ShortLinkAccessScope accessScope) =>
-        accessScope.IsAdmin
+        string.Equals(record.TenantId, accessScope.TenantId ?? string.Empty, StringComparison.Ordinal)
+        && (accessScope.IsAdmin
         || (!string.IsNullOrWhiteSpace(accessScope.UserId)
             && string.Equals(record.CreatedByUserId, accessScope.UserId, StringComparison.Ordinal))
-        || accessScope.SharedAccess.ContainsKey(record.Code);
+        || accessScope.SharedAccess.ContainsKey(record.Code));
 
     public async Task<ShortLink?> FindByCodeAsync(
         string code,
@@ -148,8 +156,24 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
 
         var record = await ReadOnlyEntities
-            .FirstOrDefaultAsync(link => link.IdempotencyKey == idempotencyKey, cancellationToken);
+            .FirstOrDefaultAsync(
+                link => link.TenantId == string.Empty && link.IdempotencyKey == idempotencyKey,
+                cancellationToken);
 
+        return record?.ToDomain();
+    }
+
+    public async Task<ShortLink?> FindByTenantIdempotencyKeyAsync(
+        string tenantId,
+        string idempotencyKey,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
+
+        var record = await ReadOnlyEntities.FirstOrDefaultAsync(
+            link => link.TenantId == tenantId && link.IdempotencyKey == idempotencyKey,
+            cancellationToken);
         return record?.ToDomain();
     }
 
@@ -333,7 +357,7 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             return postgresException.SqlState == PostgresErrorCodes.UniqueViolation
                 && string.Equals(
                     postgresException.ConstraintName,
-                    "IX_short_links_IdempotencyKey",
+                    "IX_short_links_TenantId_IdempotencyKey",
                     StringComparison.OrdinalIgnoreCase);
         }
 

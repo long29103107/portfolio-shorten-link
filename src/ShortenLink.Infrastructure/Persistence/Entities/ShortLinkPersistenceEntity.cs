@@ -18,6 +18,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
 
     public string? IdempotencyKey { get; set; }
 
+    public string TenantId { get; set; } = string.Empty;
+
     public static ShortLinkPersistenceEntity FromDomain(ShortLink shortLink)
     {
         ArgumentNullException.ThrowIfNull(shortLink);
@@ -33,7 +35,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             CreatedByUserId = shortLink.CreatedByUserId,
             CreatedByDisplayName = shortLink.CreatedByDisplayName,
             CreatedByUsername = shortLink.CreatedByUsername,
-            IdempotencyKey = shortLink.IdempotencyKey
+            IdempotencyKey = shortLink.IdempotencyKey,
+            TenantId = shortLink.TenantId ?? string.Empty
         };
     }
 
@@ -48,7 +51,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             CreatedByDisplayName,
             CreatedByUsername,
             Id,
-            IdempotencyKey);
+            IdempotencyKey,
+            TenantId);
 
     public void UpdateFromDomain(ShortLink shortLink)
     {
@@ -62,5 +66,6 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
         CreatedByDisplayName = shortLink.CreatedByDisplayName;
         CreatedByUsername = shortLink.CreatedByUsername;
         IdempotencyKey = shortLink.IdempotencyKey;
+        TenantId = shortLink.TenantId ?? string.Empty;
     }
 }

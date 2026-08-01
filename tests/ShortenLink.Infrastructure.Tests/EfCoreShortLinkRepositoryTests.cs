@@ -182,6 +182,53 @@ public sealed class EfCoreShortLinkRepositoryTests
     }
 
     [Fact]
+    public async Task TenantPartition_ScopesReadsAndIdempotencyKeys()
+    {
+        await using var database = await SqliteTestDatabase.CreateAsync();
+        var repository = database.CreateRepository();
+        var now = new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero);
+        var tenantA = new ShortLink(
+            "tenanta1",
+            new Uri("https://example.com/tenant-a"),
+            now,
+            createdByUserId: "user-1",
+            idempotencyKey: "shared-key",
+            tenantId: "tenant-a");
+        var tenantB = new ShortLink(
+            "tenantb1",
+            new Uri("https://example.com/tenant-b"),
+            now.AddMinutes(1),
+            createdByUserId: "user-1",
+            idempotencyKey: "shared-key",
+            tenantId: "tenant-b");
+
+        await repository.AddAsync(tenantA);
+        await repository.AddAsync(tenantB);
+        var tenantAList = await repository.ListAccessibleRecentAsync(
+            10,
+            null,
+            null,
+            new ShortLinkAccessScope(
+                "user-1",
+                IsAdmin: true,
+                new Dictionary<string, ShortLinkShareAccess>(),
+                "tenant-a"));
+        var foundA = await repository.FindByTenantIdempotencyKeyAsync("tenant-a", "shared-key");
+        var foundB = await repository.FindByTenantIdempotencyKeyAsync("tenant-b", "shared-key");
+
+        Assert.Equal(tenantA.Code, Assert.Single(tenantAList).Code);
+        Assert.Equal(tenantA.Code, foundA?.Code);
+        Assert.Equal(tenantB.Code, foundB?.Code);
+        await Assert.ThrowsAsync<ShortLinkIdempotencyConflictException>(() =>
+            repository.AddAsync(new ShortLink(
+                "tenanta2",
+                new Uri("https://example.com/tenant-a/conflict"),
+                now.AddMinutes(2),
+                idempotencyKey: "shared-key",
+                tenantId: "tenant-a")));
+    }
+
+    [Fact]
     public async Task Schema_HasExpectedIndexes()
     {
         await using var database = await SqliteTestDatabase.CreateAsync();
@@ -192,7 +239,8 @@ public sealed class EfCoreShortLinkRepositoryTests
         Assert.Contains("IX_short_links_CreatedAt", indexes);
         Assert.Contains("IX_short_links_ExpiresAt", indexes);
         Assert.Contains("IX_short_links_IsActive", indexes);
-        Assert.Contains("IX_short_links_IdempotencyKey", indexes);
+        Assert.Contains("IX_short_links_TenantId_IdempotencyKey", indexes);
+        Assert.DoesNotContain("IX_short_links_IdempotencyKey", indexes);
     }
 
     [Fact]
@@ -217,7 +265,59 @@ public sealed class EfCoreShortLinkRepositoryTests
         Assert.Contains("IX_short_links_CreatedAt", indexNames);
         Assert.Contains("IX_short_links_ExpiresAt", indexNames);
         Assert.Contains("IX_short_links_IsActive", indexNames);
-        Assert.Contains("IX_short_links_IdempotencyKey", indexNames);
+        Assert.Contains("IX_short_links_TenantId_IdempotencyKey", indexNames);
+    }
+
+    [Fact]
+    public async Task CompatibilitySchema_AddsTenantPartitionAndReplacesLegacyIndex()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                CREATE TABLE "short_links" (
+                    "Id" TEXT NOT NULL PRIMARY KEY,
+                    "IdempotencyKey" TEXT NULL
+                );
+                CREATE UNIQUE INDEX "IX_short_links_IdempotencyKey"
+                    ON "short_links" ("IdempotencyKey");
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<ShortLinkDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var context = new ShortLinkDbContext(options);
+
+        await ShortLinkDatabaseSchema.EnsureIdempotencySchemaAsync(context);
+
+        var columns = new HashSet<string>(StringComparer.Ordinal);
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "PRAGMA table_info('short_links');";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                columns.Add(reader.GetString(1));
+            }
+        }
+
+        var indexes = new HashSet<string>(StringComparer.Ordinal);
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'short_links';";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                indexes.Add(reader.GetString(0));
+            }
+        }
+
+        Assert.Contains("TenantId", columns);
+        Assert.Contains("IX_short_links_TenantId_IdempotencyKey", indexes);
+        Assert.DoesNotContain("IX_short_links_IdempotencyKey", indexes);
     }
 
     private sealed class SqliteTestDatabase : IAsyncDisposable

@@ -6,6 +6,7 @@ using ShortenLink.Core.Events;
 using ShortenLink.Core;
 using ShortenLink.Application.Services;
 using ShortenLink.Core.Services;
+using ShortenLink.Core.Security;
 using Xunit;
 
 namespace ShortenLink.Core.Tests;
@@ -140,6 +141,67 @@ public sealed class ShortLinkServiceTests
         Assert.False(conflict.Succeeded);
         Assert.Equal(ShortLinkErrorCodes.IdempotencyConflict, conflict.ErrorCode);
         Assert.Equal(1, repository.Count);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ScopesIdempotencyAndAccessibleReadsByTenant()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var repository = new InMemoryShortLinkRepository();
+        var service = CreateService(
+            repository,
+            new SequenceCodeGenerator("tenant1", "tenant2"),
+            timeProvider: new FixedTimeProvider(now));
+        var tenantARequest = new CreateShortLinkRequest(
+            "https://example.com/tenant-a",
+            now.AddDays(1),
+            "user-1",
+            IdempotencyKey: "shared-key",
+            TenantId: " tenant-a ");
+        var tenantBRequest = new CreateShortLinkRequest(
+            "https://example.com/tenant-b",
+            now.AddDays(1),
+            "user-1",
+            IdempotencyKey: "shared-key",
+            TenantId: "tenant-b");
+
+        var tenantA = await service.CreateAsync(tenantARequest);
+        var tenantB = await service.CreateAsync(tenantBRequest);
+        var tenantAReplay = await service.CreateAsync(tenantARequest);
+        var tenantAList = await service.ListAccessibleRecentAsync(
+            10,
+            null,
+            null,
+            new ShortLinkAccessScope(
+                "user-1",
+                IsAdmin: true,
+                new Dictionary<string, ShortLinkShareAccess>(),
+                "tenant-a"));
+
+        Assert.True(tenantA.Succeeded);
+        Assert.True(tenantB.Succeeded);
+        Assert.True(tenantAReplay.Replayed);
+        Assert.Equal("tenant-a", tenantA.ShortLink?.TenantId);
+        Assert.Equal("tenant-b", tenantB.ShortLink?.TenantId);
+        Assert.NotEqual(tenantA.ShortLink?.Code, tenantB.ShortLink?.Code);
+        Assert.Equal(2, repository.Count);
+        Assert.Equal(tenantA.ShortLink?.Code, Assert.Single(tenantAList).Code);
+    }
+
+    [Fact]
+    public async Task CreateAsync_FailsClosedWhenProviderDoesNotSupportTenantPartitions()
+    {
+        var service = new ShortLinkService(
+            new NonTenantShortLinkRepository(),
+            new SequenceCodeGenerator("tenant1"));
+
+        var result = await service.CreateAsync(new CreateShortLinkRequest(
+            "https://example.com/tenant",
+            DateTimeOffset.UtcNow.AddDays(1),
+            TenantId: "tenant-a"));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(ShortLinkErrorCodes.TenantNotSupported, result.ErrorCode);
     }
 
     [Fact]
@@ -387,7 +449,10 @@ public sealed class ShortLinkServiceTests
             eventSink: eventSink);
     }
 
-    private sealed class InMemoryShortLinkRepository : IShortLinkRepository, IShortLinkIdempotencyRepository
+    private sealed class InMemoryShortLinkRepository :
+        IShortLinkRepository,
+        IShortLinkIdempotencyRepository,
+        IShortLinkTenantRepository
     {
         private readonly Dictionary<string, ShortLink> links = new(StringComparer.Ordinal);
 
@@ -437,6 +502,34 @@ public sealed class ShortLinkServiceTests
             return Task.FromResult<IReadOnlyList<ShortLink>>(result);
         }
 
+        public Task<IReadOnlyList<ShortLink>> ListAccessibleRecentAsync(
+            int limit,
+            DateTimeOffset? beforeCreatedAt,
+            string? beforeCode,
+            ShortLinkAccessScope accessScope,
+            CancellationToken cancellationToken = default)
+        {
+            var result = links.Values
+                .Where(link => string.Equals(
+                    link.TenantId,
+                    ShortLinkTenantId.Normalize(accessScope.TenantId),
+                    StringComparison.Ordinal))
+                .Where(link => accessScope.IsAdmin
+                    || string.Equals(link.CreatedByUserId, accessScope.UserId, StringComparison.Ordinal)
+                    || accessScope.SharedAccess.ContainsKey(link.Code))
+                .OrderByDescending(link => link.CreatedAt)
+                .ThenBy(link => link.Code, StringComparer.Ordinal)
+                .Where(link =>
+                    beforeCreatedAt is null
+                    || link.CreatedAt < beforeCreatedAt
+                    || (link.CreatedAt == beforeCreatedAt
+                        && !string.IsNullOrWhiteSpace(beforeCode)
+                        && string.Compare(link.Code, beforeCode, StringComparison.Ordinal) > 0))
+                .Take(limit)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<ShortLink>>(result);
+        }
+
         public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(links.Count);
 
@@ -447,6 +540,12 @@ public sealed class ShortLinkServiceTests
             CancellationToken cancellationToken = default)
         {
             var filtered = links.Values
+                .Where(link => query.AccessScope is null
+                    ? link.TenantId is null
+                    : string.Equals(
+                        link.TenantId,
+                        ShortLinkTenantId.Normalize(query.AccessScope.TenantId),
+                        StringComparison.Ordinal))
                 .Where(link => string.IsNullOrWhiteSpace(query.Search)
                     || link.Code.Contains(query.Search, StringComparison.OrdinalIgnoreCase)
                     || link.OriginalUrl.AbsoluteUri.Contains(query.Search, StringComparison.OrdinalIgnoreCase))
@@ -508,7 +607,16 @@ public sealed class ShortLinkServiceTests
             string idempotencyKey,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(links.Values.FirstOrDefault(link =>
-                string.Equals(link.IdempotencyKey, idempotencyKey, StringComparison.Ordinal)));
+                link.TenantId is null
+                && string.Equals(link.IdempotencyKey, idempotencyKey, StringComparison.Ordinal)));
+
+        public Task<ShortLink?> FindByTenantIdempotencyKeyAsync(
+            string tenantId,
+            string idempotencyKey,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(links.Values.FirstOrDefault(link =>
+                string.Equals(link.TenantId, tenantId, StringComparison.Ordinal)
+                && string.Equals(link.IdempotencyKey, idempotencyKey, StringComparison.Ordinal)));
 
         public Task<bool> ExistsByCodeAsync(string code, CancellationToken cancellationToken = default) =>
             Task.FromResult(links.ContainsKey(code));
@@ -531,7 +639,8 @@ public sealed class ShortLinkServiceTests
                 && links.Values.Any(link => string.Equals(
                     link.IdempotencyKey,
                     shortLink.IdempotencyKey,
-                    StringComparison.Ordinal)))
+                    StringComparison.Ordinal)
+                    && string.Equals(link.TenantId, shortLink.TenantId, StringComparison.Ordinal)))
             {
                 throw new ShortLinkIdempotencyConflictException();
             }
@@ -551,6 +660,53 @@ public sealed class ShortLinkServiceTests
             links.Remove(code);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class NonTenantShortLinkRepository : IShortLinkRepository
+    {
+        private readonly InMemoryShortLinkRepository inner = new();
+
+        public Task<IReadOnlyList<ShortLink>> ListRecentAsync(
+            int limit,
+            DateTimeOffset? beforeCreatedAt = null,
+            string? beforeCode = null,
+            CancellationToken cancellationToken = default) =>
+            inner.ListRecentAsync(limit, beforeCreatedAt, beforeCode, cancellationToken);
+
+        public Task<IReadOnlyList<ShortLink>> ListRecentPageAsync(
+            int skip,
+            int limit,
+            CancellationToken cancellationToken = default) =>
+            inner.ListRecentPageAsync(skip, limit, cancellationToken);
+
+        public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
+            inner.CountAsync(cancellationToken);
+
+        public Task<ShortLinkListPage> ListPageAsync(
+            int skip,
+            int limit,
+            ShortLinkListQuery query,
+            CancellationToken cancellationToken = default) =>
+            inner.ListPageAsync(skip, limit, query, cancellationToken);
+
+        public Task<ShortLink?> FindByCodeAsync(
+            string code,
+            CancellationToken cancellationToken = default) =>
+            inner.FindByCodeAsync(code, cancellationToken);
+
+        public Task<bool> ExistsByCodeAsync(
+            string code,
+            CancellationToken cancellationToken = default) =>
+            inner.ExistsByCodeAsync(code, cancellationToken);
+
+        public Task AddAsync(ShortLink shortLink, CancellationToken cancellationToken = default) =>
+            inner.AddAsync(shortLink, cancellationToken);
+
+        public Task UpdateAsync(ShortLink shortLink, CancellationToken cancellationToken = default) =>
+            inner.UpdateAsync(shortLink, cancellationToken);
+
+        public Task DeleteAsync(string code, CancellationToken cancellationToken = default) =>
+            inner.DeleteAsync(code, cancellationToken);
     }
 
     private sealed class InMemoryShortLinkCache : IShortLinkCache
