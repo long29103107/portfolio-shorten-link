@@ -1,4 +1,9 @@
 using ShortenLink.Core.Security;
+using ShortenLink.Core.Exceptions;
+using ShortenLink.Core.Abstractions;
+using ShortenLink.Core.Contracts.Results;
+using ShortenLink.Core.Domain;
+using ShortenLink.Core.Services;
 using ShortenLink.Mediator;
 
 namespace ShortenLink.Application.Features.ShortLinks.Analytics;
@@ -24,9 +29,26 @@ internal sealed class GetShortLinkAnalyticsQueryHandler(
         await accessGuard.EnsureAccessAsync(
             link, user, ShortLinkShareAccess.View, false,
             "You do not have access to this short link.", cancellationToken);
-        var summary = await clickRepository.GetSummaryAsync(request.Code, cancellationToken);
-        var clicks = await clickRepository.ListRecentAsync(
-            request.Code, Math.Clamp(request.Limit ?? 20, 1, 100), cancellationToken);
+        ShortLinkClickSummary summary;
+        IReadOnlyList<ShortLinkClickEntity> clicks;
+        if (link.TenantId is null)
+        {
+            summary = await clickRepository.GetSummaryAsync(request.Code, cancellationToken);
+            clicks = await clickRepository.ListRecentAsync(
+                request.Code, Math.Clamp(request.Limit ?? 20, 1, 100), cancellationToken);
+        }
+        else if (clickRepository is ITenantAwareShortLinkClickRepository tenantRepository)
+        {
+            summary = await tenantRepository.GetSummaryAsync(request.Code, link.TenantId, cancellationToken);
+            clicks = await tenantRepository.ListRecentAsync(
+                request.Code, link.TenantId, Math.Clamp(request.Limit ?? 20, 1, 100), cancellationToken);
+        }
+        else
+        {
+            throw new BusinessRuleException(
+                ShortLinkErrorCodes.TenantNotSupported,
+                "The configured analytics provider does not support tenant partitions.");
+        }
         return ShortLinkAnalyticsResponse.FromClicks(request.Code, summary, clicks);
     }
 }

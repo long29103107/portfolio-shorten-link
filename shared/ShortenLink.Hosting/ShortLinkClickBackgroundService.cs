@@ -1,34 +1,22 @@
-using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Services;
+using ShortenLink.Messaging;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class ShortLinkClickBackgroundService : BackgroundService
+internal sealed class ShortLinkClickBackgroundService(
+    IMessageQueue<RecordShortLinkClickRequest> queue,
+    IServiceScopeFactory scopeFactory,
+    ILogger<ShortLinkClickBackgroundService> logger) : BackgroundService
 {
-    private readonly ChannelReader<RecordShortLinkClickRequest> reader;
-    private readonly IServiceScopeFactory scopeFactory;
-    private readonly ILogger<ShortLinkClickBackgroundService> logger;
-
-    public ShortLinkClickBackgroundService(
-        Channel<RecordShortLinkClickRequest> channel,
-        IServiceScopeFactory scopeFactory,
-        ILogger<ShortLinkClickBackgroundService> logger)
-    {
-        ArgumentNullException.ThrowIfNull(channel);
-
-        reader = channel.Reader;
-        this.scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var request in reader.ReadAllAsync(stoppingToken))
+        await foreach (var delivery in queue.ConsumeAsync(stoppingToken))
         {
+            var request = delivery.Message;
             try
             {
                 using var scope = scopeFactory.CreateScope();
@@ -38,9 +26,11 @@ internal sealed class ShortLinkClickBackgroundService : BackgroundService
                     request.ClickedAtUtc,
                     request.RemoteIpAddress,
                     request.UserAgent,
-                    request.Referrer);
+                    request.Referrer,
+                    tenantId: request.TenantId);
 
                 await repository.AddAsync(shortLinkClick, stoppingToken);
+                await delivery.AckAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -52,6 +42,7 @@ internal sealed class ShortLinkClickBackgroundService : BackgroundService
                     exception,
                     "Failed to persist short-link click analytics event for code {ShortCode}.",
                     request.ShortCode);
+                await delivery.RejectAsync(requeue: true, stoppingToken);
             }
         }
     }

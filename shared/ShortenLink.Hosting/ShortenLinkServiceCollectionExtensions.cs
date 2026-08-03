@@ -1,4 +1,3 @@
-using System.Threading.Channels;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -20,6 +19,7 @@ using ShortenLink.Application.Abstractions;
 using ShortenLink.Application.Features.Audit;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Repositories;
+using ShortenLink.Messaging;
 
 namespace ShortenLink.Hosting;
 
@@ -64,6 +64,9 @@ public static class ShortenLinkServiceCollectionExtensions
             .Validate(
                 static options => options.Analytics.QueueCapacity > 0,
                 "ShortenLink:Analytics:QueueCapacity must be greater than 0.")
+            .Validate(
+                static options => HasValidQueueOptions(options.Queue),
+                "ShortenLink:Queue requires positive capacities, queue names, and a RabbitMqConnectionString when RabbitMq is selected.")
             .Validate(
                 static options => IsValidCacheProvider(options.Cache),
                 "ShortenLink:Cache:Provider must be Memory or Redis.")
@@ -116,9 +119,11 @@ public static class ShortenLinkServiceCollectionExtensions
         services.TryAddSingleton<ISecureTokenGenerator, SecureTokenGenerator>();
         services.TryAddSingleton<IShortCodeGenerator, Base62ShortCodeGenerator>();
         services.TryAddSingleton<IShortLinkImportValidator, ShortLinkImportValidator>();
+        services.TryAddSingleton<IShortLinkExpirationEvaluator, ShortLinkExpirationEvaluator>();
         if (!hostOptions.UseExternalPersistence)
         {
             services.TryAddScoped<IShortLinkRepository, EfCoreShortLinkRepository>();
+            services.TryAddScoped<IShortLinkExpirationCheckpointRepository, EfCoreShortLinkExpirationCheckpointRepository>();
             services.TryAddScoped<IUnitOfWork, EfCoreUnitOfWork>();
             services.TryAddScoped<IShortLinkClickRepository, EfCoreShortLinkClickRepository>();
             services.TryAddScoped<IShortLinkShareRepository, EfCoreShortLinkShareRepository>();
@@ -147,6 +152,16 @@ public static class ShortenLinkServiceCollectionExtensions
                 serviceProvider.GetService<IShortLinkEventSink>(),
                 options.Observability.Enabled);
         });
+        services.TryAddScoped<IShortLinkExpirationService>(serviceProvider =>
+            new ShortLinkExpirationService(
+                serviceProvider.GetRequiredService<IShortLinkRepository>(),
+                serviceProvider.GetRequiredService<IShortLinkExpirationEvaluator>(),
+                serviceProvider.GetService<IShortLinkExpirationEventSink>()));
+        if (!hostOptions.UseExternalPersistence)
+        {
+            services.TryAddScoped<IShortLinkExpirationCacheInvalidationSink, ShortLinkExpirationCacheInvalidationSink>();
+            services.TryAddScoped<IShortLinkExpirationExecutionService, ShortLinkExpirationExecutionService>();
+        }
         if (!hostOptions.UseExternalPersistence)
         {
             services.AddSingleton<IHostedService>(_ =>
@@ -241,19 +256,21 @@ public static class ShortenLinkServiceCollectionExtensions
 
     private static void RegisterAnalytics(IServiceCollection services)
     {
-        services.TryAddSingleton(serviceProvider =>
+        services.TryAddSingleton<IMessageQueue<RecordShortLinkClickRequest>>(serviceProvider =>
         {
-            var analyticsOptions = serviceProvider
-                .GetRequiredService<IOptions<ShortenLinkOptions>>()
-                .Value
-                .Analytics;
-
-            return Channel.CreateBounded<RecordShortLinkClickRequest>(new BoundedChannelOptions(analyticsOptions.QueueCapacity)
-            {
-                SingleReader = true,
-                SingleWriter = false,
-                FullMode = BoundedChannelFullMode.DropWrite
-            });
+            var options = serviceProvider.GetRequiredService<IOptions<ShortenLinkOptions>>().Value;
+            var capacity = options.Queue.AnalyticsCapacity > 0
+                ? options.Queue.AnalyticsCapacity
+                : options.Analytics.QueueCapacity;
+            return MessageQueueFactory.Create<RecordShortLinkClickRequest>(
+                new MessageQueueOptions
+                {
+                    Provider = options.Queue.Provider,
+                    RabbitMqConnectionString = options.Queue.RabbitMqConnectionString,
+                    Capacity = capacity,
+                    PrefetchCount = options.Queue.PrefetchCount
+                },
+                options.Queue.AnalyticsQueueName);
         });
         services.TryAddScoped<IShortLinkClickRecorder>(serviceProvider =>
         {
@@ -273,9 +290,9 @@ public static class ShortenLinkServiceCollectionExtensions
                     serviceProvider.GetRequiredService<IShortLinkClickRepository>());
             }
 
-            return new ChannelShortLinkClickRecorder(
-                serviceProvider.GetRequiredService<Channel<RecordShortLinkClickRequest>>(),
-                serviceProvider.GetRequiredService<ILogger<ChannelShortLinkClickRecorder>>());
+            return new MessageQueueShortLinkClickRecorder(
+                serviceProvider.GetRequiredService<IMessageQueue<RecordShortLinkClickRequest>>(),
+                serviceProvider.GetRequiredService<ILogger<MessageQueueShortLinkClickRecorder>>());
         });
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, ShortLinkClickBackgroundService>());
@@ -283,17 +300,20 @@ public static class ShortenLinkServiceCollectionExtensions
 
     private static void RegisterAuditQueue(IServiceCollection services)
     {
-        services.TryAddSingleton(serviceProvider =>
+        services.TryAddSingleton<IMessageQueue<ShortLinkAuditEvent>>(serviceProvider =>
         {
-            var options = new BoundedChannelOptions(1024)
-            {
-                SingleReader = true,
-                SingleWriter = false,
-                FullMode = BoundedChannelFullMode.DropWrite
-            };
-            return Channel.CreateBounded<ShortLinkAuditEvent>(options);
+            var options = serviceProvider.GetRequiredService<IOptions<ShortenLinkOptions>>().Value;
+            return MessageQueueFactory.Create<ShortLinkAuditEvent>(
+                new MessageQueueOptions
+                {
+                    Provider = options.Queue.Provider,
+                    RabbitMqConnectionString = options.Queue.RabbitMqConnectionString,
+                    Capacity = options.Queue.AuditCapacity,
+                    PrefetchCount = options.Queue.PrefetchCount
+                },
+                options.Queue.AuditQueueName);
         });
-        services.TryAddSingleton<IAuditEventQueue, ChannelShortLinkAuditEventQueue>();
+        services.TryAddSingleton<IAuditEventQueue, MessageQueueShortLinkAuditEventQueue>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, ShortLinkAuditBackgroundService>());
     }
@@ -313,6 +333,28 @@ public static class ShortenLinkServiceCollectionExtensions
         return Uri.TryCreate(fallbackPath, UriKind.Absolute, out var absoluteFallbackUri)
             && (absoluteFallbackUri.Scheme == Uri.UriSchemeHttp
                 || absoluteFallbackUri.Scheme == Uri.UriSchemeHttps);
+    }
+
+    private static bool HasValidQueueOptions(ShortenLinkQueueOptions options)
+    {
+        if (!Enum.IsDefined(options.Provider)
+            || options.AuditCapacity <= 0
+            || options.AnalyticsCapacity < 0
+            || options.PrefetchCount == 0
+            || string.IsNullOrWhiteSpace(options.AuditQueueName)
+            || string.IsNullOrWhiteSpace(options.AnalyticsQueueName))
+        {
+            return false;
+        }
+
+        return options.Provider != MessageQueueProvider.RabbitMq
+            || IsValidRabbitMqConnectionString(options.RabbitMqConnectionString);
+    }
+
+    private static bool IsValidRabbitMqConnectionString(string? connectionString)
+    {
+        return Uri.TryCreate(connectionString, UriKind.Absolute, out var uri)
+            && (uri.Scheme == "amqp" || uri.Scheme == "amqps");
     }
 
     private static bool HasRequiredConnectionString(ShortenLinkDatabaseOptions databaseOptions)

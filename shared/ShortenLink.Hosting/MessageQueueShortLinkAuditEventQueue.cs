@@ -1,19 +1,22 @@
-using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using ShortenLink.Application.Abstractions;
 using ShortenLink.Core.Domain;
+using ShortenLink.Messaging;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class ChannelShortLinkAuditEventQueue(
-    Channel<ShortLinkAuditEvent> channel,
-    ILogger<ChannelShortLinkAuditEventQueue> logger) : IAuditEventQueue
+internal sealed class MessageQueueShortLinkAuditEventQueue(
+    IMessageQueue<ShortLinkAuditEvent> queue,
+    ILogger<MessageQueueShortLinkAuditEventQueue> logger) : IAuditEventQueue
 {
-    public bool TryEnqueue(ShortLinkAuditEvent auditEvent)
+    public async Task<bool> EnqueueAsync(
+        ShortLinkAuditEvent auditEvent,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
 
-        if (channel.Writer.TryWrite(auditEvent))
+        var result = await queue.PublishAsync(auditEvent, cancellationToken);
+        if (result == QueuePublishResult.Accepted)
         {
             return true;
         }

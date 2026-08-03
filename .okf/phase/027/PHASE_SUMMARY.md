@@ -1,12 +1,12 @@
 ---
 phase: 027
 title: Reliable Integration Workflows
-status: active
+status: complete
 created_at: 2026-07-31
-updated_at: 2026-08-01
-current_task: null
-task_count: 5
-done_count: 5
+updated_at: 2026-08-02
+current_task:
+task_count: 8
+done_count: 8
 depends_on:
   - 026
 ---
@@ -47,10 +47,13 @@ Out:
 | 027_003 | Streaming bulk import execution and per-item persistence results | done | 2026-07-31 |
 | 027_004 | Streaming bulk export read boundary | done | 2026-08-01 |
 | 027_005 | Optional tenant partition context and repository boundary | done | 2026-08-01 |
+| 027_006 | Tenant-aware resolve, cache, and analytics boundary | done | 2026-08-02 |
+| 027_007 | Expiration and retention hook boundary | done | 2026-08-02 |
+| 027_008 | Safe expiration execution boundary | done | 2026-08-02 |
 
 ## Current Task
 
-No task is active.
+No task is active. `027_008` is complete and Phase 027 is closed.
 
 ## Completed Notes
 
@@ -70,6 +73,267 @@ tenant-scoped create/import/list/export authorization, and tenant-aware
 idempotency persistence.
 
 ## Task Notes
+
+### 027_008 - Safe expiration execution boundary
+
+#### Step Goal
+
+Consume the read-only expiration batch contract through an explicitly
+triggered, non-destructive execution path that resumes from a durable
+checkpoint and hands expired cache entries to a tenant-safe invalidation seam.
+
+#### Dependency
+
+- `027_007` deterministic expiration evaluation, stable cursors, and
+  versioned expiration metadata.
+- Existing provider-neutral cache and EF compatibility boundaries.
+
+#### Scope
+
+In:
+
+- Add durable, tenant-scoped expiration checkpoints with stable cursor and
+  evaluation metadata.
+- Add an explicit execution service and API trigger that evaluates one bounded
+  batch, advances the checkpoint only after successful handoff, and never
+  deletes or deactivates persistence records.
+- Add a tenant-safe cache invalidation handoff for expired evaluations.
+- Add Core/application/infrastructure/API coverage and consumer documentation.
+
+Out:
+
+- Automatic scheduling, hosted workers, destructive deletion, archive storage,
+  legal holds, and retention administration.
+
+#### Acceptance Criteria
+
+- An explicit trigger can execute a bounded batch with a supplied evaluation
+  instant and optional tenant partition.
+- Checkpoints are durable, tenant-scoped, and resume with stable cursors;
+  failed evaluation or invalidation does not advance the checkpoint.
+- Expired records produce cache invalidation handoffs without mutating the
+  short-link, analytics, or share persistence state.
+- Tenant-A execution cannot read or invalidate tenant-B cache entries, while
+  the unscoped default path remains compatible.
+- The endpoint requires the existing status permission and does not register
+  a scheduler or background worker.
+
+#### Foundation for Next Step
+
+The system has an explicit, retryable expiration execution boundary with
+durable progress and cache handoff semantics that a later scheduler can call
+without moving cleanup policy into request-time redirects.
+
+#### Affected Files
+
+- `src/ShortenLink.Core/Abstractions/`
+- `src/ShortenLink.Core/Contracts/Expiration/`
+- `src/ShortenLink.Application/Services/`
+- `src/ShortenLink.Infrastructure/Persistence/`
+- `src/ShortenLink.Infrastructure/Repositories/`
+- `shared/ShortenLink.Hosting/`
+- `src/ShortenLink.Api/Endpoints/`
+- `tests/ShortenLink.Core.Tests/`
+- `tests/ShortenLink.Application.Tests/`
+- `tests/ShortenLink.Infrastructure.Tests/`
+- `tests/ShortenLink.Api.Tests/`
+- `README.md`
+
+#### Verification
+
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal --disable-build-servers`
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+- Focused checkpoint, retry, tenant-isolation, cache-handoff, and no-mutation
+  tests.
+
+#### Done Notes
+
+Done. Added the explicitly triggered `POST
+/api/short-links/expiration/execute` path with status-permission authorization,
+trusted tenant propagation, durable EF/SQLite/PostgreSQL checkpoints, stable
+cursor resume behavior, and a tenant-safe cache invalidation handoff. Failed
+handoffs do not advance checkpoints, and the execution path never deletes or
+deactivates links. Added Core/application/infrastructure/API coverage and
+documented the manual trigger. Verification passed with a warning-free
+solution build and all 213 solution tests.
+
+### 027_007 - Expiration and retention hook boundary
+
+#### Step Goal
+
+Define provider-neutral expiration notifications, retention policy seams, and
+bounded batch-processing contracts that build on the tenant-aware lifecycle
+boundary without introducing a scheduler, destructive cleanup worker, or
+retention policy execution yet.
+
+#### Dependency
+
+- `027_006` tenant-aware resolve, cache invalidation, analytics, and lifecycle
+  event boundaries.
+- Existing expiration fields, lifecycle event sink, repository, and bounded
+  import/export processing conventions.
+
+#### Scope
+
+In:
+
+- Add an explicit expiration/retention evaluation result and policy contract.
+- Define provider-neutral batch input/output boundaries with stable cursors,
+  limits, per-item outcomes, and tenant-safe identifiers.
+- Add versioned, secret-safe expiration lifecycle event metadata and hooks for
+  cache invalidation consumers.
+- Document how a future hosted worker can consume the boundary without changing
+  request-time redirect behavior.
+- Add Core/application/infrastructure contract tests, including default and
+  tenant-partitioned records.
+
+Out:
+
+- Scheduler registration, hosted background workers, automatic deletion,
+  destructive cleanup, archive storage, legal holds, and user-facing retention
+  administration.
+
+#### Acceptance Criteria
+
+- Expiration evaluation is deterministic at a supplied `TimeProvider` instant
+  and does not mutate persistence, cache, or analytics state.
+- Batch contracts clamp limits, preserve stable ordering/cursors, and report
+  per-item skipped/expired/retained outcomes without aborting the batch.
+- Tenant identifiers are carried only through trusted, provider-neutral hooks;
+  a tenant-A record cannot be evaluated or invalidated as tenant B.
+- Expiration events are versioned and secret-safe, preserve existing lifecycle
+  event compatibility, and provide enough metadata for a future worker to
+  invalidate the correct cache partition.
+- Existing public redirects, unscoped providers, and default single-tenant
+  behavior remain source and behavior compatible.
+
+#### Foundation for Next Step
+
+The phase will have a safe, non-destructive expiration/retention boundary that
+can be consumed by a later scheduled worker or cleanup implementation without
+moving policy decisions into HTTP request paths.
+
+#### Affected Files
+
+- `src/ShortenLink.Core/Abstractions/`
+- `src/ShortenLink.Core/Contracts/`
+- `src/ShortenLink.Core/Events/`
+- `src/ShortenLink.Application/Services/`
+- `src/ShortenLink.Application/Features/ShortLinks/`
+- `src/ShortenLink.Infrastructure/Repositories/`
+- `shared/ShortenLink.Hosting/`
+- `tests/ShortenLink.Core.Tests/`
+- `tests/ShortenLink.Application.Tests/`
+- `tests/ShortenLink.Infrastructure.Tests/`
+- `README.md`
+
+#### Verification
+
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal --disable-build-servers`
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+- Focused deterministic-time, batch-bound, tenant-isolation, event-safety, and
+  no-mutation contract tests.
+
+#### Done Notes
+
+Done. Added deterministic, read-only expiration evaluation with retention
+policy outcomes, stable expiration cursors, bounded batch limits, and tenant
+partition filtering. Added the optional `IShortLinkExpirationRepository`
+capability, application evaluation service, fail-open versioned expiration event
+hook, built-in DI registration, SQLite/EF coverage, and documentation. No
+scheduler, worker, deletion, or request-time mutation was introduced.
+Verification passed with a warning-free solution build, all 209 solution tests,
+and successful Release package creation; the existing non-packable API warning
+remains.
+
+### 027_006 - Tenant-aware resolve, cache, and analytics boundary
+
+#### Step Goal
+
+Carry the trusted optional tenant context through redirect resolution, cache
+lookup/invalidation, analytics reads, and lifecycle operations so tenant-aware
+consumers cannot cross partition boundaries while the default public
+single-tenant redirect path remains unchanged.
+
+#### Dependency
+
+- `027_005` trusted tenant actor, access scope, persistence field, and
+  fail-closed provider capability.
+- Existing Core cache, analytics, lifecycle, and redirect event contracts.
+
+#### Scope
+
+In:
+
+- Add tenant-aware resolve and lifecycle service seams using the existing
+  trusted request/access context.
+- Add tenant partition keys or equivalent provider-neutral cache boundaries.
+- Scope analytics persistence/query operations to the current tenant.
+- Preserve tenant identity in safe cache/event/analytics contracts without
+  exposing it in public link responses.
+- Add API/application/infrastructure coverage for tenant isolation, cache
+  invalidation, redirect behavior, and analytics reads.
+
+Out:
+
+- Tenant administration, billing, tenant discovery, custom domains, expiration
+  workers, cleanup scheduling, and retention policy execution.
+
+#### Acceptance Criteria
+
+- Tenant-aware resolve cannot return a link from another tenant, including on a
+  cache hit; the default no-tenant redirect behavior is unchanged.
+- Update, activate, deactivate, delete, and cache invalidation use the same
+  tenant boundary as list/detail authorization.
+- Tenant-aware analytics writes and reads cannot cross partitions, while
+  existing unscoped analytics consumers remain source compatible.
+- Cache keys and provider contracts prevent a tenant-A record from satisfying
+  a tenant-B lookup or invalidation request.
+- Lifecycle and redirect events remain versioned and secret-safe, with tenant
+  context represented only where the consumer contract explicitly allows it.
+
+#### Foundation for Next Step
+
+All request-time and operational paths share one tenant boundary. Later work can
+add optional expiration events, cleanup, and retention hooks without reworking
+authorization, cache, or analytics isolation.
+
+#### Affected Files
+
+- `src/ShortenLink.Core/Abstractions/`
+- `src/ShortenLink.Core/Contracts/`
+- `src/ShortenLink.Core/Events/`
+- `src/ShortenLink.Application/Features/ShortLinks/`
+- `src/ShortenLink.Application/Features/Analytics/`
+- `src/ShortenLink.Infrastructure/Repositories/`
+- `src/ShortenLink.Infrastructure/Persistence/`
+- `src/ShortenLink.Hosting/`
+- `tests/ShortenLink.Core.Tests/`
+- `tests/ShortenLink.Application.Tests/`
+- `tests/ShortenLink.Infrastructure.Tests/`
+- `tests/ShortenLink.Api.Tests/`
+- `README.md`
+
+#### Verification
+
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal --disable-build-servers`
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+- Focused tenant resolve/cache, analytics isolation, lifecycle authorization,
+  event safety, and default-path compatibility tests.
+
+#### Done Notes
+
+Done. Added the optional trusted tenant resolver seam, tenant-specific cache
+keys/capability with safe bypass for legacy providers, tenant verification after
+database reads, and tenant-scoped cache invalidation across lifecycle mutations.
+Click records and persistence now carry tenant partition data; analytics uses an
+explicit tenant repository capability while preserving unscoped source
+compatibility. Lifecycle events remain versioned and secret-safe with an
+optional non-secret tenant identifier. Added SQLite/PostgreSQL compatibility
+handling, README guidance, and Core, infrastructure, and API isolation tests.
+Verification passed with a warning-free solution build, all 204 solution tests,
+and successful Release package creation (the existing non-packable API warning
+remains).
 
 ### 027_005 - Optional tenant partition context and repository boundary
 
@@ -456,15 +720,11 @@ and `POST /api/short-links/import/dry-run` with no persistence or audit side
 effects. Errors never echo input URLs or keys. Verification passed with a
 warning-free solution build and 190 tests.
 
-## Next Task Proposal
+## Next Phase Proposal
 
-`027_006` - Tenant-aware resolve, cache, and analytics boundary.
-
-- Carry optional trusted tenant context into resolve and analytics reads.
-- Partition cache lookup/invalidation contracts for tenant-aware consumers
-  while preserving the default public single-tenant redirect path.
-- Add cross-partition tests for redirect resolution, cached records, analytics,
-  and lifecycle mutations before starting expiration/retention hooks.
+Phase 027 is complete. The next phase can focus on the planned backend
+refactor, followed by a separate frontend refactor phase, without carrying
+expiration scheduling or destructive cleanup into the current boundary.
 
 ## Scan Rule
 

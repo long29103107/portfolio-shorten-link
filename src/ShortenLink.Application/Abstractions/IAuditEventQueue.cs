@@ -8,5 +8,7 @@ namespace ShortenLink.Application.Abstractions;
 /// </summary>
 public interface IAuditEventQueue
 {
-    bool TryEnqueue(ShortLinkAuditEvent auditEvent);
+    Task<bool> EnqueueAsync(
+        ShortLinkAuditEvent auditEvent,
+        CancellationToken cancellationToken = default);
 }

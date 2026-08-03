@@ -1,3 +1,5 @@
+using ShortenLink.Messaging;
+
 namespace ShortenLink.Hosting;
 
 public sealed class ShortenLinkOptions
@@ -13,6 +15,8 @@ public sealed class ShortenLinkOptions
     public ShortenLinkRedirectOptions Redirect { get; set; } = new();
 
     public ShortenLinkAnalyticsOptions Analytics { get; set; } = new();
+
+    public ShortenLinkQueueOptions Queue { get; set; } = new();
 
     public ShortenLinkCacheOptions Cache { get; set; } = new();
 
@@ -64,6 +68,23 @@ public sealed class ShortenLinkCacheOptions
     public string RedisConnectionString { get; set; } = string.Empty;
 
     public int EntryTtlSeconds { get; set; } = 3600;
+}
+
+public sealed class ShortenLinkQueueOptions
+{
+    public MessageQueueProvider Provider { get; set; } = MessageQueueProvider.Memory;
+
+    public string? RabbitMqConnectionString { get; set; }
+
+    public string AuditQueueName { get; set; } = "shorten-link.audit";
+
+    public string AnalyticsQueueName { get; set; } = "shorten-link.analytics";
+
+    public int AuditCapacity { get; set; } = 1024;
+
+    public int AnalyticsCapacity { get; set; }
+
+    public ushort PrefetchCount { get; set; } = 16;
 }
 
 public sealed class ShortenLinkObservabilityOptions

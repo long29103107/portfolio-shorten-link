@@ -30,6 +30,6 @@ internal sealed class ListShortLinkSharesQueryHandler(
             var target = await userRepository.FindByIdAsync(share.UserId, cancellationToken);
             response.Add(ShortLinkShareResponse.FromDomain(share, target));
         }
-        return new ShortLinkSharesResponse(response);
+        return new ShortLinkSharesResponse(link.SharingMode.ToString(), response);
     }
 }

@@ -12,6 +12,14 @@ public sealed record ShortLinkShareUpsertRequest(
     string Username,
     string Access);
 
+public sealed record ShortLinkSharingModeRequest(string Mode);
+
+public sealed record ShortLinkExpirationExecutionRequestDto(
+    DateTimeOffset? EvaluatedAtUtc,
+    int? Limit,
+    double? RetainExpiredForSeconds,
+    bool? ResumeFromCheckpoint);
+
 public sealed record SecurityAssignmentUpsertRequest(
     string Name,
     string CredentialKey,

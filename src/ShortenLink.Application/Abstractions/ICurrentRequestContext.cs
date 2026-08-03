@@ -12,6 +12,14 @@ public interface ICurrentRequestContext
 
     Task<CurrentUser?> GetCurrentUserAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns trusted optional tenant context for public tenant-aware operations.
+    /// The default implementation preserves single-tenant hosts.
+    /// </summary>
+    Task<string?> GetCurrentTenantIdAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
 }
 
 public sealed record CurrentUser(

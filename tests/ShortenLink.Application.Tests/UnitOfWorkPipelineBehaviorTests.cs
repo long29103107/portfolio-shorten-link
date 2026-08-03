@@ -73,7 +73,9 @@ public sealed class UnitOfWorkPipelineBehaviorTests
 
     private sealed class ThrowingAuditQueue : IAuditEventQueue
     {
-        public bool TryEnqueue(ShortLinkAuditEvent auditEvent) =>
+        public Task<bool> EnqueueAsync(
+            ShortLinkAuditEvent auditEvent,
+            CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("audit-storage-failed");
     }
 }

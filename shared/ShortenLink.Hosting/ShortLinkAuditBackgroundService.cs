@@ -1,27 +1,29 @@
-using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ShortenLink.Core.Domain;
 using ShortenLink.Core.Abstractions;
+using ShortenLink.Core.Domain;
+using ShortenLink.Messaging;
 
 namespace ShortenLink.Hosting;
 
 internal sealed class ShortLinkAuditBackgroundService(
-    Channel<ShortLinkAuditEvent> channel,
+    IMessageQueue<ShortLinkAuditEvent> queue,
     IServiceScopeFactory scopeFactory,
     ILogger<ShortLinkAuditBackgroundService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var auditEvent in channel.Reader.ReadAllAsync(stoppingToken))
+        await foreach (var delivery in queue.ConsumeAsync(stoppingToken))
         {
+            var auditEvent = delivery.Message;
             try
             {
                 using var scope = scopeFactory.CreateScope();
                 var repository = scope.ServiceProvider
                     .GetRequiredService<IShortLinkAuditRepository>();
                 await repository.AddAsync(auditEvent, stoppingToken);
+                await delivery.AckAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -35,6 +37,7 @@ internal sealed class ShortLinkAuditBackgroundService(
                     auditEvent.Action,
                     auditEvent.TargetType,
                     auditEvent.TargetId);
+                await delivery.RejectAsync(requeue: true, stoppingToken);
             }
         }
     }

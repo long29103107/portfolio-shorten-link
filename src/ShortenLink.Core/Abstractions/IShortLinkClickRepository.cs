@@ -15,3 +15,17 @@ public interface IShortLinkClickRepository
         int limit,
         CancellationToken cancellationToken = default);
 }
+
+public interface ITenantAwareShortLinkClickRepository
+{
+    Task<ShortLinkClickSummary> GetSummaryAsync(
+        string shortCode,
+        string tenantId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ShortLinkClick>> ListRecentAsync(
+        string shortCode,
+        string tenantId,
+        int limit,
+        CancellationToken cancellationToken = default);
+}

@@ -23,7 +23,8 @@ internal sealed class SynchronousShortLinkClickRecorder : IShortLinkClickRecorde
             request.ClickedAtUtc,
             request.RemoteIpAddress,
             request.UserAgent,
-            request.Referrer);
+            request.Referrer,
+            tenantId: request.TenantId);
 
         return repository.AddAsync(shortLinkClick, cancellationToken);
     }

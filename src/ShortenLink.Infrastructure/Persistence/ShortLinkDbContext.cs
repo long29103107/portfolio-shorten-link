@@ -19,6 +19,8 @@ public sealed class ShortLinkDbContext : DbContext
 
     public DbSet<ShortLinkAuditEventPersistenceEntity> ShortLinkAuditEvents => Set<ShortLinkAuditEventPersistenceEntity>();
 
+    public DbSet<ShortLinkExpirationCheckpointPersistenceEntity> ShortLinkExpirationCheckpoints => Set<ShortLinkExpirationCheckpointPersistenceEntity>();
+
     public DbSet<ShortenLinkSecurityAssignmentPersistenceEntity> SecurityAssignments => Set<ShortenLinkSecurityAssignmentPersistenceEntity>();
 
     public DbSet<ShortenLinkCustomRolePersistenceEntity> SecurityCustomRoles => Set<ShortenLinkCustomRolePersistenceEntity>();
@@ -70,6 +72,10 @@ public sealed class ShortLinkDbContext : DbContext
                 .HasDefaultValue(string.Empty)
                 .IsRequired();
 
+            entity.Property(link => link.SharingMode)
+                .HasConversion<int>()
+                .IsRequired();
+
             entity.HasIndex(link => link.CreatedAt);
             entity.HasIndex(link => link.ExpiresAt);
             entity.HasIndex(link => link.IsActive);
@@ -87,6 +93,11 @@ public sealed class ShortLinkDbContext : DbContext
                 .HasMaxLength(128)
                 .IsRequired();
 
+            entity.Property(click => click.TenantId)
+                .HasMaxLength(128)
+                .HasDefaultValue(string.Empty)
+                .IsRequired();
+
             entity.Property(click => click.ClickedAtUtc)
                 .IsRequired();
 
@@ -100,6 +111,7 @@ public sealed class ShortLinkDbContext : DbContext
                 .HasMaxLength(2048);
 
             entity.HasIndex(click => click.ShortCode);
+            entity.HasIndex(click => new { click.TenantId, click.ShortCode });
             entity.HasIndex(click => click.ClickedAtUtc);
             entity.HasIndex(click => new { click.ShortCode, click.ClickedAtUtc });
         });
@@ -198,6 +210,23 @@ public sealed class ShortLinkDbContext : DbContext
             entity.HasIndex(auditEvent => auditEvent.TargetId);
             entity.HasIndex(auditEvent => auditEvent.ActorId);
             entity.HasIndex(auditEvent => auditEvent.OwnerUserId);
+        });
+
+        modelBuilder.Entity<ShortLinkExpirationCheckpointPersistenceEntity>(entity =>
+        {
+            entity.ToTable("short_link_expiration_checkpoints");
+            ConfigureBaseEntity(entity);
+            entity.Property(checkpoint => checkpoint.TenantId)
+                .HasMaxLength(128)
+                .IsRequired();
+            entity.Property(checkpoint => checkpoint.Cursor)
+                .HasMaxLength(512);
+            entity.Property(checkpoint => checkpoint.EvaluatedAtUtc)
+                .IsRequired();
+            entity.Property(checkpoint => checkpoint.CheckpointUpdatedAtUtc)
+                .IsRequired();
+            entity.HasIndex(checkpoint => checkpoint.TenantId)
+                .IsUnique();
         });
 
         modelBuilder.Entity<ShortenLinkRolePermissionOverridePersistenceEntity>(entity =>

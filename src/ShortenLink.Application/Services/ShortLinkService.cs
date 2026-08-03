@@ -10,7 +10,7 @@ using ShortenLink.Core.Diagnostics;
 
 namespace ShortenLink.Application.Services;
 
-public sealed class ShortLinkService : IShortLinkService
+public sealed class ShortLinkService : IShortLinkService, ITenantAwareShortLinkService
 {
     private readonly IShortLinkRepository repository;
     private readonly IShortLinkCache cache;
@@ -295,9 +295,15 @@ public sealed class ShortLinkService : IShortLinkService
     private static string? NormalizeIdentity(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    public Task<ResolveShortLinkResult> ResolveAsync(
+        string code,
+        CancellationToken cancellationToken = default) =>
+        ResolveAsync(code, cancellationToken, tenantId: null);
+
     public async Task<ResolveShortLinkResult> ResolveAsync(
         string code,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken,
+        string? tenantId)
     {
         var validationFailure = ValidateCode(code);
         if (validationFailure is not null)
@@ -306,11 +312,28 @@ public sealed class ShortLinkService : IShortLinkService
         }
 
         var normalizedCode = code.Trim();
+        if (!ShortLinkTenantId.IsValid(tenantId))
+        {
+            return ResolveShortLinkResult.Failure(
+                ShortLinkErrorCodes.InvalidTenantId,
+                $"Tenant identifier must be at most {ShortLinkTenantId.MaxLength} characters.");
+        }
+
+        tenantId = ShortLinkTenantId.Normalize(tenantId);
         var now = timeProvider.GetUtcNow();
         using var activity = diagnosticsEnabled
             ? ShortenLinkDiagnostics.StartRedirectActivity()
             : null;
-        var shortLink = await cache.FindByCodeAsync(normalizedCode, cancellationToken);
+        var shortLink = await FindCachedAsync(normalizedCode, tenantId, cancellationToken);
+        if (shortLink is not null)
+        {
+            if (!TenantMatches(shortLink, tenantId))
+            {
+                await RemoveCachedAsync(shortLink.Code, tenantId, cancellationToken);
+                shortLink = null;
+            }
+        }
+
         if (shortLink is not null)
         {
             var cachedResult = await ResolveCachedAsync(shortLink, now, cancellationToken);
@@ -324,7 +347,7 @@ public sealed class ShortLinkService : IShortLinkService
         }
 
         shortLink = await repository.FindByCodeAsync(normalizedCode, cancellationToken);
-        if (shortLink is null)
+        if (shortLink is null || !TenantMatches(shortLink, tenantId))
         {
             CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
@@ -342,7 +365,7 @@ public sealed class ShortLinkService : IShortLinkService
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.Expired, "Short link has expired.");
         }
 
-        await cache.SetAsync(shortLink, cancellationToken);
+        await SetCachedAsync(shortLink, tenantId, cancellationToken);
         CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: true);
         PublishEvent(ShortLinkEventTypes.Redirected, shortLink, cancellationToken);
 
@@ -383,7 +406,7 @@ public sealed class ShortLinkService : IShortLinkService
 
         shortLink.Deactivate();
         await repository.UpdateAsync(shortLink, cancellationToken);
-        await cache.RemoveAsync(shortLink.Code, cancellationToken);
+        await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
         PublishEvent(ShortLinkEventTypes.Deactivated, shortLink, cancellationToken);
 
         return DeactivateShortLinkResult.Success();
@@ -407,7 +430,7 @@ public sealed class ShortLinkService : IShortLinkService
 
         shortLink.Activate();
         await repository.UpdateAsync(shortLink, cancellationToken);
-        await cache.RemoveAsync(shortLink.Code, cancellationToken);
+        await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
         PublishEvent(ShortLinkEventTypes.Activated, shortLink, cancellationToken);
 
         return DeactivateShortLinkResult.Success();
@@ -465,10 +488,11 @@ public sealed class ShortLinkService : IShortLinkService
             existing.CreatedByUsername,
             technicalId: existing.Id,
             idempotencyKey: existing.IdempotencyKey,
-            tenantId: existing.TenantId);
+            tenantId: existing.TenantId,
+            sharingMode: existing.SharingMode);
 
         await repository.UpdateAsync(updated, cancellationToken);
-        await cache.RemoveAsync(updated.Code, cancellationToken);
+        await RemoveCachedAsync(updated.Code, updated.TenantId, cancellationToken);
         PublishEvent(ShortLinkEventTypes.Updated, updated, cancellationToken);
 
         return ShortLinkDetailsResult.Success(updated);
@@ -485,18 +509,20 @@ public sealed class ShortLinkService : IShortLinkService
         }
 
         var normalizedCode = code.Trim();
-        if (!await repository.ExistsByCodeAsync(normalizedCode, cancellationToken))
+        var existing = await repository.FindByCodeAsync(normalizedCode, cancellationToken);
+        if (existing is null)
         {
             return DeactivateShortLinkResult.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
         }
 
         await repository.DeleteAsync(normalizedCode, cancellationToken);
-        await cache.RemoveAsync(normalizedCode, cancellationToken);
+        await RemoveCachedAsync(normalizedCode, existing.TenantId, cancellationToken);
         PublishEvent(
             ShortLinkLifecycleEvent.ForCode(
                 ShortLinkEventTypes.Deleted,
                 normalizedCode,
-                timeProvider.GetUtcNow()),
+                timeProvider.GetUtcNow(),
+                existing.TenantId),
             cancellationToken);
 
         return DeactivateShortLinkResult.Success();
@@ -509,13 +535,13 @@ public sealed class ShortLinkService : IShortLinkService
     {
         if (!shortLink.IsActive)
         {
-            await cache.RemoveAsync(shortLink.Code, cancellationToken);
+            await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.Inactive, "Short link is inactive.");
         }
 
         if (shortLink.IsExpired(now))
         {
-            await cache.RemoveAsync(shortLink.Code, cancellationToken);
+            await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
             return ResolveShortLinkResult.Failure(ShortLinkErrorCodes.Expired, "Short link has expired.");
         }
 
@@ -533,6 +559,47 @@ public sealed class ShortLinkService : IShortLinkService
 
         return null;
     }
+
+    private async Task<ShortLink?> FindCachedAsync(
+        string code,
+        string? tenantId,
+        CancellationToken cancellationToken)
+    {
+        if (tenantId is null)
+        {
+            return await cache.FindByCodeAsync(code, cancellationToken);
+        }
+
+        return cache is ITenantAwareShortLinkCache tenantCache
+            ? await tenantCache.FindByCodeAsync(code, tenantId, cancellationToken)
+            : null;
+    }
+
+    private Task SetCachedAsync(
+        ShortLink shortLink,
+        string? tenantId,
+        CancellationToken cancellationToken) =>
+        tenantId is null || cache is ITenantAwareShortLinkCache
+            ? cache.SetAsync(shortLink, cancellationToken)
+            : Task.CompletedTask;
+
+    private Task RemoveCachedAsync(
+        string code,
+        string? tenantId,
+        CancellationToken cancellationToken)
+    {
+        if (tenantId is not null)
+        {
+            return cache is ITenantAwareShortLinkCache tenantCache
+                ? tenantCache.RemoveAsync(code, tenantId, cancellationToken)
+                : Task.CompletedTask;
+        }
+
+        return cache.RemoveAsync(code, cancellationToken);
+    }
+
+    private static bool TenantMatches(ShortLink shortLink, string? tenantId) =>
+        string.Equals(shortLink.TenantId, tenantId, StringComparison.Ordinal);
 
     private ShortLinkAccessScope NormalizeTenantScope(ShortLinkAccessScope accessScope)
     {

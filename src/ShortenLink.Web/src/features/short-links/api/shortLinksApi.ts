@@ -36,6 +36,7 @@ import type {
   RateLimitActivity,
   ShortLinkShare,
   ShortLinkSharesList,
+  ShortLinkSharingMode,
   UpdateShortLinkRequest
 } from "../types";
 import { buildAuditLogUrl } from "../auditDiscovery";
@@ -193,6 +194,19 @@ export async function deleteCustomSecurityRole(id: string): Promise<SecurityRole
 export async function listShortLinkShares(code: string): Promise<ShortLinkSharesList> {
   return fetchJson<ShortLinkSharesList>(
     `/api/short-links/${encodeURIComponent(code)}/shares`
+  );
+}
+
+export async function setShortLinkSharingMode(
+  code: string,
+  mode: ShortLinkSharingMode
+): Promise<ShortLinkSharingMode> {
+  return fetchJson<ShortLinkSharingMode>(
+    `/api/short-links/${encodeURIComponent(code)}/sharing-mode`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ mode })
+    }
   );
 }
 

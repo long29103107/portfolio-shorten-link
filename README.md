@@ -421,6 +421,14 @@ access. Export is covered by read permission, while activate and deactivate use
 the same status permission. Security administration itself is Admin-only by
 role.
 
+Links use `AllowList` sharing by default. Owners and admins can switch a link
+between `AllowList` and `Public` with `PUT /api/short-links/{code}/sharing-mode`
+and `{ "mode": "Public" }` (or `AllowList`). Public mode grants every
+authenticated workspace user `View` access; `Edit` access remains an explicit
+per-user share. `PUT /api/short-links/{code}/shares` accepts one workspace
+username/email per request, and the admin UI accepts multiple email addresses
+separated by commas, spaces, or new lines.
+
 The demo API enables security by default. Send either a signed user session
 token as `Authorization: Bearer <token>` or the configured API-key header,
 which defaults to `X-ShortenLink-Api-Key`. Reusable consumers may choose their
@@ -692,12 +700,47 @@ same key; short codes remain globally unique so public redirects stay
 unambiguous. Tenant identifiers are internal partition data and are not added to
 link API responses or export records.
 
+For hosts that need tenant-aware public redirects, implement the optional
+`ICurrentRequestContext.GetCurrentTenantIdAsync` seam with a trusted, validated
+tenant value. Resolve lookups use a tenant-specific cache key and verify the
+tenant again after a database read, so a cache hit from another partition is
+treated as not found. Providers that do not implement `ITenantAwareShortLinkCache`
+are bypassed for tenant-aware requests. Click records carry the same partition
+identifier and analytics queries use `ITenantAwareShortLinkClickRepository`;
+legacy unscoped cache and analytics contracts remain source compatible for the
+default single-tenant path.
+
 Custom persistence providers must explicitly implement
 `IShortLinkTenantRepository` before tenant-scoped requests are accepted. This
 capability promises that tenant access scopes are enforced and supplies the
 tenant-aware idempotency lookup. Providers that only implement the original
 repository contracts remain valid for the default single-tenant path and fail
 closed if a tenant-aware host tries to use them.
+
+## Expiration And Retention Hooks
+
+The optional `IShortLinkExpirationService` exposes a read-only, bounded batch
+evaluation seam for future cleanup workers. A caller supplies the evaluation
+instant, optional tenant, cursor, limit, and `ShortLinkRetentionPolicy`; the
+result is deterministic and reports `skipped`, `retained`, or `expired` per
+link. Limits are clamped to 500 and cursors are stable across expiration time
+and code ordering.
+
+Evaluation does not delete, deactivate, mutate analytics, or touch the cache.
+Hosts may register `IShortLinkExpirationEventSink` to receive versioned,
+secret-safe expiration metadata. Only records evaluated as `expired` request
+cache invalidation; tenant identifiers remain partition metadata and are never
+included in public link responses. Scheduler registration, destructive cleanup,
+and retention policy administration remain outside this hook boundary.
+
+The built-in host also exposes an explicit `POST
+/api/short-links/expiration/execute` trigger for one bounded execution batch.
+It requires `short_links.status`, resumes from a durable tenant-scoped
+checkpoint by default, and advances that checkpoint only after the cache
+invalidation handoff succeeds. The trigger never deletes or deactivates links;
+automatic scheduling remains a future host concern. A request may provide
+`evaluatedAtUtc`, `limit`, `retainExpiredForSeconds`, and
+`resumeFromCheckpoint` for deterministic/manual execution.
 
 ## Observability And Health Checks
 
@@ -836,7 +879,7 @@ Phase 3 also adds an opt-in cache path for successful redirects:
 - Set `ShortenLink:Cache:Enabled` to `true` and `ShortenLink:Cache:Provider` to `Memory` for a local in-process cache.
 - Set `ShortenLink:Cache:Provider` to `Redis` and provide `ShortenLink:Cache:RedisConnectionString` to use Redis without changing application code.
 - `ShortenLink:Cache:EntryTtlSeconds` controls cache duration for links that do not have their own expiration.
-- Deactivating a link invalidates its cache entry so previously cached redirects stop resolving.
+- Deactivating, activating, updating, or deleting a link invalidates its cache entry so previously cached redirects stop resolving. Tenant-aware providers partition both lookup and invalidation keys.
 
 Example memory-cache configuration:
 

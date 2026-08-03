@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ShortenLink.Mediator\ShortenLink.Mediator.csproj" />
+    <ProjectReference Include="..\ShortenLink.Messaging\ShortenLink.Messaging.csproj" />
     <ProjectReference Include="..\..\src\ShortenLink.Core\ShortenLink.Core.csproj" />
     <ProjectReference Include="..\..\src\ShortenLink.Application\ShortenLink.Application.csproj" />
     <ProjectReference Include="..\..\src\ShortenLink.Infrastructure\ShortenLink.Infrastructure.csproj" />

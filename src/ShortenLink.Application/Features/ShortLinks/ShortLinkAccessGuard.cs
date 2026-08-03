@@ -45,6 +45,12 @@ public sealed class ShortLinkAccessGuard(
             return;
         if (!ownerOnly && !string.IsNullOrWhiteSpace(user.UserId))
         {
+            if (shortLink.SharingMode == ShortLinkSharingMode.Public
+                && requiredAccess == ShortLinkShareAccess.View)
+            {
+                return;
+            }
+
             var share = await shareRepository.FindAsync(shortLink.Code, user.UserId, cancellationToken);
             if (share is not null && share.Access >= requiredAccess)
                 return;
@@ -58,6 +64,9 @@ public sealed class ShortLinkAccessGuard(
             return "Admin";
         if (string.Equals(shortLink.CreatedByUserId, scope.UserId, StringComparison.Ordinal))
             return "Owner";
+        if (shortLink.SharingMode == ShortLinkSharingMode.Public
+            && !string.IsNullOrWhiteSpace(scope.UserId))
+            return "View";
         return scope.SharedAccess.TryGetValue(shortLink.Code, out var access)
             ? access.ToString()
             : "None";

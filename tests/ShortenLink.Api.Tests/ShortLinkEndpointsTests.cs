@@ -31,6 +31,27 @@ namespace ShortenLink.Api.Tests;
 public sealed class ShortLinkEndpointsTests
 {
     [Fact]
+    public async Task ExpirationExecution_RequiresExplicitTriggerAndPersistsCheckpoint()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/short-links/expiration/execute",
+            new
+            {
+                evaluatedAtUtc = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero),
+                limit = 10,
+                resumeFromCheckpoint = false
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(payload.RootElement.GetProperty("checkpointAdvanced").GetBoolean());
+        Assert.Equal(0, payload.RootElement.GetProperty("cacheInvalidationHandoffs").GetInt32());
+    }
+
+    [Fact]
     public async Task AuditLogs_RecordEverySuccessfulShortLinkMutationExactlyOnce()
     {
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
@@ -724,6 +745,12 @@ public sealed class ShortLinkEndpointsTests
         tenantAClient.DefaultRequestHeaders.Add("X-Test-Tenant-Id", "tenant-a");
         using var tenantBClient = factory.CreateClient();
         tenantBClient.DefaultRequestHeaders.Add("X-Test-Tenant-Id", "tenant-b");
+        using var tenantAResolveClient = factory.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        tenantAResolveClient.DefaultRequestHeaders.Add("X-Test-Tenant-Id", "tenant-a");
+        using var tenantBResolveClient = factory.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        tenantBResolveClient.DefaultRequestHeaders.Add("X-Test-Tenant-Id", "tenant-b");
 
         static HttpRequestMessage CreateRequest(string destination) =>
             new(HttpMethod.Post, "/api/short-links")
@@ -769,6 +796,8 @@ public sealed class ShortLinkEndpointsTests
         var tenantBExport = await tenantBExportResponse.Content
             .ReadFromJsonAsync<IReadOnlyList<ShortLinkExportRecord>>();
         using var crossTenantDetails = await tenantBClient.GetAsync($"/api/short-links/{tenantALink!.Code}");
+        using var tenantAResolve = await tenantAResolveClient.GetAsync($"/{tenantALink.Code}");
+        using var tenantBResolve = await tenantBResolveClient.GetAsync($"/{tenantALink.Code}");
         var persisted = await factory.GetShortLinksAsync();
 
         Assert.Equal(HttpStatusCode.Created, tenantAResponse.StatusCode);
@@ -782,6 +811,8 @@ public sealed class ShortLinkEndpointsTests
         Assert.NotNull(tenantBExport);
         Assert.Equal(tenantBLink.Code, Assert.Single(tenantBExport).Code);
         Assert.Equal(HttpStatusCode.Forbidden, crossTenantDetails.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, tenantAResolve.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, tenantBResolve.StatusCode);
         Assert.Equal(2, persisted.Count(link => link.TenantId == "tenant-a"));
         Assert.Equal(1, persisted.Count(link => link.TenantId == "tenant-b"));
     }
@@ -3049,6 +3080,10 @@ public sealed class ShortLinkEndpointsTests
                 "Tenant Admin",
                 [ShortenLinkRoles.Admin],
                 ShortenLinkPermissionCatalog.All.ToList()));
+
+        public Task<string?> GetCurrentTenantIdAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(GetTenantId());
 
         private string? GetTenantId() =>
             httpContextAccessor.HttpContext?.Request.Headers["X-Test-Tenant-Id"].ToString();

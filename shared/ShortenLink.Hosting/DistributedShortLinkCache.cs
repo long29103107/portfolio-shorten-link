@@ -6,7 +6,7 @@ using ShortenLink.Core.Services;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class DistributedShortLinkCache : IShortLinkCache
+internal sealed class DistributedShortLinkCache : IShortLinkCache, ITenantAwareShortLinkCache
 {
     private const string KeyPrefix = "short-links:resolve:";
 
@@ -47,8 +47,15 @@ internal sealed class DistributedShortLinkCache : IShortLinkCache
                 new Uri(cached.OriginalUrl, UriKind.Absolute),
                 cached.CreatedAt,
                 cached.ExpiresAt,
-                cached.IsActive);
+                cached.IsActive,
+                tenantId: cached.TenantId);
     }
+
+    public Task<ShortLink?> FindByCodeAsync(
+        string code,
+        string tenantId,
+        CancellationToken cancellationToken = default) =>
+        FindByKeyAsync(BuildTenantKey(code, tenantId), cancellationToken);
 
     public async Task SetAsync(
         ShortLink shortLink,
@@ -58,7 +65,14 @@ internal sealed class DistributedShortLinkCache : IShortLinkCache
 
         if (!shortLink.CanResolve(timeProvider.GetUtcNow()))
         {
-            await RemoveAsync(shortLink.Code, cancellationToken);
+            if (shortLink.TenantId is null)
+            {
+                await RemoveAsync(shortLink.Code, cancellationToken);
+            }
+            else
+            {
+                await RemoveAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
+            }
             return;
         }
 
@@ -67,10 +81,11 @@ internal sealed class DistributedShortLinkCache : IShortLinkCache
             shortLink.OriginalUrl.AbsoluteUri,
             shortLink.CreatedAt,
             shortLink.ExpiresAt,
-            shortLink.IsActive);
+            shortLink.IsActive,
+            shortLink.TenantId);
 
         await distributedCache.SetStringAsync(
-            BuildKey(shortLink.Code),
+            BuildKey(shortLink),
             JsonSerializer.Serialize(cached, SerializerOptions),
             CreateCacheOptions(shortLink),
             cancellationToken);
@@ -80,6 +95,34 @@ internal sealed class DistributedShortLinkCache : IShortLinkCache
         string code,
         CancellationToken cancellationToken = default) =>
         distributedCache.RemoveAsync(BuildKey(code), cancellationToken);
+
+    public Task RemoveAsync(
+        string code,
+        string tenantId,
+        CancellationToken cancellationToken = default) =>
+        distributedCache.RemoveAsync(BuildTenantKey(code, tenantId), cancellationToken);
+
+    private async Task<ShortLink?> FindByKeyAsync(
+        string key,
+        CancellationToken cancellationToken)
+    {
+        var cachedJson = await distributedCache.GetStringAsync(key, cancellationToken);
+        if (string.IsNullOrWhiteSpace(cachedJson))
+        {
+            return null;
+        }
+
+        var cached = JsonSerializer.Deserialize<CachedShortLink>(cachedJson, SerializerOptions);
+        return cached is null
+            ? null
+            : new ShortLink(
+                cached.Code,
+                new Uri(cached.OriginalUrl, UriKind.Absolute),
+                cached.CreatedAt,
+                cached.ExpiresAt,
+                cached.IsActive,
+                tenantId: cached.TenantId);
+    }
 
     private DistributedCacheEntryOptions CreateCacheOptions(ShortLink shortLink)
     {
@@ -97,10 +140,19 @@ internal sealed class DistributedShortLinkCache : IShortLinkCache
     private static string BuildKey(string code) =>
         $"{KeyPrefix}{code.Trim()}";
 
+    private static string BuildKey(ShortLink shortLink) =>
+        shortLink.TenantId is null
+            ? BuildKey(shortLink.Code)
+            : BuildTenantKey(shortLink.Code, shortLink.TenantId);
+
+    private static string BuildTenantKey(string code, string tenantId) =>
+        $"{KeyPrefix}tenant:{tenantId.Trim()}:{code.Trim()}";
+
     private sealed record CachedShortLink(
         string Code,
         string OriginalUrl,
         DateTimeOffset CreatedAt,
         DateTimeOffset? ExpiresAt,
-        bool IsActive);
+        bool IsActive,
+        string? TenantId = null);
 }

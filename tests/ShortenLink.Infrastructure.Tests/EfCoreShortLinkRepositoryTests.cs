@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using ShortenLink.Core.Abstractions;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Exceptions;
 using ShortenLink.Core.Security;
@@ -129,6 +130,32 @@ public sealed class EfCoreShortLinkRepositoryTests
             links,
             link => Assert.Equal("newest1", link.Code),
             link => Assert.Equal("oldest1", link.Code));
+    }
+
+    [Fact]
+    public async Task ListExpirationCandidatesAsync_UsesStableCursorAndTenantScope()
+    {
+        await using var database = await SqliteTestDatabase.CreateAsync();
+        var repository = database.CreateRepository();
+        var baseTime = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await repository.AddAsync(new ShortLink(
+            "expire-a1", new Uri("https://example.com/a1"), baseTime.AddDays(-3),
+            baseTime.AddDays(-2), tenantId: "tenant-a"));
+        await repository.AddAsync(new ShortLink(
+            "expire-a2", new Uri("https://example.com/a2"), baseTime.AddDays(-2),
+            baseTime.AddDays(-1), tenantId: "tenant-a"));
+        await repository.AddAsync(new ShortLink(
+            "expire-b1", new Uri("https://example.com/b1"), baseTime.AddDays(-3),
+            baseTime.AddDays(-2), tenantId: "tenant-b"));
+
+        var expirationRepository = (IShortLinkExpirationRepository)repository;
+        var first = await expirationRepository.ListExpirationCandidatesAsync(
+            "tenant-a", null, null, 1);
+        var second = await expirationRepository.ListExpirationCandidatesAsync(
+            "tenant-a", first[0].ExpiresAt, first[0].Code, 10);
+
+        Assert.Equal("expire-a1", Assert.Single(first).Code);
+        Assert.Equal("expire-a2", Assert.Single(second).Code);
     }
 
     [Fact]

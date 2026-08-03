@@ -24,7 +24,7 @@ public sealed class UnitOfWorkPipelineBehavior<TRequest, TResponse>(
             {
                 try
                 {
-                    auditEventQueue.TryEnqueue(auditEvent);
+                    await auditEventQueue.EnqueueAsync(auditEvent, cancellationToken);
                 }
                 catch
                 {

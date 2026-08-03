@@ -5,4 +5,5 @@ public sealed record RecordShortLinkClickRequest(
     DateTimeOffset ClickedAtUtc,
     string? RemoteIpAddress,
     string? UserAgent,
-    string? Referrer);
+    string? Referrer,
+    string? TenantId = null);

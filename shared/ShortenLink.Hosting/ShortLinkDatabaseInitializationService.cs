@@ -23,6 +23,7 @@ internal sealed class ShortLinkDatabaseInitializationService : IHostedService
         var dbContext = scope.ServiceProvider.GetRequiredService<ShortLinkDbContext>();
         await dbContext.Database.EnsureCreatedAsync(cancellationToken);
         await ShortLinkDatabaseSchema.EnsureAuditEventsTableAsync(dbContext, cancellationToken);
+        await ShortLinkDatabaseSchema.EnsureExpirationCheckpointsTableAsync(dbContext, cancellationToken);
         await ShortLinkDatabaseSchema.EnsureIdempotencySchemaAsync(dbContext, cancellationToken);
 
         if (initializeSecurity)

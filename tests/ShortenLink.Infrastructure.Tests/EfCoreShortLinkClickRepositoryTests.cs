@@ -103,6 +103,27 @@ public sealed class EfCoreShortLinkClickRepositoryTests
         Assert.Contains("IX_short_link_clicks_ShortCode", indexes);
         Assert.Contains("IX_short_link_clicks_ClickedAtUtc", indexes);
         Assert.Contains("IX_short_link_clicks_ShortCode_ClickedAtUtc", indexes);
+        Assert.Contains("IX_short_link_clicks_TenantId_ShortCode", indexes);
+    }
+
+    [Fact]
+    public async Task TenantQueries_IsolateClicksWithTheSameCode()
+    {
+        await using var database = await SqliteTestDatabase.CreateAsync();
+        var repository = database.CreateRepository();
+        var now = new DateTimeOffset(2026, 7, 12, 8, 30, 0, TimeSpan.Zero);
+
+        await repository.AddAsync(new ShortLinkClick(
+            "tenant01", now, null, "tenant-a", null, tenantId: "tenant-a"));
+        await repository.AddAsync(new ShortLinkClick(
+            "tenant01", now.AddMinutes(1), null, "tenant-b", null, tenantId: "tenant-b"));
+
+        var tenantRepository = (ITenantAwareShortLinkClickRepository)repository;
+        var summary = await tenantRepository.GetSummaryAsync("tenant01", "tenant-a");
+        var recent = await tenantRepository.ListRecentAsync("tenant01", "tenant-a", 10);
+
+        Assert.Equal(1, summary.ClickCount);
+        Assert.Equal("tenant-a", Assert.Single(recent).TenantId);
     }
 
     [Fact]
@@ -126,6 +147,7 @@ public sealed class EfCoreShortLinkClickRepositoryTests
         Assert.Contains("IX_short_link_clicks_ShortCode", indexNames);
         Assert.Contains("IX_short_link_clicks_ClickedAtUtc", indexNames);
         Assert.Contains("IX_short_link_clicks_ShortCode_ClickedAtUtc", indexNames);
+        Assert.Contains("IX_short_link_clicks_TenantId_ShortCode", indexNames);
     }
 
     private sealed class SqliteTestDatabase : IAsyncDisposable

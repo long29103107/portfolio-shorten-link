@@ -9,6 +9,7 @@ public static class ShortLinkErrorCodes
     public const string InvalidUrl = "invalid_url";
     public const string InvalidIdempotencyKey = "invalid_idempotency_key";
     public const string InvalidTenantId = "invalid_tenant_id";
+    public const string ExpirationHandoffUnavailable = "expiration_handoff_unavailable";
     public const string IdempotencyConflict = "idempotency_conflict";
     public const string IdempotencyNotSupported = "idempotency_not_supported";
     public const string TenantNotSupported = "tenant_not_supported";

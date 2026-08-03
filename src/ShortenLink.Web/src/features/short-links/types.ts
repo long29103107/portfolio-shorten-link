@@ -64,7 +64,10 @@ export type ShortLinkShare = {
   createdAtUtc: string;
 };
 
+export type ShortLinkSharingMode = "Public" | "AllowList";
+
 export type ShortLinkSharesList = {
+  mode: ShortLinkSharingMode;
   items: ShortLinkShare[];
 };
 

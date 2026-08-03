@@ -17,7 +17,8 @@ public sealed record ShortLinkLifecycleEvent
         DateTimeOffset occurredAt,
         DateTimeOffset? expiresAt = null,
         bool? isActive = null,
-        int version = CurrentVersion)
+        int version = CurrentVersion,
+        string? tenantId = null)
     {
         if (string.IsNullOrWhiteSpace(eventType))
         {
@@ -39,6 +40,14 @@ public sealed record ShortLinkLifecycleEvent
         OccurredAt = occurredAt;
         ExpiresAt = expiresAt;
         IsActive = isActive;
+        if (!ShortLinkTenantId.IsValid(tenantId))
+        {
+            throw new ArgumentException(
+                $"Tenant identifier must be at most {ShortLinkTenantId.MaxLength} characters.",
+                nameof(tenantId));
+        }
+
+        TenantId = ShortLinkTenantId.Normalize(tenantId);
         Version = version;
     }
 
@@ -54,15 +63,19 @@ public sealed record ShortLinkLifecycleEvent
 
     public bool? IsActive { get; }
 
+    /// <summary>Non-secret partition identifier used by tenant-aware consumers.</summary>
+    public string? TenantId { get; }
+
     public static ShortLinkLifecycleEvent FromShortLink(
         string eventType,
         ShortLink shortLink,
         DateTimeOffset occurredAt) =>
-        new(eventType, shortLink.Code, occurredAt, shortLink.ExpiresAt, shortLink.IsActive);
+        new(eventType, shortLink.Code, occurredAt, shortLink.ExpiresAt, shortLink.IsActive, tenantId: shortLink.TenantId);
 
     public static ShortLinkLifecycleEvent ForCode(
         string eventType,
         string code,
-        DateTimeOffset occurredAt) =>
-        new(eventType, code, occurredAt);
+        DateTimeOffset occurredAt,
+        string? tenantId = null) =>
+        new(eventType, code, occurredAt, tenantId: tenantId);
 }

@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'ShortenLink.Mediator'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'ShortenLink.Mediator' and '$(MSBuildProjectName)' != 'ShortenLink.Messaging' and '$(MSBuildProjectName)' != 'ShortenLink.Messaging.Tests'">
     <Using Include="ShortenLink.Core.Abstractions" />
     <Using Include="ShortenLink.Core.Contracts" />
     <Using Include="ShortenLink.Core.Contracts.Queries" />

@@ -4,6 +4,8 @@ public sealed class ShortLinkClickPersistenceEntity : BaseEntity<Guid>
 {
     public string ShortCode { get; set; } = string.Empty;
 
+    public string TenantId { get; set; } = string.Empty;
+
     public DateTimeOffset ClickedAtUtc { get; set; }
 
     public string? RemoteIpAddress { get; set; }
@@ -21,6 +23,7 @@ public sealed class ShortLinkClickPersistenceEntity : BaseEntity<Guid>
             Id = shortLinkClick.Id,
             CreatedAt = shortLinkClick.CreatedAt,
             ShortCode = shortLinkClick.ShortCode,
+            TenantId = shortLinkClick.TenantId ?? string.Empty,
             ClickedAtUtc = shortLinkClick.ClickedAtUtc,
             RemoteIpAddress = shortLinkClick.RemoteIpAddress,
             UserAgent = shortLinkClick.UserAgent,
@@ -29,5 +32,5 @@ public sealed class ShortLinkClickPersistenceEntity : BaseEntity<Guid>
     }
 
     public ShortLinkClick ToDomain() =>
-        new(ShortCode, ClickedAtUtc, RemoteIpAddress, UserAgent, Referrer, Id);
+        new(ShortCode, ClickedAtUtc, RemoteIpAddress, UserAgent, Referrer, Id, TenantId);
 }

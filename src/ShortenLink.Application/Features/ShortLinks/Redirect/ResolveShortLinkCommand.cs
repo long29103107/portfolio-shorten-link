@@ -1,4 +1,6 @@
 using ShortenLink.Mediator;
+using ShortenLink.Application.Abstractions;
+using ShortenLink.Core.Abstractions;
 using ShortenLink.Core.Services;
 
 namespace ShortenLink.Application.Features.ShortLinks.Redirect;
@@ -16,14 +18,22 @@ public sealed record ResolveShortLinkResponse(string Location);
 internal sealed class ResolveShortLinkCommandHandler(
     IShortLinkService shortLinkService,
     IShortLinkClickRecorder clickRecorder,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ICurrentRequestContext requestContext)
     : IRequestHandler<ResolveShortLinkCommand, ResolveShortLinkResponse>
 {
     public async Task<ResolveShortLinkResponse> Handle(
         ResolveShortLinkCommand request,
         CancellationToken cancellationToken)
     {
-        var result = await shortLinkService.ResolveAsync(request.Code, cancellationToken);
+        var tenantId = await requestContext.GetCurrentTenantIdAsync(cancellationToken);
+        var result = tenantId is null
+            ? await shortLinkService.ResolveAsync(request.Code, cancellationToken)
+            : shortLinkService is ITenantAwareShortLinkService tenantAwareService
+                ? await tenantAwareService.ResolveAsync(request.Code, cancellationToken, tenantId)
+                : ResolveShortLinkResult.Failure(
+                    ShortLinkErrorCodes.TenantNotSupported,
+                    "The configured resolve provider does not support tenant partitions.");
         if (result.Succeeded && result.ShortLink is not null)
         {
             await clickRecorder.RecordAsync(
@@ -32,7 +42,8 @@ internal sealed class ResolveShortLinkCommandHandler(
                     timeProvider.GetUtcNow(),
                     request.RemoteIpAddress,
                     request.UserAgent,
-                    request.Referrer),
+                    request.Referrer,
+                    result.ShortLink.TenantId),
                 cancellationToken);
             return new ResolveShortLinkResponse(result.ShortLink.OriginalUrl.AbsoluteUri);
         }

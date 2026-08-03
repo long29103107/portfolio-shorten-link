@@ -1,3 +1,5 @@
+using ShortenLink.Core.Services;
+
 namespace ShortenLink.Core.Abstractions;
 
 public interface IShortLinkService
@@ -69,4 +71,15 @@ public interface IShortLinkService
     Task<DeactivateShortLinkResult> DeleteAsync(
         string code,
         CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Optional resolve capability for hosts that provide trusted tenant context.
+/// </summary>
+public interface ITenantAwareShortLinkService
+{
+    Task<ResolveShortLinkResult> ResolveAsync(
+        string code,
+        CancellationToken cancellationToken,
+        string tenantId);
 }

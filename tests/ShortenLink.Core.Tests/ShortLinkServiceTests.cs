@@ -205,6 +205,35 @@ public sealed class ShortLinkServiceTests
     }
 
     [Fact]
+    public async Task ResolveAsync_TenantPartitionDoesNotAcceptAnotherTenantsCacheOrRepositoryRecord()
+    {
+        var repository = new InMemoryShortLinkRepository();
+        var cache = new InMemoryShortLinkCache();
+        var link = new ShortLink(
+            "shared01",
+            new Uri("https://example.com/tenant-a"),
+            DateTimeOffset.UtcNow,
+            tenantId: "tenant-a");
+        await repository.AddAsync(link);
+        await cache.SetAsync(link);
+        var service = CreateService(repository, cache: cache);
+
+        var tenantB = await service.ResolveAsync(
+            "shared01",
+            CancellationToken.None,
+            "tenant-b");
+        var tenantA = await service.ResolveAsync(
+            "shared01",
+            CancellationToken.None,
+            "tenant-a");
+
+        Assert.False(tenantB.Succeeded);
+        Assert.Equal(ShortLinkErrorCodes.NotFound, tenantB.ErrorCode);
+        Assert.True(tenantA.Succeeded);
+        Assert.Equal("tenant-a", tenantA.ShortLink?.TenantId);
+    }
+
+    [Fact]
     public async Task CreateAsync_RejectsOversizedIdempotencyKey()
     {
         var service = CreateService();
@@ -709,7 +738,7 @@ public sealed class ShortLinkServiceTests
             inner.DeleteAsync(code, cancellationToken);
     }
 
-    private sealed class InMemoryShortLinkCache : IShortLinkCache
+    private sealed class InMemoryShortLinkCache : IShortLinkCache, ITenantAwareShortLinkCache
     {
         private readonly Dictionary<string, ShortLink> links = new(StringComparer.Ordinal);
 
@@ -722,12 +751,34 @@ public sealed class ShortLinkServiceTests
         public Task SetAsync(ShortLink shortLink, CancellationToken cancellationToken = default)
         {
             links[shortLink.Code] = shortLink;
+            if (shortLink.TenantId is not null)
+            {
+                links[$"{shortLink.TenantId}:{shortLink.Code}"] = shortLink;
+            }
             return Task.CompletedTask;
         }
 
         public Task RemoveAsync(string code, CancellationToken cancellationToken = default)
         {
             links.Remove(code);
+            return Task.CompletedTask;
+        }
+
+        public Task<ShortLink?> FindByCodeAsync(
+            string code,
+            string tenantId,
+            CancellationToken cancellationToken = default)
+        {
+            links.TryGetValue($"{tenantId}:{code}", out var tenantLink);
+            return Task.FromResult(tenantLink);
+        }
+
+        public Task RemoveAsync(
+            string code,
+            string tenantId,
+            CancellationToken cancellationToken = default)
+        {
+            links.Remove($"{tenantId}:{code}");
             return Task.CompletedTask;
         }
     }

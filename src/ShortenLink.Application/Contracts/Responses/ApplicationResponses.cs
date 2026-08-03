@@ -72,6 +72,7 @@ public sealed record ShortLinkShareResponse(
 }
 
 public sealed record ShortLinkSharesResponse(
+    string Mode,
     IReadOnlyList<ShortLinkShareResponse> Items);
 
 public sealed record ShortLinkDetailsResponse(

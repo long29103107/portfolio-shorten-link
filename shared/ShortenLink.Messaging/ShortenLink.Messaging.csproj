@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="RabbitMQ.Client" Version="7.1.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageId>ShortenLink.Messaging</PackageId>
+    <Title>ShortenLink Messaging</Title>
+    <Description>Provider-neutral memory and RabbitMQ queue primitives for Shorten Link.</Description>
+    <Authors>ShortenLink Contributors</Authors>
+    <PackageTags>short-link;messaging;queue;rabbitmq</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/long29103107/shorten-link</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/long29103107/shorten-link</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

@@ -1,5 +1,3 @@
-using ShortenLink.Api.Responses;
-
 namespace ShortenLink.Api.Endpoints;
 
 internal static class HealthEndpoints
@@ -15,3 +13,6 @@ internal static class HealthEndpoints
         return endpoints;
     }
 }
+
+
+public sealed record HealthResponse(string Status, string App);

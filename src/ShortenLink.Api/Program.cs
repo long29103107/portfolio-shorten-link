@@ -44,6 +44,6 @@ if (app.Environment.IsDevelopment())
     app.MapMockDataEndpoints();
 }
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;

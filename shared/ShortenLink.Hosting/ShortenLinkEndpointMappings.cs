@@ -9,6 +9,7 @@ using ShortenLink.Application.Features.ShortLinks.Create;
 using ShortenLink.Application.Features.ShortLinks.Delete;
 using ShortenLink.Application.Features.ShortLinks.Details;
 using ShortenLink.Application.Features.ShortLinks.Export;
+using ShortenLink.Application.Features.ShortLinks.Expiration;
 using ShortenLink.Application.Features.ShortLinks.List;
 using ShortenLink.Application.Features.ShortLinks.Import;
 using ShortenLink.Application.Features.ShortLinks.Shares;
@@ -52,12 +53,28 @@ public static class ShortenLinkEndpointMappings
             .WithName("DryRunShortenLinkImportEndpoint");
         group.MapGet("/export", ExportShortLinksAsync)
             .WithName("ExportShortenLinkEndpoint");
+        group.MapPost("/expiration/execute", static async (
+            ShortLinkExpirationExecutionRequestDto request,
+            ISender sender,
+            CancellationToken ct) =>
+            Results.Ok(await sender.Send(
+                new ExecuteShortLinkExpirationCommand(
+                    request.EvaluatedAtUtc,
+                    request.Limit,
+                    request.RetainExpiredForSeconds,
+                    request.ResumeFromCheckpoint),
+                ct)))
+            .WithName("ExecuteShortLinkExpirationEndpoint");
         group.MapGet("/{code}", static (string code, ISender sender, CancellationToken ct) =>
             sender.Send(new GetShortLinkDetailsQuery(code), ct));
         group.MapGet("/{code}/analytics", static (string code, int? limit, ISender sender, CancellationToken ct) =>
             sender.Send(new GetShortLinkAnalyticsQuery(code, limit), ct));
         group.MapGet("/{code}/shares", static (string code, ISender sender, CancellationToken ct) =>
             sender.Send(new ListShortLinkSharesQuery(code), ct));
+        group.MapPut("/{code}/sharing-mode", static async (
+            string code, ShortLinkSharingModeRequest request, ISender sender, CancellationToken ct) =>
+            Results.Ok(await sender.Send(
+                new SetShortLinkSharingModeCommand(code, request.Mode), ct)));
         group.MapPut("/{code}/shares", static (
             string code, ShortLinkShareUpsertRequest request, ISender sender, CancellationToken ct) =>
             sender.Send(new UpsertShortLinkShareCommand(code, request.Username, request.Access), ct));

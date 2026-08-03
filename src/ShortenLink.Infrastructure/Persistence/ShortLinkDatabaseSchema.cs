@@ -18,13 +18,27 @@ public static class ShortLinkDatabaseSchema
         {
             await EnsureSqliteColumnAsync(
                 dbContext,
+                "short_links",
                 "IdempotencyKey",
                 "ALTER TABLE \"short_links\" ADD COLUMN \"IdempotencyKey\" TEXT NULL;",
                 cancellationToken);
             await EnsureSqliteColumnAsync(
                 dbContext,
+                "short_links",
                 "TenantId",
                 "ALTER TABLE \"short_links\" ADD COLUMN \"TenantId\" TEXT NOT NULL DEFAULT '';",
+                cancellationToken);
+            await EnsureSqliteColumnAsync(
+                dbContext,
+                "short_links",
+                "SharingMode",
+                "ALTER TABLE \"short_links\" ADD COLUMN \"SharingMode\" INTEGER NOT NULL DEFAULT 1;",
+                cancellationToken);
+            await EnsureSqliteColumnAsync(
+                dbContext,
+                "short_link_clicks",
+                "TenantId",
+                "ALTER TABLE \"short_link_clicks\" ADD COLUMN \"TenantId\" TEXT NOT NULL DEFAULT '';",
                 cancellationToken);
             await dbContext.Database.ExecuteSqlRawAsync(
                 "DROP INDEX IF EXISTS \"IX_short_links_IdempotencyKey\";",
@@ -32,6 +46,12 @@ public static class ShortLinkDatabaseSchema
             await dbContext.Database.ExecuteSqlRawAsync(
                 "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_short_links_TenantId_IdempotencyKey\" ON \"short_links\" (\"TenantId\", \"IdempotencyKey\");",
                 cancellationToken);
+            if (await SqliteTableExistsAsync(dbContext, "short_link_clicks", cancellationToken))
+            {
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "CREATE INDEX IF NOT EXISTS \"IX_short_link_clicks_TenantId_ShortCode\" ON \"short_link_clicks\" (\"TenantId\", \"ShortCode\");",
+                    cancellationToken);
+            }
             return;
         }
 
@@ -44,10 +64,19 @@ public static class ShortLinkDatabaseSchema
                 "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"TenantId\" character varying(128) NOT NULL DEFAULT '';",
                 cancellationToken);
             await dbContext.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"SharingMode\" integer NOT NULL DEFAULT 1;",
+                cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"short_link_clicks\" ADD COLUMN IF NOT EXISTS \"TenantId\" character varying(128) NOT NULL DEFAULT '';",
+                cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
                 "DROP INDEX IF EXISTS \"IX_short_links_IdempotencyKey\";",
                 cancellationToken);
             await dbContext.Database.ExecuteSqlRawAsync(
                 "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_short_links_TenantId_IdempotencyKey\" ON \"short_links\" (\"TenantId\", \"IdempotencyKey\");",
+                cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "CREATE INDEX IF NOT EXISTS \"IX_short_link_clicks_TenantId_ShortCode\" ON \"short_link_clicks\" (\"TenantId\", \"ShortCode\");",
                 cancellationToken);
         }
     }
@@ -69,8 +98,26 @@ public static class ShortLinkDatabaseSchema
             : dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 
+    public static Task EnsureExpirationCheckpointsTableAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+
+        var sql = dbContext.Database.IsSqlite()
+            ? SqliteExpirationCheckpointsSchema
+            : dbContext.Database.IsNpgsql()
+                ? PostgresExpirationCheckpointsSchema
+                : null;
+
+        return sql is null
+            ? Task.CompletedTask
+            : dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
     private static async Task EnsureSqliteColumnAsync(
         ShortLinkDbContext dbContext,
+        string tableName,
         string columnName,
         string alterSql,
         CancellationToken cancellationToken)
@@ -82,11 +129,13 @@ public static class ShortLinkDatabaseSchema
         }
 
         await using var command = connection.CreateCommand();
-        command.CommandText = "PRAGMA table_info('short_links');";
+        command.CommandText = $"PRAGMA table_info('{tableName}');";
+        var tableExists = false;
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
             while (await reader.ReadAsync(cancellationToken))
             {
+                tableExists = true;
                 if (string.Equals(reader.GetString(1), columnName, StringComparison.Ordinal))
                 {
                     return;
@@ -94,9 +143,29 @@ public static class ShortLinkDatabaseSchema
             }
         }
 
+        if (!tableExists)
+        {
+            return;
+        }
+
         await dbContext.Database.ExecuteSqlRawAsync(
             alterSql,
             cancellationToken);
+    }
+
+    private static async Task<bool> SqliteTableExistsAsync(
+        ShortLinkDbContext dbContext,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        await using var command = dbContext.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $table LIMIT 1;";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "$table";
+        parameter.Value = tableName;
+        command.Parameters.Add(parameter);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is not null;
     }
 
     private const string SqliteAuditEventsSchema = """
@@ -155,5 +224,37 @@ public static class ShortLinkDatabaseSchema
             ON "short_link_audit_events" ("ActorId");
         CREATE INDEX IF NOT EXISTS "IX_short_link_audit_events_OwnerUserId"
             ON "short_link_audit_events" ("OwnerUserId");
+        """;
+
+    private const string SqliteExpirationCheckpointsSchema = """
+        CREATE TABLE IF NOT EXISTS "short_link_expiration_checkpoints" (
+            "Id" TEXT NOT NULL CONSTRAINT "PK_short_link_expiration_checkpoints" PRIMARY KEY,
+            "CreatedBy" TEXT NULL,
+            "CreatedAt" TEXT NOT NULL,
+            "UpdatedBy" TEXT NULL,
+            "UpdatedAt" TEXT NULL,
+            "TenantId" TEXT NOT NULL,
+            "Cursor" TEXT NULL,
+            "EvaluatedAtUtc" TEXT NOT NULL,
+            "CheckpointUpdatedAtUtc" TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_short_link_expiration_checkpoints_TenantId"
+            ON "short_link_expiration_checkpoints" ("TenantId");
+        """;
+
+    private const string PostgresExpirationCheckpointsSchema = """
+        CREATE TABLE IF NOT EXISTS "short_link_expiration_checkpoints" (
+            "Id" uuid NOT NULL CONSTRAINT "PK_short_link_expiration_checkpoints" PRIMARY KEY,
+            "CreatedBy" uuid NULL,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            "UpdatedBy" uuid NULL,
+            "UpdatedAt" timestamp with time zone NULL,
+            "TenantId" character varying(128) NOT NULL,
+            "Cursor" character varying(512) NULL,
+            "EvaluatedAtUtc" timestamp with time zone NOT NULL,
+            "CheckpointUpdatedAtUtc" timestamp with time zone NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_short_link_expiration_checkpoints_TenantId"
+            ON "short_link_expiration_checkpoints" ("TenantId");
         """;
 }

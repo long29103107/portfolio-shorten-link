@@ -5,14 +5,16 @@ using ShortenLink.Core.Domain;
 using ShortenLink.Core.Exceptions;
 using ShortenLink.Core.Services;
 using ShortenLink.Infrastructure.Persistence;
+using ShortenLink.Core.Security;
 
 namespace ShortenLink.Infrastructure.Repositories;
 
 public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
-    : EfCoreRepository<ShortLinkPersistenceEntity>(dbContext),
+      : EfCoreRepository<ShortLinkPersistenceEntity>(dbContext),
       IShortLinkRepository,
       IShortLinkIdempotencyRepository,
-      IShortLinkTenantRepository
+      IShortLinkTenantRepository,
+      IShortLinkExpirationRepository
 {
     public async Task<IReadOnlyList<ShortLink>> ListRecentAsync(
         int limit,
@@ -31,6 +33,28 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             .OrderByDescending(link => link.CreatedAt)
             .ThenBy(link => link.Code, StringComparer.Ordinal)
             .Where(link => IsAfterCursor(link, beforeCreatedAt, beforeCode))
+            .Take(safeLimit)
+            .Select(record => record.ToDomain())
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<ShortLink>> ListExpirationCandidatesAsync(
+        string? tenantId,
+        DateTimeOffset? beforeExpiresAt,
+        string? beforeCode,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var safeLimit = Math.Clamp(limit, 1, 501);
+        var tenantKey = tenantId ?? string.Empty;
+        var records = await ReadOnlyEntities
+            .Where(record => record.TenantId == tenantKey && record.ExpiresAt != null)
+            .ToListAsync(cancellationToken);
+
+        return records
+            .OrderBy(record => record.ExpiresAt)
+            .ThenBy(record => record.Code, StringComparer.Ordinal)
+            .Where(record => IsAfterExpirationCursor(record, beforeExpiresAt, beforeCode))
             .Take(safeLimit)
             .Select(record => record.ToDomain())
             .ToList();
@@ -136,6 +160,8 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
         && (accessScope.IsAdmin
         || (!string.IsNullOrWhiteSpace(accessScope.UserId)
             && string.Equals(record.CreatedByUserId, accessScope.UserId, StringComparison.Ordinal))
+        || (record.SharingMode == ShortLinkSharingMode.Public
+            && !string.IsNullOrWhiteSpace(accessScope.UserId))
         || accessScope.SharedAccess.ContainsKey(record.Code));
 
     public async Task<ShortLink?> FindByCodeAsync(
@@ -147,6 +173,24 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             ;
 
         return record?.ToDomain();
+    }
+
+    private static bool IsAfterExpirationCursor(
+        ShortLinkPersistenceEntity link,
+        DateTimeOffset? beforeExpiresAt,
+        string? beforeCode)
+    {
+        if (beforeExpiresAt is null && string.IsNullOrWhiteSpace(beforeCode))
+        {
+            return true;
+        }
+
+        var expiresAt = link.ExpiresAt ?? DateTimeOffset.MaxValue;
+        var cursorExpiresAt = beforeExpiresAt ?? DateTimeOffset.MaxValue;
+        return expiresAt > cursorExpiresAt
+            || (expiresAt == cursorExpiresAt
+                && !string.IsNullOrWhiteSpace(beforeCode)
+                && string.Compare(link.Code, beforeCode, StringComparison.Ordinal) > 0);
     }
 
     public async Task<ShortLink?> FindByIdempotencyKeyAsync(

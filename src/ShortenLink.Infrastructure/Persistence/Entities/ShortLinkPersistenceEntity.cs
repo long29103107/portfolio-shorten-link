@@ -1,3 +1,5 @@
+using ShortenLink.Core.Security;
+
 namespace ShortenLink.Infrastructure.Persistence.Entities;
 
 public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
@@ -20,6 +22,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
 
     public string TenantId { get; set; } = string.Empty;
 
+    public ShortLinkSharingMode SharingMode { get; set; } = ShortLinkSharingMode.AllowList;
+
     public static ShortLinkPersistenceEntity FromDomain(ShortLink shortLink)
     {
         ArgumentNullException.ThrowIfNull(shortLink);
@@ -36,7 +40,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             CreatedByDisplayName = shortLink.CreatedByDisplayName,
             CreatedByUsername = shortLink.CreatedByUsername,
             IdempotencyKey = shortLink.IdempotencyKey,
-            TenantId = shortLink.TenantId ?? string.Empty
+            TenantId = shortLink.TenantId ?? string.Empty,
+            SharingMode = shortLink.SharingMode
         };
     }
 
@@ -52,7 +57,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             CreatedByUsername,
             Id,
             IdempotencyKey,
-            TenantId);
+            TenantId,
+            sharingMode: SharingMode);
 
     public void UpdateFromDomain(ShortLink shortLink)
     {
@@ -67,5 +73,6 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
         CreatedByUsername = shortLink.CreatedByUsername;
         IdempotencyKey = shortLink.IdempotencyKey;
         TenantId = shortLink.TenantId ?? string.Empty;
+        SharingMode = shortLink.SharingMode;
     }
 }
