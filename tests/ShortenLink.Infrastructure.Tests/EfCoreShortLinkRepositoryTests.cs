@@ -266,6 +266,8 @@ public sealed class EfCoreShortLinkRepositoryTests
         Assert.Contains("IX_short_links_CreatedAt", indexes);
         Assert.Contains("IX_short_links_ExpiresAt", indexes);
         Assert.Contains("IX_short_links_IsActive", indexes);
+        Assert.Contains("IX_short_links_TenantId_CreatedAt_Code", indexes);
+        Assert.Contains("IX_short_links_TenantId_ExpiresAt_Code", indexes);
         Assert.Contains("IX_short_links_TenantId_IdempotencyKey", indexes);
         Assert.DoesNotContain("IX_short_links_IdempotencyKey", indexes);
     }
@@ -292,6 +294,8 @@ public sealed class EfCoreShortLinkRepositoryTests
         Assert.Contains("IX_short_links_CreatedAt", indexNames);
         Assert.Contains("IX_short_links_ExpiresAt", indexNames);
         Assert.Contains("IX_short_links_IsActive", indexNames);
+        Assert.Contains("IX_short_links_TenantId_CreatedAt_Code", indexNames);
+        Assert.Contains("IX_short_links_TenantId_ExpiresAt_Code", indexNames);
         Assert.Contains("IX_short_links_TenantId_IdempotencyKey", indexNames);
     }
 

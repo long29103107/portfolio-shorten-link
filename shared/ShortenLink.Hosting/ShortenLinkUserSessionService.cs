@@ -166,7 +166,13 @@ public sealed class ShortenLinkUserSessionService(
         ArgumentNullException.ThrowIfNull(user);
 
         var permissions = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var roleId in user.RoleIds)
+        var roleIds = user.RoleIds
+            .Where(static roleId => !string.IsNullOrWhiteSpace(roleId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var customRoles = await roleRepository.FindCustomRolesAsync(roleIds, cancellationToken);
+        var overridesByRole = await roleRepository.ListPermissionOverridesAsync(roleIds, cancellationToken);
+        foreach (var roleId in roleIds)
         {
             var rolePermissions = new HashSet<string>(StringComparer.Ordinal);
             if (ShortenLinkSystemRoles.PermissionBundles.TryGetValue(roleId, out var systemPermissions))
@@ -179,10 +185,8 @@ public sealed class ShortenLinkUserSessionService(
             }
             else
             {
-                var customRole = await roleRepository
-                    .FindCustomRoleAsync(roleId, cancellationToken)
-                    ;
-                if (customRole is not { IsEnabled: true })
+                if (!customRoles.TryGetValue(roleId, out var customRole)
+                    || !customRole.IsEnabled)
                 {
                     continue;
                 }
@@ -193,7 +197,9 @@ public sealed class ShortenLinkUserSessionService(
                 }
             }
 
-            await ApplyPermissionOverridesAsync(rolePermissions, roleId, cancellationToken);
+            ApplyPermissionOverrides(
+                rolePermissions,
+                overridesByRole.GetValueOrDefault(roleId, []));
             foreach (var permission in rolePermissions)
             {
                 permissions.Add(permission);
@@ -209,14 +215,10 @@ public sealed class ShortenLinkUserSessionService(
             issuedAtUtc);
     }
 
-    private async Task ApplyPermissionOverridesAsync(
+    private static void ApplyPermissionOverrides(
         HashSet<string> permissions,
-        string roleId,
-        CancellationToken cancellationToken)
+        IReadOnlyList<ShortenLinkRolePermissionOverride> overrides)
     {
-        var overrides = await roleRepository
-            .ListPermissionOverridesAsync(roleId, cancellationToken)
-            ;
         foreach (var item in overrides)
         {
             if (item.IsAllowed) permissions.Add(item.Permission);

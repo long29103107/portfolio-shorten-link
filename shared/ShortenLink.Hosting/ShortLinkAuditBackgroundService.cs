@@ -37,7 +37,10 @@ internal sealed class ShortLinkAuditBackgroundService(
                     auditEvent.Action,
                     auditEvent.TargetType,
                     auditEvent.TargetId);
-                await delivery.RejectAsync(requeue: true, stoppingToken);
+                // A failed persistence attempt must not hot-loop forever. The
+                // durable RabbitMQ adapter can dead-letter this rejection when
+                // a DLX is configured; memory mode drops the poison delivery.
+                await delivery.RejectAsync(requeue: false, stoppingToken);
             }
         }
     }

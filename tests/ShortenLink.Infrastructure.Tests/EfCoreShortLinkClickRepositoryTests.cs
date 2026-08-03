@@ -104,6 +104,7 @@ public sealed class EfCoreShortLinkClickRepositoryTests
         Assert.Contains("IX_short_link_clicks_ClickedAtUtc", indexes);
         Assert.Contains("IX_short_link_clicks_ShortCode_ClickedAtUtc", indexes);
         Assert.Contains("IX_short_link_clicks_TenantId_ShortCode", indexes);
+        Assert.Contains("IX_short_link_clicks_TenantId_ShortCode_ClickedAtUtc", indexes);
     }
 
     [Fact]
@@ -148,6 +149,7 @@ public sealed class EfCoreShortLinkClickRepositoryTests
         Assert.Contains("IX_short_link_clicks_ClickedAtUtc", indexNames);
         Assert.Contains("IX_short_link_clicks_ShortCode_ClickedAtUtc", indexNames);
         Assert.Contains("IX_short_link_clicks_TenantId_ShortCode", indexNames);
+        Assert.Contains("IX_short_link_clicks_TenantId_ShortCode_ClickedAtUtc", indexNames);
     }
 
     private sealed class SqliteTestDatabase : IAsyncDisposable

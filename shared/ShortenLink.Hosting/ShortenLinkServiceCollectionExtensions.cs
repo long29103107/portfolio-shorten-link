@@ -272,19 +272,31 @@ public static class ShortenLinkServiceCollectionExtensions
                 },
                 options.Queue.AnalyticsQueueName);
         });
-        services.TryAddScoped<IShortLinkClickRecorder>(serviceProvider =>
+
+        services.AddSingleton<IHostedService>(serviceProvider =>
         {
             var analyticsOptions = serviceProvider
                 .GetRequiredService<IOptions<ShortenLinkOptions>>()
                 .Value
                 .Analytics;
+            return analyticsOptions.Enabled && analyticsOptions.UseAsyncWorker
+                ? ActivatorUtilities.CreateInstance<ShortLinkClickBackgroundService>(serviceProvider)
+                : new DisabledAnalyticsHostedService();
+        });
 
-            if (!analyticsOptions.Enabled)
+        services.TryAddScoped<IShortLinkClickRecorder>(serviceProvider =>
+        {
+            var currentAnalyticsOptions = serviceProvider
+                .GetRequiredService<IOptions<ShortenLinkOptions>>()
+                .Value
+                .Analytics;
+
+            if (!currentAnalyticsOptions.Enabled)
             {
                 return new DisabledShortLinkClickRecorder();
             }
 
-            if (!analyticsOptions.UseAsyncWorker)
+            if (!currentAnalyticsOptions.UseAsyncWorker)
             {
                 return new SynchronousShortLinkClickRecorder(
                     serviceProvider.GetRequiredService<IShortLinkClickRepository>());
@@ -294,8 +306,6 @@ public static class ShortenLinkServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IMessageQueue<RecordShortLinkClickRequest>>(),
                 serviceProvider.GetRequiredService<ILogger<MessageQueueShortLinkClickRecorder>>());
         });
-        services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IHostedService, ShortLinkClickBackgroundService>());
     }
 
     private static void RegisterAuditQueue(IServiceCollection services)
@@ -316,6 +326,13 @@ public static class ShortenLinkServiceCollectionExtensions
         services.TryAddSingleton<IAuditEventQueue, MessageQueueShortLinkAuditEventQueue>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, ShortLinkAuditBackgroundService>());
+    }
+
+    private sealed class DisabledAnalyticsHostedService : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private static bool IsValidFrontendFallbackPath(string? fallbackPath)

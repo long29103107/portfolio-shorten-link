@@ -1,7 +1,7 @@
 ---
 phase: 028
 title: Backend Boundary Refactor
-status: active
+status: complete
 created_at: 2026-08-03
 updated_at: 2026-08-03
 current_task:
@@ -48,8 +48,8 @@ Out:
 
 ## Current Task
 
-`028_002` is complete. The queue abstraction and audit/click workers now use
-memory or RabbitMQ providers selected through configuration.
+Phase 028 is complete. The endpoint boundary is consolidated and the queue
+abstraction is provider-neutral with memory and RabbitMQ implementations.
 
 ## Task Notes
 

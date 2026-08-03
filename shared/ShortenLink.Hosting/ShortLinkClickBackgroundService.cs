@@ -42,7 +42,10 @@ internal sealed class ShortLinkClickBackgroundService(
                     exception,
                     "Failed to persist short-link click analytics event for code {ShortCode}.",
                     request.ShortCode);
-                await delivery.RejectAsync(requeue: true, stoppingToken);
+                // Keep poison messages from being requeued indefinitely. The
+                // durable RabbitMQ adapter can dead-letter this rejection when
+                // a DLX is configured; memory mode drops the poison delivery.
+                await delivery.RejectAsync(requeue: false, stoppingToken);
             }
         }
     }

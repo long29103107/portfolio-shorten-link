@@ -193,7 +193,14 @@ public sealed class ShortenLinkAuthorizationService(
             permissions.Add(permission);
         }
 
-        foreach (var role in roles.Where(static role => !string.IsNullOrWhiteSpace(role)))
+        var roleIds = roles
+            .Where(static role => !string.IsNullOrWhiteSpace(role))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var customRoles = await roleRepository.FindCustomRolesAsync(roleIds, cancellationToken);
+        var overridesByRole = await roleRepository.ListPermissionOverridesAsync(roleIds, cancellationToken);
+
+        foreach (var role in roleIds)
         {
             var rolePermissions = new HashSet<string>(StringComparer.Ordinal);
             if (ShortenLinkRoles.PermissionBundles.TryGetValue(role, out var systemPermissions))
@@ -202,16 +209,15 @@ public sealed class ShortenLinkAuthorizationService(
             }
             else
             {
-                var customRole = await roleRepository
-                    .FindCustomRoleAsync(role, cancellationToken)
-                    ;
-                if (customRole is not { IsEnabled: true }) continue;
+                if (!customRoles.TryGetValue(role, out var customRole)
+                    || !customRole.IsEnabled)
+                {
+                    continue;
+                }
                 rolePermissions.UnionWith(customRole.Permissions);
             }
 
-            var overrides = await roleRepository
-                .ListPermissionOverridesAsync(role, cancellationToken)
-                ;
+            var overrides = overridesByRole.GetValueOrDefault(role, []);
             foreach (var item in overrides)
             {
                 if (item.IsAllowed) rolePermissions.Add(item.Permission);

@@ -79,6 +79,10 @@ public sealed class ShortLinkDbContext : DbContext
             entity.HasIndex(link => link.CreatedAt);
             entity.HasIndex(link => link.ExpiresAt);
             entity.HasIndex(link => link.IsActive);
+            entity.HasIndex(link => new { link.TenantId, link.CreatedAt, link.Code })
+                .HasDatabaseName("IX_short_links_TenantId_CreatedAt_Code");
+            entity.HasIndex(link => new { link.TenantId, link.ExpiresAt, link.Code })
+                .HasDatabaseName("IX_short_links_TenantId_ExpiresAt_Code");
             entity.HasIndex(link => new { link.TenantId, link.IdempotencyKey })
                 .HasDatabaseName("IX_short_links_TenantId_IdempotencyKey")
                 .IsUnique();
@@ -114,6 +118,8 @@ public sealed class ShortLinkDbContext : DbContext
             entity.HasIndex(click => new { click.TenantId, click.ShortCode });
             entity.HasIndex(click => click.ClickedAtUtc);
             entity.HasIndex(click => new { click.ShortCode, click.ClickedAtUtc });
+            entity.HasIndex(click => new { click.TenantId, click.ShortCode, click.ClickedAtUtc })
+                .HasDatabaseName("IX_short_link_clicks_TenantId_ShortCode_ClickedAtUtc");
         });
 
         modelBuilder.Entity<ShortenLinkSecurityAssignmentPersistenceEntity>(entity =>
@@ -210,6 +216,19 @@ public sealed class ShortLinkDbContext : DbContext
             entity.HasIndex(auditEvent => auditEvent.TargetId);
             entity.HasIndex(auditEvent => auditEvent.ActorId);
             entity.HasIndex(auditEvent => auditEvent.OwnerUserId);
+            entity.HasIndex(auditEvent => new
+            {
+                auditEvent.OwnerUserId,
+                auditEvent.OccurredAt,
+                auditEvent.Id
+            }).HasDatabaseName("IX_short_link_audit_events_OwnerUserId_OccurredAt_Id");
+            entity.HasIndex(auditEvent => new
+            {
+                auditEvent.TargetType,
+                auditEvent.TargetId,
+                auditEvent.OccurredAt,
+                auditEvent.Id
+            }).HasDatabaseName("IX_short_link_audit_events_Target_OccurredAt_Id");
         });
 
         modelBuilder.Entity<ShortLinkExpirationCheckpointPersistenceEntity>(entity =>

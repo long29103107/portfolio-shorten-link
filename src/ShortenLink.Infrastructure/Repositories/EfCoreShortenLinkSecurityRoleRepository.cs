@@ -35,6 +35,28 @@ public sealed class EfCoreShortenLinkSecurityRoleRepository(ShortLinkDbContext d
         return record?.ToDomain();
     }
 
+    public async Task<IReadOnlyDictionary<string, ShortenLinkCustomRole>> FindCustomRolesAsync(
+        IReadOnlyCollection<string> ids,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        var roleIds = ids
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (roleIds.Length == 0)
+        {
+            return new Dictionary<string, ShortenLinkCustomRole>(StringComparer.Ordinal);
+        }
+
+        var records = await ReadOnlyEntities
+            .Where(role => roleIds.Contains(role.RoleId))
+            .ToListAsync(cancellationToken);
+        return records
+            .Select(role => role.ToDomain())
+            .ToDictionary(role => role.RoleKey, StringComparer.Ordinal);
+    }
+
     public async Task AddOrUpdateCustomRoleAsync(
         ShortenLinkCustomRole role,
         CancellationToken cancellationToken = default)
@@ -70,6 +92,42 @@ public sealed class EfCoreShortenLinkSecurityRoleRepository(ShortLinkDbContext d
             .Select(item => new ShortenLinkRolePermissionOverride(item.Permission, item.IsAllowed))
             .ToListAsync(cancellationToken)
             ;
+    }
+
+    public async Task<IReadOnlyDictionary<string, IReadOnlyList<ShortenLinkRolePermissionOverride>>> ListPermissionOverridesAsync(
+        IReadOnlyCollection<string> roleIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(roleIds);
+        var ids = roleIds
+            .Where(static roleId => !string.IsNullOrWhiteSpace(roleId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<string, IReadOnlyList<ShortenLinkRolePermissionOverride>>(StringComparer.Ordinal);
+        }
+
+        var records = await DbContext.SecurityRolePermissionOverrides
+            .AsNoTracking()
+            .Where(item => ids.Contains(item.RoleId))
+            .OrderBy(item => item.RoleId)
+            .ThenBy(item => item.Permission)
+            .Select(item => new
+            {
+                item.RoleId,
+                Override = new ShortenLinkRolePermissionOverride(item.Permission, item.IsAllowed)
+            })
+            .ToListAsync(cancellationToken);
+
+        return records
+            .GroupBy(item => item.RoleId, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<ShortenLinkRolePermissionOverride>)group
+                    .Select(item => item.Override)
+                    .ToList(),
+                StringComparer.Ordinal);
     }
 
     public async Task ReplacePermissionOverridesAsync(

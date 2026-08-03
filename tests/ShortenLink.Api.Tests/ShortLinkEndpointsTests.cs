@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ShortenLink.Api;
 using ShortenLink.Application.Abstractions;
@@ -24,6 +25,7 @@ using ShortenLink.Core.Contracts.Results;
 using ShortenLink.Core.Security;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Repositories;
+using ShortenLink.Messaging;
 using Xunit;
 
 namespace ShortenLink.Api.Tests;
@@ -2367,6 +2369,9 @@ public sealed class ShortLinkEndpointsTests
     public async Task Redirect_RecordsClickAnalytics_WhenEnabled()
     {
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false, analyticsEnabled: true);
+        Assert.Contains(
+            factory.Services.GetServices<IHostedService>(),
+            service => service.GetType().Name == "ShortLinkClickBackgroundService");
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -2656,6 +2661,45 @@ public sealed class ShortLinkEndpointsTests
         var cache = services.GetRequiredService<IShortLinkCache>();
 
         Assert.IsType<DisabledShortLinkCache>(cache);
+    }
+
+    [Fact]
+    public async Task AddShortenLink_DoesNotRegisterAnalyticsWorkerWhenDisabledOrSynchronous()
+    {
+        await using var disabledServices = BuildServiceProvider(new Dictionary<string, string?>
+        {
+            ["ShortenLink:Analytics:Enabled"] = "false"
+        });
+        Assert.DoesNotContain(
+            disabledServices.GetServices<IHostedService>(),
+            service => service.GetType().Name == "ShortLinkClickBackgroundService");
+
+        await using var synchronousServices = BuildServiceProvider(new Dictionary<string, string?>
+        {
+            ["ShortenLink:Analytics:Enabled"] = "true",
+            ["ShortenLink:Analytics:UseAsyncWorker"] = "false"
+        });
+        Assert.DoesNotContain(
+            synchronousServices.GetServices<IHostedService>(),
+            service => service.GetType().Name == "ShortLinkClickBackgroundService");
+        Assert.Equal(
+            "SynchronousShortLinkClickRecorder",
+            synchronousServices.GetRequiredService<IShortLinkClickRecorder>().GetType().Name);
+    }
+
+    [Fact]
+    public async Task AddShortenLink_ActivatesAnalyticsQueueWorkerForEnabledAsyncMode()
+    {
+        await using var services = BuildServiceProvider(new Dictionary<string, string?>
+        {
+            ["ShortenLink:Analytics:Enabled"] = "true",
+            ["ShortenLink:Analytics:UseAsyncWorker"] = "true"
+        });
+
+        Assert.NotNull(services.GetService<IMessageQueue<RecordShortLinkClickRequest>>());
+        Assert.Equal(
+            "MessageQueueShortLinkClickRecorder",
+            services.GetRequiredService<IShortLinkClickRecorder>().GetType().Name);
     }
 
     [Fact]
