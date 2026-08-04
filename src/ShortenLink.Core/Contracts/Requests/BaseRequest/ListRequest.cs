@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ShortenLink.Core.Contracts.Requests;
+namespace ShortenLink.Core.Contracts.Requests.BaseRequest;
 
 public class ListRequest : Request
 {

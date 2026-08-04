@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/shared/">
+    <Project Path="shared/ShortenLink.Auditing/ShortenLink.Auditing.csproj" />
     <Project Path="shared/ShortenLink.Mediator/ShortenLink.Mediator.csproj" />
     <Project Path="shared/ShortenLink.Messaging/ShortenLink.Messaging.csproj" />
     <Project Path="shared/ShortenLink.Hosting/ShortenLink.Hosting.csproj" />

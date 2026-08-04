@@ -22,7 +22,7 @@ public sealed class ShortLinkDatabaseSchemaTests
 
         await ShortLinkDatabaseSchema.EnsureAuditEventsTableAsync(dbContext);
 
-        Assert.Equal(0, await dbContext.ShortLinkAuditEvents.CountAsync());
+        Assert.Equal(0, await dbContext.AuditEvents.CountAsync());
 
         var indexes = await ReadIndexNamesAsync(connection);
         Assert.Contains("IX_short_link_audit_events_OccurredAt_Id", indexes);

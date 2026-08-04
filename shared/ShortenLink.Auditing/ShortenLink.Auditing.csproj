@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageId>ShortenLink.Auditing</PackageId>
+    <Title>ShortenLink Auditing</Title>
+    <Description>Reusable Shorten Link audit event contracts, buffering, writing, and persistence boundaries for .NET applications.</Description>
+    <Authors>ShortenLink Contributors</Authors>
+    <PackageTags>short-link;url-shortener;audit;auditing;dotnet;contracts;observability</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/long29103107/shorten-link</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/long29103107/shorten-link</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using ShortenLink.Auditing;
 using ShortenLink.Core.Contracts.Queries;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence;
@@ -22,33 +23,36 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
         await dbContext.Database.EnsureCreatedAsync();
         var repository = new EfCoreShortLinkAuditRepository(dbContext);
         var occurredAt = new DateTimeOffset(2026, 7, 25, 8, 0, 0, TimeSpan.Zero);
-        var older = new ShortLinkAuditEvent(
+        var older = new AuditEvent(
             "owner-1",
             ShortLinkAuditActions.Created,
             "owned",
             "owner-1",
             occurredAt.AddMinutes(-1),
-            id: Guid.Parse("00000000-0000-0000-0000-000000000001"));
-        var newerLowId = new ShortLinkAuditEvent(
+            id: Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            targetType: ShortLinkAuditTargetTypes.ShortLink);
+        var newerLowId = new AuditEvent(
             "admin",
             ShortLinkAuditActions.Updated,
             "shared",
             "owner-2",
             occurredAt,
-            id: Guid.Parse("00000000-0000-0000-0000-000000000002"));
-        var newerHighId = new ShortLinkAuditEvent(
+            id: Guid.Parse("00000000-0000-0000-0000-000000000002"),
+            targetType: ShortLinkAuditTargetTypes.ShortLink);
+        var newerHighId = new AuditEvent(
             "admin",
             ShortLinkAuditActions.Deleted,
             "hidden",
             "owner-3",
             occurredAt,
-            id: Guid.Parse("00000000-0000-0000-0000-000000000003"));
+            id: Guid.Parse("00000000-0000-0000-0000-000000000003"),
+            targetType: ShortLinkAuditTargetTypes.ShortLink);
 
         await repository.AddAsync(older);
         await repository.AddAsync(newerLowId);
         await repository.AddAsync(newerHighId);
 
-        var userPage = await repository.ListAsync(new ShortLinkAuditQuery(
+        var userPage = await repository.ListAsync(new AuditQuery(
             10,
             null,
             null,
@@ -57,11 +61,11 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             null,
             null,
             null,
-            new ShortLinkAuditAccessScope(
+            new AuditReadScope(
                 "owner-1",
-                IsAdmin: false,
+                HasFullAccess: false,
                 new HashSet<string>(["shared"], StringComparer.Ordinal))));
-        var adminFirstPage = await repository.ListAsync(new ShortLinkAuditQuery(
+        var adminFirstPage = await repository.ListAsync(new AuditQuery(
             1,
             null,
             null,
@@ -70,11 +74,11 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             null,
             null,
             null,
-            new ShortLinkAuditAccessScope(
+            new AuditReadScope(
                 "admin",
-                IsAdmin: true,
+                HasFullAccess: true,
                 new HashSet<string>(StringComparer.Ordinal))));
-        var adminSecondPage = await repository.ListAsync(new ShortLinkAuditQuery(
+        var adminSecondPage = await repository.ListAsync(new AuditQuery(
             10,
             adminFirstPage.Items[0].OccurredAt,
             adminFirstPage.Items[0].Id,
@@ -83,11 +87,11 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             null,
             null,
             null,
-            new ShortLinkAuditAccessScope(
+            new AuditReadScope(
                 "admin",
-                IsAdmin: true,
+                HasFullAccess: true,
                 new HashSet<string>(StringComparer.Ordinal))));
-        var filteredPage = await repository.ListAsync(new ShortLinkAuditQuery(
+        var filteredPage = await repository.ListAsync(new AuditQuery(
             10,
             null,
             null,
@@ -96,9 +100,9 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             "admin",
             occurredAt,
             occurredAt,
-            new ShortLinkAuditAccessScope(
+            new AuditReadScope(
                 "admin",
-                IsAdmin: true,
+                HasFullAccess: true,
                 new HashSet<string>(StringComparer.Ordinal))));
 
         Assert.Equal(["shared", "owned"], userPage.Items.Select(item => item.TargetId));
@@ -127,15 +131,16 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             now,
             now.AddDays(1),
             createdByUserId: "owner-1"));
-        await auditRepository.AddAsync(new ShortLinkAuditEvent(
+        await auditRepository.AddAsync(new AuditEvent(
             "owner-1",
             ShortLinkAuditActions.Created,
             "durable",
             "owner-1",
-            now));
+            now,
+            targetType: ShortLinkAuditTargetTypes.ShortLink));
         await linkRepository.DeleteAsync("durable");
 
-        var page = await auditRepository.ListAsync(new ShortLinkAuditQuery(
+        var page = await auditRepository.ListAsync(new AuditQuery(
             10,
             null,
             null,
@@ -144,9 +149,9 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             null,
             null,
             null,
-            new ShortLinkAuditAccessScope(
+            new AuditReadScope(
                 "owner-1",
-                IsAdmin: false,
+                HasFullAccess: false,
                 new HashSet<string>(StringComparer.Ordinal))));
 
         Assert.Null(await linkRepository.FindByCodeAsync("durable"));
@@ -165,38 +170,39 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
         await dbContext.Database.EnsureCreatedAsync();
         var repository = new EfCoreShortLinkAuditRepository(dbContext);
 
-        await repository.AddAsync(new ShortLinkAuditEvent(
+        await repository.AddAsync(new AuditEvent(
             "user-1",
             ShortLinkAuditActions.AuthenticationLogin,
             "user-1",
             "user-1",
             DateTimeOffset.UnixEpoch,
-            subjectUserId: "user-1",
+            subjectId: "user-1",
             targetType: ShortLinkAuditTargetTypes.Authentication));
-        await repository.AddAsync(new ShortLinkAuditEvent(
+        await repository.AddAsync(new AuditEvent(
             "admin",
             ShortLinkAuditActions.SecurityUserUpdated,
             "user-1",
-            ownerUserId: null,
+            ownerId: null,
             DateTimeOffset.UnixEpoch.AddSeconds(1),
-            subjectUserId: "user-1",
+            subjectId: "user-1",
             targetType: ShortLinkAuditTargetTypes.SecurityUser));
-        await repository.AddAsync(new ShortLinkAuditEvent(
+        await repository.AddAsync(new AuditEvent(
             "user-2",
             ShortLinkAuditActions.UserApiKeyCreated,
             "shared-code",
             "user-2",
             DateTimeOffset.UnixEpoch.AddSeconds(2),
-            subjectUserId: "user-2",
+            subjectId: "user-2",
             targetType: ShortLinkAuditTargetTypes.UserApiKey));
-        await repository.AddAsync(new ShortLinkAuditEvent(
+        await repository.AddAsync(new AuditEvent(
             "owner-2",
             ShortLinkAuditActions.Created,
             "shared-code",
             "owner-2",
-            DateTimeOffset.UnixEpoch.AddSeconds(3)));
+            DateTimeOffset.UnixEpoch.AddSeconds(3),
+            targetType: ShortLinkAuditTargetTypes.ShortLink));
 
-        var page = await repository.ListAsync(new ShortLinkAuditQuery(
+        var page = await repository.ListAsync(new AuditQuery(
             10,
             null,
             null,
@@ -205,9 +211,9 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             null,
             null,
             null,
-            new ShortLinkAuditAccessScope(
+            new AuditReadScope(
                 "user-1",
-                IsAdmin: false,
+                HasFullAccess: false,
                 new HashSet<string>(["shared-code"], StringComparer.Ordinal))));
 
         Assert.Equal(
@@ -219,6 +225,6 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
         Assert.DoesNotContain(
             page.Items,
             item => item.TargetType == ShortLinkAuditTargetTypes.UserApiKey
-                && item.OwnerUserId == "user-2");
+                && item.OwnerId == "user-2");
     }
 }

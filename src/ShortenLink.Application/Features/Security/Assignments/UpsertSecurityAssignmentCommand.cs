@@ -26,20 +26,8 @@ internal sealed class UpsertSecurityAssignmentCommandHandler(
         var actor = await requestContext.AuthorizeAsync(
             SecurityFeatureSupport.AdminOnly,
             cancellationToken);
-        if (string.IsNullOrWhiteSpace(request.CredentialKey))
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityAssignment, "Credential key is required.", "credentialKey");
-        if (string.IsNullOrWhiteSpace(request.Name))
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityAssignment, "Assignment name is required.", "name");
-
         var roles = SecurityFeatureSupport.NormalizeDistinct(request.Roles);
-        var unknownRole = roles.FirstOrDefault(role => !ShortenLinkSystemRoles.PermissionBundles.ContainsKey(role));
-        if (unknownRole is not null)
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidRole, $"Unknown system role '{unknownRole}'.", "roles");
         var permissions = SecurityFeatureSupport.NormalizeDistinct(request.Permissions);
-        var unknownPermission = permissions.FirstOrDefault(permission => !ShortenLinkPermissionCatalog.All.Contains(permission));
-        if (unknownPermission is not null)
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidPermission, $"Unknown permission '{unknownPermission}'.", "permissions");
-
         var credentialKeyHash = ShortenLinkSecurityCredentialHasher.HashApiKey(
             request.CredentialKey);
         var existing = await assignmentRepository.FindByCredentialKeyHashAsync(

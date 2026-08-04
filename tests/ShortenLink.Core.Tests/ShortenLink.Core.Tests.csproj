@@ -7,6 +7,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <ProjectReference Include="..\..\shared\ShortenLink.Auditing\ShortenLink.Auditing.csproj" />
     <ProjectReference Include="..\..\src\ShortenLink.Core\ShortenLink.Core.csproj" />
     <ProjectReference Include="..\..\src\ShortenLink.Application\ShortenLink.Application.csproj" />
   </ItemGroup>

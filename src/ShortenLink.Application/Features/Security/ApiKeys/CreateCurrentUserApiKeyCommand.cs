@@ -21,17 +21,6 @@ internal sealed class CreateCurrentUserApiKeyCommandHandler(
         CreateCurrentUserApiKeyCommand request,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.DisplayName))
-        {
-            throw new RequestValidationException(
-                ErrorCodes.InvalidApiKey,
-                "API key display name is required.",
-                new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
-                {
-                    ["displayName"] = ["API key display name is required."]
-                });
-        }
-
         var user = await requestContext.GetCurrentUserAsync(cancellationToken)
             ?? throw new AuthenticationRequiredException();
         var rawApiKey = $"slk_{tokenGenerator.CreateToken(32)}";

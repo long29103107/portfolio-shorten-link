@@ -1,12 +1,11 @@
 using ShortenLink.Application.Abstractions;
-using ShortenLink.Core.Abstractions;
+using ShortenLink.Auditing;
 using ShortenLink.Core.Domain;
 
 namespace ShortenLink.Application.Features.Audit;
 
 public sealed class ShortLinkAuditWriter(
-    AuditEventBuffer eventBuffer,
-    TimeProvider timeProvider)
+    AuditWriter auditWriter)
 {
     public Task RecordAsync(
         CurrentRequestActor actor,
@@ -41,17 +40,14 @@ public sealed class ShortLinkAuditWriter(
         string targetType = ShortLinkAuditTargetTypes.ShortLink,
         CancellationToken cancellationToken = default)
     {
-        var auditEvent = new ShortLinkAuditEvent(
+        auditWriter.Record(
             actorId,
             action,
+            targetType,
             targetId,
-            ownerUserId,
-            timeProvider.GetUtcNow(),
-            subjectUserId: subjectUserId,
-            detail: detail,
-            targetType: targetType);
-
-        eventBuffer.Add(auditEvent);
+            ownerId: ownerUserId,
+            subjectId: subjectUserId,
+            detail: detail);
         return Task.CompletedTask;
     }
 

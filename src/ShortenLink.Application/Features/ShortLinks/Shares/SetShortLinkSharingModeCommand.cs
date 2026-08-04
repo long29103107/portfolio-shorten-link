@@ -27,12 +27,7 @@ internal sealed class SetShortLinkSharingModeCommandHandler(
             link, user, ShortLinkShareAccess.Edit, true,
             "Only the owner or an admin can manage sharing.", cancellationToken);
 
-        if (!Enum.TryParse<ShortLinkSharingMode>(request.Mode, true, out var mode))
-        {
-            throw new RequestValidationException(
-                ErrorCodes.InvalidShare,
-                "Choose Public or AllowList sharing.");
-        }
+        var mode = Enum.Parse<ShortLinkSharingMode>(request.Mode, true);
 
         if (link.SharingMode != mode)
         {

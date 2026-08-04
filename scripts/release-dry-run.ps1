@@ -244,9 +244,10 @@ Invoke-Tool -FileName $dotnet -WorkingDirectory $repoRoot -Arguments @(
 ) | Out-Null
 
 $results = @(
+    Inspect-Package -PackageId "ShortenLink.Auditing" -PackagePath (Join-Path $OutputDirectory "ShortenLink.Auditing.$PackageVersion.nupkg")
     Inspect-Package -PackageId "ShortenLink.Core" -PackagePath (Join-Path $OutputDirectory "ShortenLink.Core.$PackageVersion.nupkg")
-    Inspect-Package -PackageId "ShortenLink.Infrastructure" -PackagePath (Join-Path $OutputDirectory "ShortenLink.Infrastructure.$PackageVersion.nupkg") -RequiredDependencies @("ShortenLink.Core")
-    Inspect-Package -PackageId "ShortenLink.Hosting" -PackagePath (Join-Path $OutputDirectory "ShortenLink.Hosting.$PackageVersion.nupkg") -RequiredDependencies @("ShortenLink.Core", "ShortenLink.Application", "ShortenLink.Infrastructure")
+    Inspect-Package -PackageId "ShortenLink.Infrastructure" -PackagePath (Join-Path $OutputDirectory "ShortenLink.Infrastructure.$PackageVersion.nupkg") -RequiredDependencies @("ShortenLink.Auditing", "ShortenLink.Core")
+    Inspect-Package -PackageId "ShortenLink.Hosting" -PackagePath (Join-Path $OutputDirectory "ShortenLink.Hosting.$PackageVersion.nupkg") -RequiredDependencies @("ShortenLink.Auditing", "ShortenLink.Core", "ShortenLink.Application", "ShortenLink.Infrastructure")
 )
 
 $summary = [pscustomobject]@{

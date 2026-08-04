@@ -25,18 +25,10 @@ internal sealed class UpsertCustomSecurityRoleCommandHandler(
         var actor = await requestContext.AuthorizeAsync(
             SecurityFeatureSupport.AdminOnly,
             cancellationToken);
-        if (string.IsNullOrWhiteSpace(request.Id))
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityRole, "Custom role id is required.", "id");
         if (ShortenLinkSystemRoles.PermissionBundles.ContainsKey(request.Id.Trim()))
             throw new BusinessRuleException(ErrorCodes.SystemRoleImmutable, "System roles cannot be created or updated through custom role APIs.");
-        if (string.IsNullOrWhiteSpace(request.Name))
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityRole, "Custom role name is required.", "name");
 
         var permissions = SecurityFeatureSupport.NormalizeDistinct(request.Permissions);
-        var unknown = permissions.FirstOrDefault(permission => !ShortenLinkPermissionCatalog.All.Contains(permission));
-        if (unknown is not null)
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidPermission, $"Unknown permission '{unknown}'.", "permissions");
-
         var roleId = request.Id.Trim();
         var existing = await roleRepository.FindCustomRoleAsync(roleId, cancellationToken);
         var role = new ShortenLinkCustomRole(

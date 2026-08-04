@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\ShortenLink.Auditing\ShortenLink.Auditing.csproj" />
     <ProjectReference Include="..\ShortenLink.Mediator\ShortenLink.Mediator.csproj" />
     <ProjectReference Include="..\ShortenLink.Messaging\ShortenLink.Messaging.csproj" />
     <ProjectReference Include="..\..\src\ShortenLink.Core\ShortenLink.Core.csproj" />
@@ -10,6 +11,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.6" />
   </ItemGroup>
 

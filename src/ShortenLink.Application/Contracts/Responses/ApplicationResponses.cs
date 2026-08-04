@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ShortenLink.Auditing;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Security;
 
@@ -295,17 +296,17 @@ public sealed record ShortLinkAuditEventResponse(
     string? SubjectUserId,
     string? Detail)
 {
-    public static ShortLinkAuditEventResponse FromDomain(ShortLinkAuditEvent auditEvent) =>
+    public static ShortLinkAuditEventResponse FromDomain(AuditEvent auditEvent) =>
         new(
             auditEvent.Id,
             auditEvent.ActorId,
             auditEvent.Action,
             auditEvent.TargetType,
             auditEvent.TargetId,
-            auditEvent.OwnerUserId,
+            auditEvent.OwnerId,
             auditEvent.Outcome,
             auditEvent.OccurredAt,
-            auditEvent.SubjectUserId,
+            auditEvent.SubjectId,
             auditEvent.Detail);
 }
 

@@ -18,7 +18,7 @@ The package is also packable as `ShortenLink.Messaging`.
 Memory is the default and needs no broker:
 
 ```csharp
-await using var queue = MessageQueueFactory.Create<ShortLinkAuditEvent>(
+await using var queue = MessageQueueFactory.Create<AuditEvent>(
     new MessageQueueOptions
     {
         Provider = MessageQueueProvider.Memory,
@@ -53,7 +53,7 @@ request processing.
 RabbitMQ is opt-in and requires an AMQP URI:
 
 ```csharp
-var queue = MessageQueueFactory.Create<ShortLinkAuditEvent>(
+var queue = MessageQueueFactory.Create<AuditEvent>(
     new MessageQueueOptions
     {
         Provider = MessageQueueProvider.RabbitMq,

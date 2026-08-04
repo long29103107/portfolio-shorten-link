@@ -1,6 +1,6 @@
 namespace ShortenLink.Infrastructure.Persistence.Entities;
 
-public sealed class ShortLinkAuditEventPersistenceEntity : BaseEntity<Guid>
+public sealed class AuditEventPersistenceEntity : BaseEntity<Guid>
 {
     public string ActorId { get; set; } = string.Empty;
 
@@ -20,27 +20,27 @@ public sealed class ShortLinkAuditEventPersistenceEntity : BaseEntity<Guid>
 
     public string? Detail { get; set; }
 
-    public static ShortLinkAuditEventPersistenceEntity FromDomain(ShortLinkAuditEvent auditEvent)
+    public static AuditEventPersistenceEntity FromDomain(AuditEvent auditEvent)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
 
-        return new ShortLinkAuditEventPersistenceEntity
+        return new AuditEventPersistenceEntity
         {
             Id = auditEvent.Id,
             ActorId = auditEvent.ActorId,
             Action = auditEvent.Action,
             TargetType = auditEvent.TargetType,
             TargetId = auditEvent.TargetId,
-            OwnerUserId = auditEvent.OwnerUserId,
+            OwnerUserId = auditEvent.OwnerId,
             Outcome = auditEvent.Outcome,
             OccurredAt = auditEvent.OccurredAt,
-            SubjectUserId = auditEvent.SubjectUserId,
+            SubjectUserId = auditEvent.SubjectId,
             Detail = auditEvent.Detail,
             CreatedAt = auditEvent.OccurredAt
         };
     }
 
-    public ShortLinkAuditEvent ToDomain() =>
+    public AuditEvent ToDomain() =>
         new(
             ActorId,
             Action,

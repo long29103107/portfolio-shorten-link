@@ -48,6 +48,7 @@ Assert-UnderDirectory -Path $FeedDirectory -Parent $tempRoot
 Assert-UnderDirectory -Path $WorkDirectory -Parent $tempRoot
 
 $packageIds = @(
+    "ShortenLink.Auditing",
     "ShortenLink.Core",
     "ShortenLink.Infrastructure",
     "ShortenLink.Hosting"

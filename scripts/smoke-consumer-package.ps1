@@ -160,7 +160,7 @@ try {
         ) | Out-Null
     }
 
-    foreach ($packageId in @("ShortenLink.Core", "ShortenLink.Infrastructure", "ShortenLink.Hosting")) {
+    foreach ($packageId in @("ShortenLink.Auditing", "ShortenLink.Core", "ShortenLink.Infrastructure", "ShortenLink.Hosting")) {
         $packagePath = Join-Path $PackageSource "$packageId.$PackageVersion.nupkg"
         if (-not (Test-Path -LiteralPath $packagePath)) {
             throw "Expected local package was not produced: $packagePath"
@@ -335,8 +335,8 @@ app.Run();
         throw "Delete short link failed with status $([int]$deleteResponse.StatusCode)."
     }
 
-    if ([int]$postDeleteRedirect.StatusCode -ne 410) {
-        throw "Post-delete redirect should be gone, got status $([int]$postDeleteRedirect.StatusCode)."
+    if ([int]$postDeleteRedirect.StatusCode -ne 404) {
+        throw "Post-delete redirect should be not found, got status $([int]$postDeleteRedirect.StatusCode)."
     }
 
     [pscustomobject]@{

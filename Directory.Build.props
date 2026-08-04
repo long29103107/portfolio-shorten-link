@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'ShortenLink.Mediator' and '$(MSBuildProjectName)' != 'ShortenLink.Messaging' and '$(MSBuildProjectName)' != 'ShortenLink.Messaging.Tests'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'ShortenLink.Auditing' and '$(MSBuildProjectName)' != 'ShortenLink.Mediator' and '$(MSBuildProjectName)' != 'ShortenLink.Messaging' and '$(MSBuildProjectName)' != 'ShortenLink.Messaging.Tests'">
     <Using Include="ShortenLink.Core.Abstractions" />
     <Using Include="ShortenLink.Core.Contracts" />
     <Using Include="ShortenLink.Core.Contracts.Queries" />
@@ -20,6 +20,22 @@
     <Using Include="ShortenLink.Core.Security.ShortenLinkSecurityAssignmentEntity" Alias="ShortenLinkSecurityAssignment" />
     <Using Include="ShortenLink.Core.Security.ShortenLinkSecurityUserEntity" Alias="ShortenLinkSecurityUser" />
     <Using Include="ShortenLink.Core.Security.ShortenLinkUserApiKeyEntity" Alias="ShortenLinkUserApiKey" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ShortenLink.Application' or '$(MSBuildProjectName)' == 'ShortenLink.Api'">
+    <Using Include="ShortenLink.Application.Contracts.Responses" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ShortenLink.Application' or '$(MSBuildProjectName)' == 'ShortenLink.Infrastructure' or '$(MSBuildProjectName)' == 'ShortenLink.Hosting'">
+    <Using Include="ShortenLink.Auditing" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ShortenLink.Application'">
+    <Using Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'ShortenLink.Infrastructure'">
+    <Using Include="ShortenLink.Infrastructure.Persistence.Entities" />
   </ItemGroup>
 
 </Project>

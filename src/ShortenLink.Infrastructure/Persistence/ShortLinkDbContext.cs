@@ -17,7 +17,7 @@ public sealed class ShortLinkDbContext : DbContext
 
     public DbSet<ShortLinkSharePersistenceEntity> ShortLinkShares => Set<ShortLinkSharePersistenceEntity>();
 
-    public DbSet<ShortLinkAuditEventPersistenceEntity> ShortLinkAuditEvents => Set<ShortLinkAuditEventPersistenceEntity>();
+    public DbSet<AuditEventPersistenceEntity> AuditEvents => Set<AuditEventPersistenceEntity>();
 
     public DbSet<ShortLinkExpirationCheckpointPersistenceEntity> ShortLinkExpirationCheckpoints => Set<ShortLinkExpirationCheckpointPersistenceEntity>();
 
@@ -198,7 +198,7 @@ public sealed class ShortLinkDbContext : DbContext
             entity.HasIndex(share => new { share.ShortCode, share.UserId }).IsUnique();
         });
 
-        modelBuilder.Entity<ShortLinkAuditEventPersistenceEntity>(entity =>
+        modelBuilder.Entity<AuditEventPersistenceEntity>(entity =>
         {
             entity.ToTable("short_link_audit_events");
             ConfigureBaseEntity(entity);

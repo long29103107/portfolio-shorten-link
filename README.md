@@ -8,6 +8,7 @@ The reusable library projects are intentionally separated from the demo applicat
 
 ```text
 shared/
+  ShortenLink.Auditing/          # Reusable audit contracts, writer, and buffering
   ShortenLink.Mediator/          # Dependency-free request/handler mediator
   ShortenLink.Hosting/           # ASP.NET Core DI, authorization, and host integration
 
@@ -37,6 +38,7 @@ so endpoint files do not contain repository logic or repeated error branches.
 | Package | Use when |
 |---|---|
 | `ShortenLink.Hosting` | You are building an ASP.NET Core host and want DI registration, options binding, authorization, redirect fallback, analytics worker integration, cache wiring, and rate limiting. |
+| `ShortenLink.Auditing` | You need host-agnostic audit events, read contracts, buffering, writer, repository boundaries, or queue boundaries. See `shared/ShortenLink.Auditing/README.md`. |
 | `ShortenLink.Core` | You need direct access to reusable domain models, validation, service contracts, request/result types, or `IShortLinkService` from non-host code. |
 | `ShortenLink.Infrastructure` | You are composing persistence manually or extending provider wiring. Most ASP.NET Core hosts receive it transitively through `ShortenLink.Hosting`. |
 
@@ -70,6 +72,7 @@ shared\ShortenLink.Hosting\bin\Release\ShortenLink.Hosting.1.0.0.nupkg
 Lower-level packages can also be packed when a consumer needs them directly:
 
 ```powershell
+dotnet pack shared\ShortenLink.Auditing\ShortenLink.Auditing.csproj -c Release
 dotnet pack src\ShortenLink.Core\ShortenLink.Core.csproj -c Release
 dotnet pack src\ShortenLink.Infrastructure\ShortenLink.Infrastructure.csproj -c Release
 ```
@@ -77,6 +80,7 @@ dotnet pack src\ShortenLink.Infrastructure\ShortenLink.Infrastructure.csproj -c 
 Their default output paths are:
 
 ```text
+shared\ShortenLink.Auditing\bin\Release\ShortenLink.Auditing.1.0.0.nupkg
 src\ShortenLink.Core\bin\Release\ShortenLink.Core.1.0.0.nupkg
 src\ShortenLink.Infrastructure\bin\Release\ShortenLink.Infrastructure.1.0.0.nupkg
 ```
@@ -113,7 +117,7 @@ Keep the dry-run package artifacts for inspection when needed:
 
 Use this checklist before any future real package publish:
 
-- Review package versions and release notes for `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting`.
+- Review package versions and release notes for `ShortenLink.Auditing`, `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting`.
 - Complete the maintainer preflight in `docs\nuget-publish-preflight.md`, including package ID ownership, account or organization ownership, API key scope, version availability, and release approval.
 - Run `dotnet build ShortenLink.slnx --verbosity minimal`.
 - Run `dotnet test ShortenLink.slnx --verbosity minimal`.
@@ -159,7 +163,7 @@ Use `-SkipDuplicate` only when retrying a partially completed publish and after 
 .\scripts\publish-nuget.ps1 -PackageVersion 1.0.0 -Publish -SkipDuplicate
 ```
 
-The publish script fails closed when `-Publish` is missing or no NuGet API key is available. When publishing is enabled, it reruns the release dry-run into `.tmp\nuget-publish` before pushing `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting`.
+The publish script fails closed when `-Publish` is missing or no NuGet API key is available. When publishing is enabled, it reruns the release dry-run into `.tmp\nuget-publish` before pushing `ShortenLink.Auditing`, `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting`.
 
 After publishing, verify the packages on NuGet, install `ShortenLink.Hosting` into a clean consumer app, and run the create, detail, redirect, and deactivate smoke flow again. If a bad package is published, prefer deprecating or unlisting the affected version and publishing a corrected version; do not overwrite the same NuGet version.
 
@@ -171,7 +175,7 @@ Before using real NuGet credentials, rehearse the publish path against a local f
 .\scripts\rehearse-local-feed.ps1 -PackageVersion 1.0.0 -ResetFeed
 ```
 
-The rehearsal validates packages with `release-dry-run.ps1`, copies `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting` into `.tmp\local-nuget-feed`, then runs the clean consumer smoke against that existing feed. It does not call `dotnet nuget push`, does not require credentials, and never publishes to NuGet.org.
+The rehearsal validates packages with `release-dry-run.ps1`, copies `ShortenLink.Auditing`, `ShortenLink.Core`, `ShortenLink.Infrastructure`, and `ShortenLink.Hosting` into `.tmp\local-nuget-feed`, then runs the clean consumer smoke against that existing feed. It does not call `dotnet nuget push`, does not require credentials, and never publishes to NuGet.org.
 
 If the feed already contains the same package version, the script fails closed. Start a clean rehearsal feed with `-ResetFeed`, or intentionally retry against existing packages with `-SkipDuplicate`:
 
@@ -240,7 +244,7 @@ Install the package:
 dotnet add package ShortenLink.Hosting --source .\.nupkg
 ```
 
-If the consumer needs direct access to lower-level contracts, install/reference `ShortenLink.Core` as well. If it needs to compose EF Core persistence manually, install/reference `ShortenLink.Infrastructure`. Normal API hosts should start with `ShortenLink.Hosting`.
+If the consumer needs generic audit contracts, install/reference `ShortenLink.Auditing`. For short-link domain contracts, install/reference `ShortenLink.Core`; for manual EF Core composition, install/reference `ShortenLink.Infrastructure`. Normal API hosts should start with `ShortenLink.Hosting`.
 
 ### ASP.NET Core Setup
 

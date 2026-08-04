@@ -1,6 +1,6 @@
 using System.Text.Json;
-using ShortenLink.Core.Contracts.Requests;
-using ShortenLink.Core.Contracts.Responses;
+using ShortenLink.Core.Contracts.Requests.BaseRequest;
+using ShortenLink.Core.Contracts.Responses.BaseResponse;
 using Xunit;
 
 namespace ShortenLink.Core.Tests;

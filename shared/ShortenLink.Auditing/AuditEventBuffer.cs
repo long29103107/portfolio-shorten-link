@@ -1,22 +1,20 @@
-using ShortenLink.Core.Domain;
-
-namespace ShortenLink.Application.Features.Audit;
+namespace ShortenLink.Auditing;
 
 public sealed class AuditEventBuffer
 {
-    private readonly List<ShortLinkAuditEvent> events = [];
+    private readonly List<AuditEvent> events = [];
 
-    public void Add(ShortLinkAuditEvent auditEvent)
+    public void Add(AuditEvent auditEvent)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
         events.Add(auditEvent);
     }
 
-    public IReadOnlyList<ShortLinkAuditEvent> Drain()
+    public IReadOnlyList<AuditEvent> Drain()
     {
         if (events.Count == 0)
         {
-            return Array.Empty<ShortLinkAuditEvent>();
+            return Array.Empty<AuditEvent>();
         }
 
         var pending = events.ToArray();

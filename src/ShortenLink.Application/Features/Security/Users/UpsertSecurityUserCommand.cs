@@ -28,13 +28,6 @@ internal sealed class UpsertSecurityUserCommandHandler(
         var actor = await requestContext.AuthorizeAsync(
             SecurityFeatureSupport.AdminOnly,
             cancellationToken);
-        if (string.IsNullOrWhiteSpace(request.Id))
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityUser, "User id is required.", "id");
-        if (string.IsNullOrWhiteSpace(request.Username))
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityUser, "Username is required.", "username");
-        if (string.IsNullOrWhiteSpace(request.DisplayName))
-            throw SecurityFeatureSupport.Validation(ErrorCodes.InvalidSecurityUser, "Display name is required.", "displayName");
-
         var id = request.Id.Trim();
         var existing = await userRepository.FindByIdAsync(id, cancellationToken);
         if (existing is { IsBootstrap: true })

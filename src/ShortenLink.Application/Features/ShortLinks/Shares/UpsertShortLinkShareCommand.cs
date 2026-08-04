@@ -29,9 +29,7 @@ internal sealed class UpsertShortLinkShareCommandHandler(
         await accessGuard.EnsureAccessAsync(
             link, user, ShortLinkShareAccess.Edit, true,
             "Only the owner or an admin can manage sharing.", cancellationToken);
-        if (string.IsNullOrWhiteSpace(request.Username)
-            || !Enum.TryParse<ShortLinkShareAccess>(request.Access, true, out var access))
-            throw new RequestValidationException(ErrorCodes.InvalidShare, "Choose a user and View or Edit access.");
+        var access = Enum.Parse<ShortLinkShareAccess>(request.Access, true);
         var target = await userRepository.FindByUsernameAsync(request.Username, cancellationToken);
         if (target is not { IsEnabled: true })
             throw new RequestValidationException(ErrorCodes.InvalidShareUser, "The selected user is unavailable.");

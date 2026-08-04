@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <ProjectReference Include="..\..\shared\ShortenLink.Auditing\ShortenLink.Auditing.csproj" />
     <ProjectReference Include="..\..\shared\ShortenLink.Mediator\ShortenLink.Mediator.csproj" />
     <ProjectReference Include="..\ShortenLink.Core\ShortenLink.Core.csproj" />
   </ItemGroup>

@@ -1,3 +1,4 @@
+using ShortenLink.Auditing;
 using ShortenLink.Application.Abstractions;
 using ShortenLink.Application.Behaviors;
 using ShortenLink.Application.Features.Audit;
@@ -53,13 +54,14 @@ public sealed class UnitOfWorkPipelineBehaviorTests
         Assert.Empty(buffer.Drain());
     }
 
-    private static ShortLinkAuditEvent CreateEvent() =>
+    private static AuditEvent CreateEvent() =>
         new(
             "user-1",
             ShortLinkAuditActions.Created,
             "abc1234",
             "user-1",
-            DateTimeOffset.UnixEpoch);
+            DateTimeOffset.UnixEpoch,
+            targetType: ShortLinkAuditTargetTypes.ShortLink);
 
     private sealed record TestRequest : IRequest<string>;
 
@@ -74,7 +76,7 @@ public sealed class UnitOfWorkPipelineBehaviorTests
     private sealed class ThrowingAuditQueue : IAuditEventQueue
     {
         public Task<bool> EnqueueAsync(
-            ShortLinkAuditEvent auditEvent,
+            AuditEvent auditEvent,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("audit-storage-failed");
     }

@@ -43,6 +43,7 @@ public static class ShortenLinkEndpointMappings
     {
         var group = endpoints.MapGroup(NormalizePrefix(endpointOptions.ManagementRoutePrefix))
             .WithTags("Short Links");
+        group.AddEndpointFilter(new ShortenLinkExceptionEndpointFilter());
         ApplyPolicy(group, endpointOptions.AuthorizationPolicyName);
 
         group.MapGet("/", ListShortLinksAsync).WithName("ListShortenLinkEndpoints");
@@ -108,6 +109,7 @@ public static class ShortenLinkEndpointMappings
                 options.Value.Redirect.FrontendFallbackPath), cancellationToken);
             return TypedResults.Redirect(response.Location);
         }).WithName("RedirectShortenLinkEndpoint");
+        redirectEndpoint.AddEndpointFilter(new ShortenLinkExceptionEndpointFilter());
 
         ApplyPolicy(redirectEndpoint, endpointOptions.AuthorizationPolicyName);
         var rateOptions = endpoints.ServiceProvider.GetRequiredService<IOptions<ShortenLinkOptions>>().Value;

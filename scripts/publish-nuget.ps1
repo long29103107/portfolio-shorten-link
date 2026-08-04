@@ -98,6 +98,7 @@ $PackageDirectory = [System.IO.Path]::GetFullPath($PackageDirectory)
 Assert-UnderDirectory -Path $PackageDirectory -Parent $tempRoot
 
 $packageIds = @(
+    "ShortenLink.Auditing",
     "ShortenLink.Core",
     "ShortenLink.Infrastructure",
     "ShortenLink.Hosting"

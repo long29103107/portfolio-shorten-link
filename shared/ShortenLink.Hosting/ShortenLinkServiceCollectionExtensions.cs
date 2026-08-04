@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
@@ -16,9 +17,13 @@ using ShortenLink.Core.Services;
 using ShortenLink.Core.Abstractions;
 using ShortenLink.Application.Services;
 using ShortenLink.Application.Abstractions;
+using ShortenLink.Application.Behaviors;
 using ShortenLink.Application.Features.Audit;
+using ShortenLink.Application.Features.ShortLinks;
+using ShortenLink.Application.Features.ShortLinks.Create;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Repositories;
+using ShortenLink.Mediator;
 using ShortenLink.Messaging;
 
 namespace ShortenLink.Hosting;
@@ -130,9 +135,14 @@ public static class ShortenLinkServiceCollectionExtensions
             services.TryAddScoped<IUnitOfWork, EfCoreUnitOfWork>();
             services.TryAddScoped<IShortLinkClickRepository, EfCoreShortLinkClickRepository>();
             services.TryAddScoped<IShortLinkShareRepository, EfCoreShortLinkShareRepository>();
-            services.TryAddScoped<IShortLinkAuditRepository, EfCoreShortLinkAuditRepository>();
+            services.TryAddScoped<IAuditRepository, EfCoreShortLinkAuditRepository>();
         }
         services.TryAddScoped<AuditEventBuffer>();
+        services.TryAddScoped<AuditWriter>();
+        services.TryAddScoped<ShortLinkAccessGuard>();
+        services.TryAddScoped<ShortLinkAuditWriter>();
+        services.AddValidatorsFromAssemblyContaining<CreateShortLinkCommand>(ServiceLifetime.Scoped);
+        RegisterApplicationMediator(services, typeof(CreateShortLinkCommand).Assembly);
         if (!hostOptions.RedirectOnly && !hostOptions.UseExternalPersistence)
         {
             services.TryAddScoped<IShortenLinkSecurityAssignmentRepository, EfCoreShortenLinkSecurityAssignmentRepository>();
@@ -189,6 +199,47 @@ public static class ShortenLinkServiceCollectionExtensions
 
         return services;
     }
+
+    private static void RegisterApplicationMediator(
+        IServiceCollection services,
+        params System.Reflection.Assembly[] assemblies)
+    {
+        foreach (var implementationType in assemblies
+                     .Distinct()
+                     .SelectMany(static assembly => assembly.DefinedTypes)
+                     .Where(static type => type is { IsAbstract: false, IsInterface: false }))
+        {
+            foreach (var serviceType in implementationType.ImplementedInterfaces.Where(IsMediatorHandler))
+            {
+                services.TryAddScoped(serviceType, implementationType);
+            }
+        }
+
+        services.TryAddScoped<MediatorServiceFactory>(serviceProvider =>
+            serviceType => serviceProvider.GetRequiredService(serviceType));
+        services.TryAddScoped<MediatorServiceEnumerableFactory>(serviceProvider =>
+            serviceType => serviceProvider.GetServices(serviceType).Cast<object>());
+        services.TryAddScoped<ApplicationMediator>();
+        services.TryAddScoped<ISender>(serviceProvider => serviceProvider.GetRequiredService<ApplicationMediator>());
+        services.TryAddScoped<IPublisher>(serviceProvider => serviceProvider.GetRequiredService<ApplicationMediator>());
+        services.TryAddScoped<IMediator>(serviceProvider => serviceProvider.GetRequiredService<ApplicationMediator>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped(
+            typeof(IPipelineBehavior<,>),
+            typeof(LoggingPipelineBehavior<,>)));
+        services.TryAddEnumerable(ServiceDescriptor.Scoped(
+            typeof(IPipelineBehavior<,>),
+            typeof(ValidationPipelineBehavior<,>)));
+        services.TryAddEnumerable(ServiceDescriptor.Scoped(
+            typeof(IPipelineBehavior<,>),
+            typeof(UnitOfWorkPipelineBehavior<,>)));
+    }
+
+    private static bool IsMediatorHandler(Type type) =>
+        !type.ContainsGenericParameters
+        && type.IsGenericType
+        && type.GetGenericTypeDefinition() is var definition
+        && (definition == typeof(IRequestHandler<,>)
+            || definition == typeof(INotificationHandler<>));
 
     private static void RegisterRateLimiting(IServiceCollection services)
     {
@@ -313,10 +364,10 @@ public static class ShortenLinkServiceCollectionExtensions
 
     private static void RegisterAuditQueue(IServiceCollection services)
     {
-        services.TryAddSingleton<IMessageQueue<ShortLinkAuditEvent>>(serviceProvider =>
+        services.TryAddSingleton<IMessageQueue<AuditEvent>>(serviceProvider =>
         {
             var options = serviceProvider.GetRequiredService<IOptions<ShortenLinkOptions>>().Value;
-            return MessageQueueFactory.Create<ShortLinkAuditEvent>(
+            return MessageQueueFactory.Create<AuditEvent>(
                 new MessageQueueOptions
                 {
                     Provider = options.Queue.Provider,
@@ -326,7 +377,7 @@ public static class ShortenLinkServiceCollectionExtensions
                 },
                 options.Queue.AuditQueueName);
         });
-        services.TryAddSingleton<IAuditEventQueue, MessageQueueShortLinkAuditEventQueue>();
+        services.TryAddSingleton<IAuditEventQueue, MessageQueueAuditEventQueue>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IHostedService, ShortLinkAuditBackgroundService>());
     }

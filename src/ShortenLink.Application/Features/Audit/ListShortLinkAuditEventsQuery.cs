@@ -1,27 +1,19 @@
 using System.Globalization;
 using System.Text;
 using ShortenLink.Application.Abstractions;
-using ShortenLink.Core.Abstractions;
-using ShortenLink.Core.Contracts.Queries;
 using ShortenLink.Application.Contracts.Responses;
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
+using ShortenLink.Auditing;
 
 namespace ShortenLink.Application.Features.Audit;
 
-public sealed record ListShortLinkAuditEventsQuery(
-    int? Limit,
-    string? Cursor,
-    string? Action,
-    string? TargetId,
-    string? ActorId,
-    DateTimeOffset? From,
-    DateTimeOffset? To) : IRequest<ShortLinkAuditEventsResponse>;
+public sealed record ListShortLinkAuditEventsQuery(AuditLogEndpointRequest Params) : IRequest<ShortLinkAuditEventsResponse>;
 
 public sealed record ListShortLinkAuditActionsQuery : IRequest<ShortLinkAuditActionsResponse>;
 
 internal sealed class ListShortLinkAuditActionsQueryHandler(
-    IShortLinkAuditRepository auditRepository,
+    IAuditRepository auditRepository,
     IShortLinkShareRepository shareRepository,
     ICurrentRequestContext requestContext)
     : IRequestHandler<ListShortLinkAuditActionsQuery, ShortLinkAuditActionsResponse>
@@ -39,14 +31,14 @@ internal sealed class ListShortLinkAuditActionsQueryHandler(
                 .Keys
                 .ToHashSet(StringComparer.Ordinal);
         var actions = await auditRepository.ListActionsAsync(
-            new ShortLinkAuditAccessScope(actor.UserId, actor.IsAdmin, sharedCodes),
+            new AuditReadScope(actor.UserId, actor.IsAdmin, sharedCodes),
             cancellationToken);
         return new ShortLinkAuditActionsResponse(actions);
     }
 }
 
 internal sealed class ListShortLinkAuditEventsQueryHandler(
-    IShortLinkAuditRepository auditRepository,
+    IAuditRepository auditRepository,
     IShortLinkShareRepository shareRepository,
     ICurrentRequestContext requestContext)
     : IRequestHandler<ListShortLinkAuditEventsQuery, ShortLinkAuditEventsResponse>
@@ -59,14 +51,7 @@ internal sealed class ListShortLinkAuditEventsQueryHandler(
             ShortenLinkPermissionCatalog.AuditLogsRead,
             cancellationToken);
 
-        if (request.From is not null && request.To is not null && request.From > request.To)
-        {
-            throw new RequestValidationException(
-                ErrorCodes.InvalidFilter,
-                "The audit time range is invalid.");
-        }
-
-        if (!TryDecodeCursor(request.Cursor, out var beforeOccurredAt, out var beforeId))
+        if (!TryDecodeCursor(request.Params.Cursor, out var beforeOccurredAt, out var beforeId))
         {
             throw new RequestValidationException(
                 ErrorCodes.InvalidCursor,
@@ -78,22 +63,23 @@ internal sealed class ListShortLinkAuditEventsQueryHandler(
             : (await shareRepository.ListSharedAccessAsync(actor.UserId, cancellationToken))
                 .Keys
                 .ToHashSet(StringComparer.Ordinal);
-        var limit = Math.Clamp(request.Limit ?? 50, 1, 200);
+        var limit = Math.Clamp(request.Params.Limit ?? 50, 1, 200);
         var page = await auditRepository.ListAsync(
-            new ShortLinkAuditQuery(
+            new AuditQuery(
                 limit,
                 beforeOccurredAt,
                 beforeId,
-                Normalize(request.Action),
-                Normalize(request.TargetId),
-                Normalize(request.ActorId),
-                request.From,
-                request.To,
-                new ShortLinkAuditAccessScope(actor.UserId, actor.IsAdmin, sharedCodes)),
+                Normalize(request.Params.Action),
+                Normalize(request.Params.TargetId),
+                Normalize(request.Params.ActorId),
+                request.Params.From,
+                request.Params.To,
+                new AuditReadScope(actor.UserId, actor.IsAdmin, sharedCodes)),
             cancellationToken);
 
         var items = page.Items
-            .Select(ShortLinkAuditEventResponse.FromDomain)
+            .Select(static auditEvent =>
+                ShortLinkAuditEventResponse.FromDomain(auditEvent))
             .ToList();
         var nextCursor = items.Count == limit
             ? EncodeCursor(items[^1].OccurredAtUtc, items[^1].Id)

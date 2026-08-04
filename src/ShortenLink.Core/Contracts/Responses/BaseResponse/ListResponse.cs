@@ -1,4 +1,4 @@
-namespace ShortenLink.Core.Contracts.Responses;
+namespace ShortenLink.Core.Contracts.Responses.BaseResponse;
 
 using System.Text.Json.Serialization;
 

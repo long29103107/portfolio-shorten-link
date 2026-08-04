@@ -1,8 +1,8 @@
-using ShortenLink.Core.Contracts.Requests.BaseRequest;
+﻿using ShortenLink.Core.Contracts.Requests.BaseRequest;
 
-namespace ShortenLink.Api.Endpoints;
+namespace ShortenLink.Core.Contracts.Requests;
 
-internal sealed class AuditLogEndpointRequest : ListRequest
+public sealed class AuditLogEndpointRequest : ListRequest
 {
     public int? Page { get; set; }
 

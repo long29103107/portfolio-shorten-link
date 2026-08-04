@@ -16,14 +16,7 @@ internal static class AuditLogEndpoints
                     ISender sender,
                     CancellationToken cancellationToken) =>
                     sender.Send(
-                        new ListShortLinkAuditEventsQuery(
-                            request.Limit,
-                            request.Cursor,
-                            request.Action,
-                            request.TargetId,
-                            request.ActorId,
-                            request.From,
-                            request.To),
+                        new ListShortLinkAuditEventsQuery(request),
                         cancellationToken))
             .WithTags("Audit Logs")
             .WithName("ListAuditLogs");

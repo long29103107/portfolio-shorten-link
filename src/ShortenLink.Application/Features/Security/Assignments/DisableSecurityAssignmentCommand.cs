@@ -20,12 +20,6 @@ internal sealed class DisableSecurityAssignmentCommandHandler(
         var actor = await requestContext.AuthorizeAsync(
             SecurityFeatureSupport.AdminOnly,
             cancellationToken);
-        if (request.CredentialKeyHash.Length != 64
-            || request.CredentialKeyHash.Any(static value =>
-                value is not (>= '0' and <= '9')
-                    and not (>= 'a' and <= 'f')
-                    and not (>= 'A' and <= 'F')))
-            throw new RequestValidationException(ErrorCodes.InvalidCredentialHash, "Credential key hash is invalid.");
         var existing = await assignmentRepository.FindByCredentialKeyHashAsync(
             request.CredentialKeyHash,
             cancellationToken);

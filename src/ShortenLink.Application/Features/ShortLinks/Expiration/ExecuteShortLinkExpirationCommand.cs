@@ -25,13 +25,6 @@ internal sealed class ExecuteShortLinkExpirationCommandHandler(
         var actor = await accessGuard.GetAuthorizedUserAsync(
             ShortenLinkPermissionCatalog.ShortLinksStatus,
             cancellationToken);
-        if (request.RetainExpiredForSeconds is < 0)
-        {
-            throw new RequestValidationException(
-                ShortLinkErrorCodes.InvalidExpiration,
-                "Retention duration cannot be negative.");
-        }
-
         var retentionPolicy = request.RetainExpiredForSeconds is null
             ? null
             : new ShortLinkRetentionPolicy(TimeSpan.FromSeconds(request.RetainExpiredForSeconds.Value));

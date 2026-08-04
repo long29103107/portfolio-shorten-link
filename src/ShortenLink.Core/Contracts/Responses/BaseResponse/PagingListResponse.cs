@@ -1,4 +1,4 @@
-namespace ShortenLink.Core.Contracts.Responses;
+namespace ShortenLink.Core.Contracts.Responses.BaseResponse;
 
 public class PagingListResponse<T> : ListResponse<T> where T : class
 {

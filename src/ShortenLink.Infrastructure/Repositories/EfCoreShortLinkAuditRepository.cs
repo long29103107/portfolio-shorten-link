@@ -7,21 +7,21 @@ using ShortenLink.Infrastructure.Persistence;
 namespace ShortenLink.Infrastructure.Repositories;
 
 public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
-    : EfCoreRepository<ShortLinkAuditEventPersistenceEntity>(dbContext), IShortLinkAuditRepository
+    : EfCoreRepository<AuditEventPersistenceEntity>(dbContext), IAuditRepository
 {
     public async Task AddAsync(
-        ShortLinkAuditEvent auditEvent,
+        AuditEvent auditEvent,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
 
         await AddEntityAsync(
-            ShortLinkAuditEventPersistenceEntity.FromDomain(auditEvent),
+            AuditEventPersistenceEntity.FromDomain(auditEvent),
             cancellationToken);
     }
 
-    public async Task<ShortLinkAuditPage> ListAsync(
-        ShortLinkAuditQuery query,
+    public async Task<AuditPage> ListAsync(
+        AuditQuery query,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -31,7 +31,7 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
             ? ApplySqliteDateRange(ReadOnlyEntities, query.From, query.To)
             : ReadOnlyEntities;
         var filtered = ApplyFilters(
-            ApplyAccessScope(filteredSource, query.AccessScope),
+            ApplyAccessScope(filteredSource, query.ReadScope),
             query,
             includeDateFilters: !sqliteDateQuery);
 
@@ -60,11 +60,11 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
                 {
                     var remaining = safeLimit - selected.Count;
                     var olderSource = ApplySqliteDateRange(
-                        DbContext.Set<ShortLinkAuditEventPersistenceEntity>(),
+                        DbContext.Set<AuditEventPersistenceEntity>(),
                         query.From,
                         query.To,
                         lessThan: cursor);
-                    var older = await ApplyFilters(ApplyAccessScope(olderSource, query.AccessScope), query, includeDateFilters: false)
+                    var older = await ApplyFilters(ApplyAccessScope(olderSource, query.ReadScope), query, includeDateFilters: false)
                         .OrderByDescending(record => record.OccurredAt.ToString())
                         .ThenByDescending(record => record.Id)
                         .Take(remaining)
@@ -72,7 +72,7 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
                     selected.AddRange(older);
                 }
 
-                return new ShortLinkAuditPage(selected.Select(record => record.ToDomain()).ToList());
+                return new AuditPage(selected.Select(record => record.ToDomain()).ToList());
             }
 
             filtered = filtered.Where(record => record.OccurredAt < query.BeforeOccurredAt
@@ -88,12 +88,12 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
             .Select(record => record.ToDomain())
             .ToListAsync(cancellationToken);
 
-        return new ShortLinkAuditPage(page);
+        return new AuditPage(page);
     }
 
-    private static IQueryable<ShortLinkAuditEventPersistenceEntity> ApplyFilters(
-        IQueryable<ShortLinkAuditEventPersistenceEntity> query,
-        ShortLinkAuditQuery filter,
+    private static IQueryable<AuditEventPersistenceEntity> ApplyFilters(
+        IQueryable<AuditEventPersistenceEntity> query,
+        AuditQuery filter,
         bool includeDateFilters = true)
     {
         if (!string.IsNullOrWhiteSpace(filter.Action))
@@ -125,7 +125,7 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
     }
 
     public async Task<IReadOnlyList<string>> ListActionsAsync(
-        ShortLinkAuditAccessScope accessScope,
+        AuditReadScope accessScope,
         CancellationToken cancellationToken = default)
     {
         var query = ApplyAccessScope(ReadOnlyEntities, accessScope);
@@ -136,8 +136,8 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
             .ToListAsync(cancellationToken);
     }
 
-    private IQueryable<ShortLinkAuditEventPersistenceEntity> ApplySqliteDateRange(
-        IQueryable<ShortLinkAuditEventPersistenceEntity> query,
+    private IQueryable<AuditEventPersistenceEntity> ApplySqliteDateRange(
+        IQueryable<AuditEventPersistenceEntity> query,
         DateTimeOffset? from,
         DateTimeOffset? to,
         DateTimeOffset? lessThan = null)
@@ -146,46 +146,46 @@ public sealed class EfCoreShortLinkAuditRepository(ShortLinkDbContext dbContext)
         {
             return (from, to) switch
             {
-                (not null, not null) => DbContext.Set<ShortLinkAuditEventPersistenceEntity>()
+                (not null, not null) => DbContext.Set<AuditEventPersistenceEntity>()
                     .FromSqlInterpolated($"SELECT * FROM short_link_audit_events WHERE OccurredAt < {lessThan.Value} AND OccurredAt >= {from!.Value} AND OccurredAt <= {to!.Value}"),
-                (not null, null) => DbContext.Set<ShortLinkAuditEventPersistenceEntity>()
+                (not null, null) => DbContext.Set<AuditEventPersistenceEntity>()
                     .FromSqlInterpolated($"SELECT * FROM short_link_audit_events WHERE OccurredAt < {lessThan.Value} AND OccurredAt >= {from!.Value}"),
-                (null, not null) => DbContext.Set<ShortLinkAuditEventPersistenceEntity>()
+                (null, not null) => DbContext.Set<AuditEventPersistenceEntity>()
                     .FromSqlInterpolated($"SELECT * FROM short_link_audit_events WHERE OccurredAt < {lessThan.Value} AND OccurredAt <= {to!.Value}"),
-                _ => DbContext.Set<ShortLinkAuditEventPersistenceEntity>()
+                _ => DbContext.Set<AuditEventPersistenceEntity>()
                     .FromSqlInterpolated($"SELECT * FROM short_link_audit_events WHERE OccurredAt < {lessThan.Value}")
             };
         }
 
         return (from, to) switch
         {
-            (not null, not null) => DbContext.Set<ShortLinkAuditEventPersistenceEntity>()
+            (not null, not null) => DbContext.Set<AuditEventPersistenceEntity>()
                 .FromSqlInterpolated($"SELECT * FROM short_link_audit_events WHERE OccurredAt >= {from!.Value} AND OccurredAt <= {to!.Value}"),
-            (not null, null) => DbContext.Set<ShortLinkAuditEventPersistenceEntity>()
+            (not null, null) => DbContext.Set<AuditEventPersistenceEntity>()
                 .FromSqlInterpolated($"SELECT * FROM short_link_audit_events WHERE OccurredAt >= {from!.Value}"),
-            (null, not null) => DbContext.Set<ShortLinkAuditEventPersistenceEntity>()
+            (null, not null) => DbContext.Set<AuditEventPersistenceEntity>()
                 .FromSqlInterpolated($"SELECT * FROM short_link_audit_events WHERE OccurredAt <= {to!.Value}"),
             _ => query
         };
     }
 
-    private static IQueryable<ShortLinkAuditEventPersistenceEntity> ApplyAccessScope(
-        IQueryable<ShortLinkAuditEventPersistenceEntity> query,
-        ShortLinkAuditAccessScope scope)
+    private static IQueryable<AuditEventPersistenceEntity> ApplyAccessScope(
+        IQueryable<AuditEventPersistenceEntity> query,
+        AuditReadScope scope)
     {
         ArgumentNullException.ThrowIfNull(scope);
-        if (scope.IsAdmin)
+        if (scope.HasFullAccess)
         {
             return query;
         }
 
-        if (string.IsNullOrWhiteSpace(scope.UserId))
+        if (string.IsNullOrWhiteSpace(scope.PrincipalId))
         {
             return query.Where(_ => false);
         }
 
-        var sharedCodes = scope.SharedShortCodes.ToArray();
-        return query.Where(record => record.OwnerUserId == scope.UserId
+        var sharedCodes = scope.AccessibleTargetIds.ToArray();
+        return query.Where(record => record.OwnerUserId == scope.PrincipalId
             || (record.TargetType == ShortLinkAuditTargetTypes.ShortLink
                 && sharedCodes.Contains(record.TargetId)));
     }

@@ -1,61 +1,5 @@
 namespace ShortenLink.Core.Domain;
 
-public sealed class ShortLinkAuditEvent
-{
-    public ShortLinkAuditEvent(
-        string actorId,
-        string action,
-        string targetId,
-        string? ownerUserId,
-        DateTimeOffset occurredAt,
-        string outcome = ShortLinkAuditOutcomes.Succeeded,
-        string? subjectUserId = null,
-        string? detail = null,
-        Guid? id = null,
-        string targetType = ShortLinkAuditTargetTypes.ShortLink)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(action);
-        ArgumentException.ThrowIfNullOrWhiteSpace(targetType);
-        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(outcome);
-
-        Id = id ?? Guid.CreateVersion7();
-        ActorId = actorId.Trim();
-        Action = action.Trim();
-        TargetType = targetType.Trim();
-        TargetId = targetId.Trim();
-        OwnerUserId = Normalize(ownerUserId);
-        OccurredAt = occurredAt;
-        Outcome = outcome.Trim();
-        SubjectUserId = Normalize(subjectUserId);
-        Detail = Normalize(detail);
-    }
-
-    public Guid Id { get; }
-
-    public string ActorId { get; }
-
-    public string Action { get; }
-
-    public string TargetType { get; }
-
-    public string TargetId { get; }
-
-    public string? OwnerUserId { get; }
-
-    public string Outcome { get; }
-
-    public DateTimeOffset OccurredAt { get; }
-
-    public string? SubjectUserId { get; }
-
-    public string? Detail { get; }
-
-    private static string? Normalize(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-}
-
 public static class ShortLinkAuditActions
 {
     public const string Created = "short_link.created";
@@ -130,9 +74,4 @@ public static class ShortLinkAuditTargetTypes
             SecurityAssignment
         ],
         StringComparer.Ordinal);
-}
-
-public static class ShortLinkAuditOutcomes
-{
-    public const string Succeeded = "succeeded";
 }

@@ -8,7 +8,7 @@ using ShortenLink.Messaging;
 namespace ShortenLink.Hosting;
 
 internal sealed class ShortLinkAuditBackgroundService(
-    IMessageQueue<ShortLinkAuditEvent> queue,
+    IMessageQueue<AuditEvent> queue,
     IServiceScopeFactory scopeFactory,
     ILogger<ShortLinkAuditBackgroundService> logger) : BackgroundService
 {
@@ -21,7 +21,7 @@ internal sealed class ShortLinkAuditBackgroundService(
             {
                 using var scope = scopeFactory.CreateScope();
                 var repository = scope.ServiceProvider
-                    .GetRequiredService<IShortLinkAuditRepository>();
+                    .GetRequiredService<IAuditRepository>();
                 await repository.AddAsync(auditEvent, stoppingToken);
                 await delivery.AckAsync(stoppingToken);
             }
