@@ -20,7 +20,7 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
             cancellationToken);
     }
 
-    public async Task<ShortLinkClickSummary> GetSummaryAsync(
+    public async Task<ShortLinkClickSummaryResponse> GetSummaryAsync(
         string shortCode,
         CancellationToken cancellationToken = default)
     {
@@ -36,10 +36,10 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
                 .Select(click => (DateTimeOffset?)click.ClickedAtUtc)
                 .FirstAsync(cancellationToken);
 
-        return new ShortLinkClickSummary(shortCode, clickCount, lastClickedAtUtc);
+        return new ShortLinkClickSummaryResponse(shortCode, clickCount, lastClickedAtUtc);
     }
 
-    public Task<ShortLinkClickSummary> GetSummaryAsync(
+    public Task<ShortLinkClickSummaryResponse> GetSummaryAsync(
         string shortCode,
         string tenantId,
         CancellationToken cancellationToken = default) =>
@@ -69,7 +69,7 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
         CancellationToken cancellationToken = default) =>
         ListRecentCoreAsync(shortCode, tenantId, limit, cancellationToken);
 
-    private async Task<ShortLinkClickSummary> GetSummaryCoreAsync(
+    private async Task<ShortLinkClickSummaryResponse> GetSummaryCoreAsync(
         string shortCode,
         string tenantId,
         CancellationToken cancellationToken)
@@ -84,7 +84,7 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
                 .OrderByDescending(click => click.ClickedAtUtc.ToString())
                 .Select(click => (DateTimeOffset?)click.ClickedAtUtc)
                 .FirstAsync(cancellationToken);
-        return new ShortLinkClickSummary(
+        return new ShortLinkClickSummaryResponse(
             shortCode,
             clickCount,
             lastClickedAtUtc);

@@ -12,6 +12,25 @@ public interface IShortLinkCache
 }
 
 /// <summary>
+/// Optional cache capability that coalesces concurrent misses and can retain a
+/// short-lived negative result. The loader is invoked only after the cache has
+/// confirmed that the key is absent.
+/// </summary>
+public interface IShortLinkCacheLoader
+{
+    Task<ShortLink?> GetOrCreateAsync(
+        string code,
+        Func<CancellationToken, Task<ShortLink?>> loader,
+        CancellationToken cancellationToken = default);
+
+    Task<ShortLink?> GetOrCreateAsync(
+        string code,
+        string tenantId,
+        Func<CancellationToken, Task<ShortLink?>> loader,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Optional cache capability for tenant-partitioned resolve entries.
 /// Providers that do not implement this capability are bypassed for tenant-aware requests.
 /// </summary>

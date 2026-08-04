@@ -74,6 +74,9 @@ public static class ShortenLinkServiceCollectionExtensions
                 static options => options.Cache.EntryTtlSeconds > 0,
                 "ShortenLink:Cache:EntryTtlSeconds must be greater than 0.")
             .Validate(
+                static options => options.Cache.NegativeEntryTtlSeconds > 0,
+                "ShortenLink:Cache:NegativeEntryTtlSeconds must be greater than 0.")
+            .Validate(
                 static options => !IsRedisCacheEnabled(options.Cache)
                     || !string.IsNullOrWhiteSpace(options.Cache.RedisConnectionString),
                 "ShortenLink:Cache:RedisConnectionString is required when Redis cache is enabled.")

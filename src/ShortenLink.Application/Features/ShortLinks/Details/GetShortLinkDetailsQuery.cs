@@ -1,5 +1,6 @@
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
+using ShortLinkDetailsResponse = ShortenLink.Application.Contracts.Responses.ShortLinkDetailsResponse;
 
 namespace ShortenLink.Application.Features.ShortLinks.Details;
 

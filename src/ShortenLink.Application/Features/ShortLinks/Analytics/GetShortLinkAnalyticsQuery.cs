@@ -1,7 +1,7 @@
 using ShortenLink.Core.Security;
 using ShortenLink.Core.Exceptions;
 using ShortenLink.Core.Abstractions;
-using ShortenLink.Core.Contracts.Results;
+using ShortenLink.Core.Contracts.Responses;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Services;
 using ShortenLink.Mediator;
@@ -29,7 +29,7 @@ internal sealed class GetShortLinkAnalyticsQueryHandler(
         await accessGuard.EnsureAccessAsync(
             link, user, ShortLinkShareAccess.View, false,
             "You do not have access to this short link.", cancellationToken);
-        ShortLinkClickSummary summary;
+        ShortLinkClickSummaryResponse summary;
         IReadOnlyList<ShortLinkClickEntity> clicks;
         if (link.TenantId is null)
         {

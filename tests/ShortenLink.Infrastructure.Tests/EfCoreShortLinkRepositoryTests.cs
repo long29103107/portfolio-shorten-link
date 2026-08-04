@@ -83,6 +83,38 @@ public sealed class EfCoreShortLinkRepositoryTests
     }
 
     [Fact]
+    public async Task ListPageAsync_UsesCreatedCursorForFilteredTraversal()
+    {
+        await using var database = await SqliteTestDatabase.CreateAsync();
+        var repository = database.CreateRepository();
+        var cursorTime = new DateTimeOffset(2026, 7, 24, 3, 0, 0, TimeSpan.Zero);
+        await repository.AddAsync(new ShortLink(
+            "a000001", new Uri("https://example.com/a"), cursorTime));
+        await repository.AddAsync(new ShortLink(
+            "b000001", new Uri("https://example.com/b"), cursorTime));
+        await repository.AddAsync(new ShortLink(
+            "c000001", new Uri("https://example.com/c"), cursorTime));
+        await repository.AddAsync(new ShortLink(
+            "older01", new Uri("https://example.com/older"), cursorTime.AddMinutes(-1)));
+
+        var page = await repository.ListPageAsync(
+            0,
+            2,
+            new ShortLinkListQuery(
+                null,
+                ShortLinkListStatus.All,
+                ShortLinkListSortBy.Created,
+                ShortLinkSortDirection.Desc,
+                cursorTime,
+                cursorTime.AddDays(7),
+                BeforeCreatedAt: cursorTime,
+                BeforeCode: "a000001"));
+
+        Assert.Equal(3, page.TotalCount);
+        Assert.Equal(new[] { "b000001", "c000001" }, page.Items.Select(item => item.Code));
+    }
+
+    [Fact]
     public async Task ExistsByCodeAsync_ReturnsTrueOnlyWhenCodeExists()
     {
         await using var database = await SqliteTestDatabase.CreateAsync();

@@ -10,7 +10,7 @@
     <Using Include="ShortenLink.Core.Contracts" />
     <Using Include="ShortenLink.Core.Contracts.Queries" />
     <Using Include="ShortenLink.Core.Contracts.Requests" />
-    <Using Include="ShortenLink.Core.Contracts.Results" />
+    <Using Include="ShortenLink.Core.Contracts.Responses" />
     <Using Include="ShortenLink.Core.Domain" />
     <Using Include="ShortenLink.Core.Exceptions" />
 

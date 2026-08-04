@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using ShortenLink.Application.Abstractions;
 using ShortenLink.Core;
 using ShortenLink.Core.Contracts.Requests;
-using ShortenLink.Core.Contracts.Results;
+using ShortenLink.Core.Contracts.Responses;
 using ShortenLink.Core.Services;
 
 namespace ShortenLink.Application.Services;
@@ -29,20 +29,20 @@ public sealed class ShortLinkImportValidator(TimeProvider timeProvider) : IShort
 
             var error = ValidateItem(item, now, seenIdempotencyKeys);
             var result = error is null
-                ? new ShortLinkImportItemResult(itemNumber, true)
-                : new ShortLinkImportItemResult(itemNumber, false, error.Value.Code, error.Value.Message);
+                ? new ShortLinkImportItemResponse(itemNumber, true)
+                : new ShortLinkImportItemResponse(itemNumber, false, error.Value.Code, error.Value.Message);
             yield return new ShortLinkImportValidationItem(itemNumber, item, result);
             await Task.Yield();
         }
     }
 
-    public async Task<ShortLinkImportDryRunResult> ValidateDryRunAsync(
+    public async Task<ShortLinkImportDryRunResponse> ValidateDryRunAsync(
         IAsyncEnumerable<ShortLinkImportItemRequest> items,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        var results = new List<ShortLinkImportItemResult>();
+        var results = new List<ShortLinkImportItemResponse>();
         var truncated = false;
         await foreach (var validation in ValidateAsync(
             TrackTruncationAsync(items, () => truncated = true, cancellationToken),
@@ -52,7 +52,7 @@ public sealed class ShortLinkImportValidator(TimeProvider timeProvider) : IShort
         }
 
         var validCount = results.Count(static result => result.Succeeded);
-        return new ShortLinkImportDryRunResult(
+        return new ShortLinkImportDryRunResponse(
             results.Count,
             validCount,
             results.Count - validCount,

@@ -99,7 +99,7 @@ public sealed record ShortLinkAnalyticsResponse(
 {
     public static ShortLinkAnalyticsResponse FromClicks(
         string code,
-        ShortLinkClickSummary summary,
+        ShortLinkClickSummaryResponse summary,
         IReadOnlyList<ShortLinkClickEntity> recentClicks) =>
         new(
             code,

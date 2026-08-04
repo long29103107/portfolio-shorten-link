@@ -1,19 +1,20 @@
 using System.Globalization;
 using System.Text;
 using ShortenLink.Core.Services;
+using ShortLinkDetailsResponse = ShortenLink.Core.Contracts.Responses.ShortLinkDetailsResponse;
 
 namespace ShortenLink.Application.Features.ShortLinks;
 
 internal static class ShortLinkFeatureSupport
 {
-    internal static ShortLink GetRequired(ShortLinkDetailsResult result)
+    internal static ShortLink GetRequired(ShortLinkDetailsResponse result)
     {
         if (result.Succeeded && result.ShortLink is not null)
             return result.ShortLink;
         throw CreateException(result.ErrorCode, result.ErrorMessage);
     }
 
-    internal static void EnsureSucceeded(DeactivateShortLinkResult result)
+    internal static void EnsureSucceeded(DeactivateShortLinkResponse result)
     {
         if (!result.Succeeded)
             throw CreateException(result.ErrorCode, result.ErrorMessage);

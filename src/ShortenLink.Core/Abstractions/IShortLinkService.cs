@@ -43,32 +43,52 @@ public interface IShortLinkService
         ShortLinkAccessScope accessScope,
         CancellationToken cancellationToken = default);
 
-    Task<CreateShortLinkResult> CreateAsync(
+    Task<ShortLinkListPage> ListAccessibleCursorPageAsync(
+        int limit,
+        string? search,
+        ShortLinkListStatus status,
+        ShortLinkListSortBy sortBy,
+        ShortLinkSortDirection sortDirection,
+        DateTimeOffset beforeCreatedAt,
+        string? beforeCode,
+        ShortLinkAccessScope accessScope,
+        CancellationToken cancellationToken = default) =>
+        ListAccessiblePageAsync(
+            0,
+            limit,
+            search,
+            status,
+            sortBy,
+            sortDirection,
+            accessScope,
+            cancellationToken);
+
+    Task<CreateShortLinkResponse> CreateAsync(
         CreateShortLinkRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<ResolveShortLinkResult> ResolveAsync(
+    Task<ResolveShortLinkResponse> ResolveAsync(
         string code,
         CancellationToken cancellationToken = default);
 
-    Task<ShortLinkDetailsResult> GetDetailsAsync(
+    Task<ShortLinkDetailsResponse> GetDetailsAsync(
         string code,
         CancellationToken cancellationToken = default);
 
-    Task<ShortLinkDetailsResult> UpdateAsync(
+    Task<ShortLinkDetailsResponse> UpdateAsync(
         string code,
         UpdateShortLinkRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<DeactivateShortLinkResult> DeactivateAsync(
+    Task<DeactivateShortLinkResponse> DeactivateAsync(
         string code,
         CancellationToken cancellationToken = default);
 
-    Task<DeactivateShortLinkResult> ActivateAsync(
+    Task<DeactivateShortLinkResponse> ActivateAsync(
         string code,
         CancellationToken cancellationToken = default);
 
-    Task<DeactivateShortLinkResult> DeleteAsync(
+    Task<DeactivateShortLinkResponse> DeleteAsync(
         string code,
         CancellationToken cancellationToken = default);
 }
@@ -78,7 +98,7 @@ public interface IShortLinkService
 /// </summary>
 public interface ITenantAwareShortLinkService
 {
-    Task<ResolveShortLinkResult> ResolveAsync(
+    Task<ResolveShortLinkResponse> ResolveAsync(
         string code,
         CancellationToken cancellationToken,
         string tenantId);

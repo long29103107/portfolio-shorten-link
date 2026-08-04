@@ -11,15 +11,15 @@ namespace ShortenLink.Application.Features.ShortLinks.Create;
 public sealed record CreateShortLinkCommand(
     string OriginalUrl,
     DateTimeOffset? ExpiresAt,
-    string? IdempotencyKey = null) : IRequest<CreateShortLinkResult>;
+    string? IdempotencyKey = null) : IRequest<CreateShortLinkResponse>;
 
 internal sealed class CreateShortLinkCommandHandler(
     IShortLinkService shortLinkService,
     ICurrentRequestContext requestContext,
     ShortLinkAuditWriter auditWriter)
-    : IRequestHandler<CreateShortLinkCommand, CreateShortLinkResult>
+    : IRequestHandler<CreateShortLinkCommand, CreateShortLinkResponse>
 {
-    public async Task<CreateShortLinkResult> Handle(
+    public async Task<CreateShortLinkResponse> Handle(
         CreateShortLinkCommand request,
         CancellationToken cancellationToken)
     {

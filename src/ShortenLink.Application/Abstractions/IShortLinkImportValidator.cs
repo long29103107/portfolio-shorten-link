@@ -1,5 +1,5 @@
 using ShortenLink.Core.Contracts.Requests;
-using ShortenLink.Core.Contracts.Results;
+using ShortenLink.Core.Contracts.Responses;
 
 namespace ShortenLink.Application.Abstractions;
 
@@ -9,7 +9,7 @@ public interface IShortLinkImportValidator
         IAsyncEnumerable<ShortLinkImportItemRequest> items,
         CancellationToken cancellationToken = default);
 
-    Task<ShortLinkImportDryRunResult> ValidateDryRunAsync(
+    Task<ShortLinkImportDryRunResponse> ValidateDryRunAsync(
         IAsyncEnumerable<ShortLinkImportItemRequest> items,
         CancellationToken cancellationToken = default);
 }

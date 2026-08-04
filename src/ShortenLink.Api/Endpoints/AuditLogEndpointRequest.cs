@@ -1,4 +1,4 @@
-using ShortenLink.Core.Contracts.Requests;
+using ShortenLink.Core.Contracts.Requests.BaseRequest;
 
 namespace ShortenLink.Api.Endpoints;
 

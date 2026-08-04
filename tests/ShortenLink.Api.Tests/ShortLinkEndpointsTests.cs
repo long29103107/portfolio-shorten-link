@@ -21,7 +21,7 @@ using ShortenLink.Hosting;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence.Entities;
 using ShortenLink.Core.Services;
-using ShortenLink.Core.Contracts.Results;
+using ShortenLink.Core.Contracts.Responses;
 using ShortenLink.Core.Security;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Repositories;
@@ -558,7 +558,7 @@ public sealed class ShortLinkEndpointsTests
                     }
                 }
             });
-        var payload = await response.Content.ReadFromJsonAsync<ShortLinkImportDryRunResult>();
+        var payload = await response.Content.ReadFromJsonAsync<ShortLinkImportDryRunResponse>();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(payload);
@@ -613,7 +613,7 @@ public sealed class ShortLinkEndpointsTests
                     }
                 }
             });
-        var payload = await response.Content.ReadFromJsonAsync<ShortLinkImportExecutionResult>();
+        var payload = await response.Content.ReadFromJsonAsync<ShortLinkImportExecutionResponse>();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(payload);
@@ -643,7 +643,7 @@ public sealed class ShortLinkEndpointsTests
                     }
                 }
             });
-        var replayPayload = await replayResponse.Content.ReadFromJsonAsync<ShortLinkImportExecutionResult>();
+        var replayPayload = await replayResponse.Content.ReadFromJsonAsync<ShortLinkImportExecutionResponse>();
 
         Assert.Equal(HttpStatusCode.OK, replayResponse.StatusCode);
         Assert.NotNull(replayPayload);
@@ -2759,6 +2759,35 @@ public sealed class ShortLinkEndpointsTests
 
         Assert.Contains("Memory", distributedCache.GetType().Name, StringComparison.Ordinal);
         Assert.Equal("DistributedShortLinkCache", shortLinkCache.GetType().Name);
+    }
+
+    [Fact]
+    public async Task CacheLoader_CoalescesConcurrentNegativeMisses()
+    {
+        using var services = BuildServiceProvider(new Dictionary<string, string?>
+        {
+            ["ShortenLink:Cache:Enabled"] = "true",
+            ["ShortenLink:Cache:NegativeEntryTtlSeconds"] = "30"
+        });
+        var cache = Assert.IsAssignableFrom<IShortLinkCacheLoader>(
+            services.GetRequiredService<IShortLinkCache>());
+        var loaderCalls = 0;
+
+        var results = await Task.WhenAll(
+            cache.GetOrCreateAsync(
+                "missing-cache-entry",
+                async _ =>
+                {
+                    Interlocked.Increment(ref loaderCalls);
+                    await Task.Delay(25);
+                    return null;
+                }),
+            cache.GetOrCreateAsync(
+                "missing-cache-entry",
+                _ => Task.FromResult<ShortLink?>(null)));
+
+        Assert.Equal(1, loaderCalls);
+        Assert.All(results, result => Assert.Null(result));
     }
 
     [Fact]

@@ -257,10 +257,25 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
         ArgumentNullException.ThrowIfNull(query);
 
         var safeSkip = Math.Max(skip, 0);
-        var safeLimit = Math.Clamp(limit, 1, 500);
+        var cursorMode = query.BeforeCreatedAt is not null
+            && query.SortBy == ShortLinkListSortBy.Created
+            && query.SortDirection == ShortLinkSortDirection.Desc
+            && (!DbContext.Database.IsSqlite() || query.Status == ShortLinkListStatus.All);
+        var safeLimit = Math.Clamp(limit, 1, cursorMode ? 501 : 500);
         var statusScoped = ReadOnlyEntities;
         var statusAppliedInSql = false;
-        if (DbContext.Database.IsSqlite())
+        var cursorAppliedInSql = false;
+        if (cursorMode && query.Status == ShortLinkListStatus.All && DbContext.Database.IsSqlite())
+        {
+            var cursorCreatedAt = query.BeforeCreatedAt!.Value;
+            statusScoped = string.IsNullOrWhiteSpace(query.BeforeCode)
+                ? DbContext.Set<ShortLinkPersistenceEntity>()
+                    .FromSqlInterpolated($"SELECT * FROM short_links WHERE CreatedAt < {cursorCreatedAt}")
+                : DbContext.Set<ShortLinkPersistenceEntity>()
+                    .FromSqlInterpolated($"SELECT * FROM short_links WHERE CreatedAt < {cursorCreatedAt} OR (CreatedAt = {cursorCreatedAt} AND Code > {query.BeforeCode})");
+            cursorAppliedInSql = true;
+        }
+        else if (DbContext.Database.IsSqlite())
         {
             statusScoped = ApplySqliteStatusBoundary(statusScoped, query, out statusAppliedInSql);
         }
@@ -272,8 +287,20 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             filtered = ApplyStatus(filtered, query);
         }
         var totalCount = await filtered.CountAsync(cancellationToken);
-        var ordered = ApplySort(filtered, query)
-            .Skip(safeSkip)
+        var orderedQuery = ApplySort(filtered, query);
+        if (cursorMode && !cursorAppliedInSql)
+        {
+            orderedQuery = orderedQuery.Where(record =>
+                record.CreatedAt < query.BeforeCreatedAt!.Value
+                || (record.CreatedAt == query.BeforeCreatedAt.Value
+                    && string.Compare(record.Code, query.BeforeCode) > 0));
+        }
+        else if (!cursorMode)
+        {
+            orderedQuery = orderedQuery.Skip(safeSkip);
+        }
+
+        var ordered = orderedQuery
             .Take(safeLimit)
             .Select(record => record.ToDomain())
             .ToListAsync(cancellationToken);

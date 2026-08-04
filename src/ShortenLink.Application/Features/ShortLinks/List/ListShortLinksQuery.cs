@@ -77,11 +77,44 @@ internal sealed class ListShortLinksQueryHandler(
             || !string.IsNullOrWhiteSpace(request.SortBy)
             || !string.IsNullOrWhiteSpace(request.SortDirection);
 
+        var status = ParseStatus(request.Status);
+        var sortBy = ParseSortBy(request.SortBy);
+        var direction = ParseDirection(request.SortDirection);
+        if (request.Page is null
+            && !string.IsNullOrWhiteSpace(request.Cursor)
+            && status == ShortLinkListStatus.All
+            && sortBy == ShortLinkListSortBy.Created
+            && direction == ShortLinkSortDirection.Desc)
+        {
+            if (!ShortLinkFeatureSupport.TryDecodeCursor(
+                request.Cursor, out var cursorCreatedAt, out var cursorCode))
+            {
+                throw new RequestValidationException(ErrorCodes.InvalidCursor, "Cursor is invalid.");
+            }
+
+            var cursorPage = await shortLinkService.ListAccessibleCursorPageAsync(
+                Math.Min(limit + 1, 501),
+                request.Search,
+                status,
+                sortBy,
+                direction,
+                cursorCreatedAt!.Value,
+                cursorCode,
+                scope,
+                cancellationToken);
+            var cursorItems = cursorPage.Items.Take(limit).ToList();
+            var filteredNextCursor = cursorPage.Items.Count > limit && cursorItems.Count > 0
+                ? ShortLinkFeatureSupport.EncodeCursor(
+                    cursorItems[^1].CreatedAt,
+                    cursorItems[^1].Code)
+                : null;
+            return new ShortLinkAdminListResponse(
+                cursorItems.Select(link => Map(link, request.BaseUrl, scope)).ToList(),
+                filteredNextCursor);
+        }
+
         if (hasListQuery)
         {
-            var status = ParseStatus(request.Status);
-            var sortBy = ParseSortBy(request.SortBy);
-            var direction = ParseDirection(request.SortDirection);
             var page = Math.Max(request.Page ?? 1, 1);
             var result = await shortLinkService.ListAccessiblePageAsync(
                 (page - 1) * limit,

@@ -1,8 +1,8 @@
 using ShortenLink.Core.Contracts.Requests;
 
-namespace ShortenLink.Core.Contracts.Results;
+namespace ShortenLink.Core.Contracts.Responses;
 
-public sealed record ShortLinkImportItemResult(
+public sealed record ShortLinkImportItemResponse(
     int ItemNumber,
     bool Succeeded,
     string? ErrorCode = null,
@@ -10,22 +10,22 @@ public sealed record ShortLinkImportItemResult(
     string? ShortCode = null,
     bool Replayed = false);
 
-public sealed record ShortLinkImportDryRunResult(
+public sealed record ShortLinkImportDryRunResponse(
     int TotalCount,
     int ValidCount,
     int InvalidCount,
     bool Truncated,
-    IReadOnlyList<ShortLinkImportItemResult> Items);
+    IReadOnlyList<ShortLinkImportItemResponse> Items);
 
-public sealed record ShortLinkImportExecutionResult(
+public sealed record ShortLinkImportExecutionResponse(
     int TotalCount,
     int SucceededCount,
     int FailedCount,
     int ReplayedCount,
     bool Truncated,
-    IReadOnlyList<ShortLinkImportItemResult> Items);
+    IReadOnlyList<ShortLinkImportItemResponse> Items);
 
 public sealed record ShortLinkImportValidationItem(
     int ItemNumber,
     ShortLinkImportItemRequest Item,
-    ShortLinkImportItemResult Result);
+    ShortLinkImportItemResponse Result);

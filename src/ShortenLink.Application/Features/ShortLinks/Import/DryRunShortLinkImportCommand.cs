@@ -1,20 +1,20 @@
 using ShortenLink.Application.Abstractions;
 using ShortenLink.Core.Contracts.Requests;
-using ShortenLink.Core.Contracts.Results;
+using ShortenLink.Core.Contracts.Responses;
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
 
 namespace ShortenLink.Application.Features.ShortLinks.Import;
 
 public sealed record DryRunShortLinkImportCommand(
-    IReadOnlyList<ShortLinkImportItemRequest>? Items) : IRequest<ShortLinkImportDryRunResult>;
+    IReadOnlyList<ShortLinkImportItemRequest>? Items) : IRequest<ShortLinkImportDryRunResponse>;
 
 internal sealed class DryRunShortLinkImportCommandHandler(
     IShortLinkImportValidator validator,
     ICurrentRequestContext requestContext)
-    : IRequestHandler<DryRunShortLinkImportCommand, ShortLinkImportDryRunResult>
+    : IRequestHandler<DryRunShortLinkImportCommand, ShortLinkImportDryRunResponse>
 {
-    public async Task<ShortLinkImportDryRunResult> Handle(
+    public async Task<ShortLinkImportDryRunResponse> Handle(
         DryRunShortLinkImportCommand request,
         CancellationToken cancellationToken)
     {

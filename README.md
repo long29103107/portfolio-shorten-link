@@ -549,7 +549,7 @@ public sealed class MyLinkService
         _shortLinkService = shortLinkService;
     }
 
-    public Task<CreateShortLinkResult> CreateAsync(string url, CancellationToken cancellationToken = default)
+    public Task<CreateShortLinkResponse> CreateAsync(string url, CancellationToken cancellationToken = default)
     {
         return _shortLinkService.CreateAsync(
             new CreateShortLinkRequest(url),
@@ -573,7 +573,7 @@ Switch to PostgreSQL by configuration only:
 
 The demo host still uses `AddShortenLink(builder.Configuration);` with no application-code changes. On startup it calls `EnsureCreated()` for the selected provider, so SQLite remains the default local path while PostgreSQL can be enabled with a valid connection string.
 
-`IShortLinkService`, `CreateShortLinkRequest`, and `CreateShortLinkResult` live in `ShortenLink.Core.Services`. Consumer code should continue to call the reusable service contract instead of re-creating short-link rules in the host app.
+`IShortLinkService`, `CreateShortLinkRequest`, and `CreateShortLinkResponse` live in `ShortenLink.Core.Services`. Consumer code should continue to call the reusable service contract instead of re-creating short-link rules in the host app.
 
 ## Configuration Defaults And Optional Providers
 

@@ -1,4 +1,4 @@
-namespace ShortenLink.Core.Contracts.Requests;
+namespace ShortenLink.Core.Contracts.Requests.BaseRequest;
 
 public class PagingListRequest : ListRequest
 {

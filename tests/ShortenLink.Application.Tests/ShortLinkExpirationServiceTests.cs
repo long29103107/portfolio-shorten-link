@@ -2,7 +2,7 @@ using ShortenLink.Application.Services;
 using ShortenLink.Core.Abstractions;
 using ShortenLink.Core.Contracts.Expiration;
 using ShortenLink.Core.Contracts.Queries;
-using ShortenLink.Core.Contracts.Results;
+using ShortenLink.Core.Contracts.Responses;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Events;
 using ShortenLink.Core.Services;

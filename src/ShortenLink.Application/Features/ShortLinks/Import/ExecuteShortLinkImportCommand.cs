@@ -2,7 +2,7 @@ using ShortenLink.Application.Abstractions;
 using ShortenLink.Application.Features.Audit;
 using ShortenLink.Core.Abstractions;
 using ShortenLink.Core.Contracts.Requests;
-using ShortenLink.Core.Contracts.Results;
+using ShortenLink.Core.Contracts.Responses;
 using ShortenLink.Core.Security;
 using ShortenLink.Core.Services;
 using ShortenLink.Mediator;
@@ -10,16 +10,16 @@ using ShortenLink.Mediator;
 namespace ShortenLink.Application.Features.ShortLinks.Import;
 
 public sealed record ExecuteShortLinkImportCommand(
-    IReadOnlyList<ShortLinkImportItemRequest>? Items) : IRequest<ShortLinkImportExecutionResult>;
+    IReadOnlyList<ShortLinkImportItemRequest>? Items) : IRequest<ShortLinkImportExecutionResponse>;
 
 internal sealed class ExecuteShortLinkImportCommandHandler(
     IShortLinkImportValidator validator,
     IShortLinkService shortLinkService,
     ICurrentRequestContext requestContext,
     ShortLinkAuditWriter auditWriter)
-    : IRequestHandler<ExecuteShortLinkImportCommand, ShortLinkImportExecutionResult>
+    : IRequestHandler<ExecuteShortLinkImportCommand, ShortLinkImportExecutionResponse>
 {
-    public async Task<ShortLinkImportExecutionResult> Handle(
+    public async Task<ShortLinkImportExecutionResponse> Handle(
         ExecuteShortLinkImportCommand request,
         CancellationToken cancellationToken)
     {
@@ -28,7 +28,7 @@ internal sealed class ExecuteShortLinkImportCommandHandler(
             cancellationToken);
         var creator = await requestContext.GetCurrentUserAsync(cancellationToken);
         var items = request.Items ?? [];
-        var results = new List<ShortLinkImportItemResult>();
+        var results = new List<ShortLinkImportItemResponse>();
         var replayedCount = 0;
 
         await foreach (var validation in validator.ValidateAsync(
@@ -41,7 +41,7 @@ internal sealed class ExecuteShortLinkImportCommandHandler(
                 continue;
             }
 
-            CreateShortLinkResult createResult;
+            CreateShortLinkResponse createResult;
             try
             {
                 createResult = await shortLinkService.CreateAsync(
@@ -61,7 +61,7 @@ internal sealed class ExecuteShortLinkImportCommandHandler(
             }
             catch
             {
-                results.Add(new ShortLinkImportItemResult(
+                results.Add(new ShortLinkImportItemResponse(
                     validation.ItemNumber,
                     false,
                     ShortLinkImportErrorCodes.PersistenceFailure,
@@ -71,7 +71,7 @@ internal sealed class ExecuteShortLinkImportCommandHandler(
 
             if (!createResult.Succeeded || createResult.ShortLink is null)
             {
-                results.Add(new ShortLinkImportItemResult(
+                results.Add(new ShortLinkImportItemResponse(
                     validation.ItemNumber,
                     false,
                     createResult.ErrorCode ?? ShortLinkImportErrorCodes.PersistenceFailure,
@@ -93,7 +93,7 @@ internal sealed class ExecuteShortLinkImportCommandHandler(
                 replayedCount++;
             }
 
-            results.Add(new ShortLinkImportItemResult(
+            results.Add(new ShortLinkImportItemResponse(
                 validation.ItemNumber,
                 true,
                 ShortCode: createResult.ShortLink.Code,
@@ -101,7 +101,7 @@ internal sealed class ExecuteShortLinkImportCommandHandler(
         }
 
         var succeededCount = results.Count(static result => result.Succeeded);
-        return new ShortLinkImportExecutionResult(
+        return new ShortLinkImportExecutionResponse(
             results.Count,
             succeededCount,
             results.Count - succeededCount,

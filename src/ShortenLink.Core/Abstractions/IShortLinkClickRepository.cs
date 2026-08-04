@@ -6,7 +6,7 @@ public interface IShortLinkClickRepository
 {
     Task AddAsync(ShortLinkClick shortLinkClick, CancellationToken cancellationToken = default);
 
-    Task<ShortLinkClickSummary> GetSummaryAsync(
+    Task<ShortLinkClickSummaryResponse> GetSummaryAsync(
         string shortCode,
         CancellationToken cancellationToken = default);
 
@@ -18,7 +18,7 @@ public interface IShortLinkClickRepository
 
 public interface ITenantAwareShortLinkClickRepository
 {
-    Task<ShortLinkClickSummary> GetSummaryAsync(
+    Task<ShortLinkClickSummaryResponse> GetSummaryAsync(
         string shortCode,
         string tenantId,
         CancellationToken cancellationToken = default);

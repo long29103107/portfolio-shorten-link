@@ -141,13 +141,13 @@ public static class ShortenLinkEndpointMappings
             request.Search, request.Status, request.SortBy, request.SortDirection, request.Fe, request.Sort),
             cancellationToken);
 
-    private static Task<ShortLinkImportDryRunResult> DryRunShortLinkImportAsync(
+    private static Task<ShortLinkImportDryRunResponse> DryRunShortLinkImportAsync(
         ShortLinkImportRequest request,
         ISender sender,
         CancellationToken cancellationToken) =>
         sender.Send(new DryRunShortLinkImportCommand(request.Items), cancellationToken);
 
-    private static Task<ShortLinkImportExecutionResult> ExecuteShortLinkImportAsync(
+    private static Task<ShortLinkImportExecutionResponse> ExecuteShortLinkImportAsync(
         ShortLinkImportRequest request,
         ISender sender,
         CancellationToken cancellationToken) =>

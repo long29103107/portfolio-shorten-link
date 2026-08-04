@@ -68,6 +68,8 @@ public sealed class ShortenLinkCacheOptions
     public string RedisConnectionString { get; set; } = string.Empty;
 
     public int EntryTtlSeconds { get; set; } = 3600;
+
+    public int NegativeEntryTtlSeconds { get; set; } = 10;
 }
 
 public sealed class ShortenLinkQueueOptions
