@@ -4,9 +4,9 @@ title: Backend Boundary Refactor and Optimization
 status: active
 created_at: 2026-08-03
 updated_at: 2026-08-06
-current_task: 028_010
+current_task: 028_011
 task_count: 12
-done_count: 9
+done_count: 10
 depends_on:
   - 027
 ---
@@ -64,18 +64,18 @@ Out:
 | 028_007 | Normalize options and structured logging conventions | Convention | done | 2026-08-06 |
 | 028_008 | Isolate schema and persistence compatibility boundaries | Refactor | done | 2026-08-06 |
 | 028_009 | Refactor audit and event-delivery ownership boundaries | Refactor | done | 2026-08-06 |
-| 028_010 | Split hosting, package, and session responsibilities | Architecture | planned | |
+| 028_010 | Split hosting, package, and session responsibilities | Architecture | done | 2026-08-06 |
 | 028_011 | Extract stable contracts only when reuse is proven | Architecture | planned | |
 | 028_012 | Audit and document the security package boundary | Architecture | planned | |
 
 ## Current Task
 
-`028_010` is the next planned hosting, package, and session responsibility
-task. The audit and event-delivery ownership refactor in `028_009` and the
-schema/persistence compatibility refactor in `028_008` are complete; the
-options and structured-logging convention refactor in `028_007` and the
-diagnostics seam audit in `028_005` remain complete without adding new
-telemetry or monitoring behavior.
+`028_011` is the next planned stable-contract boundary task. The hosting,
+package, and session responsibility refactor in `028_010`, the audit and
+event-delivery ownership refactor in `028_009`, and the schema/persistence
+compatibility refactor in `028_008` are complete; the options and structured-
+logging convention refactor in `028_007` and the diagnostics seam audit in
+`028_005` remain complete without adding new telemetry or monitoring behavior.
 
 ## Task Notes
 
@@ -743,7 +743,33 @@ without importing host or application implementation details.
 
 #### Done Notes
 
-Planned; not started.
+Done on 2026-08-06.
+
+Implemented a behavior-preserving hosting and session boundary refactor:
+
+- Moved the application session adapter from the demo API into
+  `ShortenLink.Hosting`, making session orchestration a reusable host concern
+  while keeping the existing `ISecuritySessionService` contract and response
+  mapping unchanged.
+- Registered the adapter in hosting with the existing scoped lifetime and
+  `TryAdd` override behavior; API `Program.cs` now only composes the host and
+  endpoints.
+- Kept `IShortenLinkUserSessionService`, authorization services, token format,
+  permission catalog, authentication algorithms, route mappings, and public
+  contracts unchanged.
+- Did not extract another package: the repository has one concrete API host and
+  no second consumer justifying a new package boundary. The existing Hosting,
+  Application, Core, Infrastructure, and Messaging dependency graph remains
+  acyclic.
+- Added a DI characterization assertion for the host-owned session adapter.
+
+Verification:
+
+- Focused host DI test passed: 1/1.
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal
+  --disable-build-servers` passed with 0 warnings and 0 errors.
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+  passed: 231/231 tests.
 
 ### 028_011 - Extract stable contracts only when reuse is proven
 
@@ -848,6 +874,6 @@ Source before compaction: `.okf/phase/030/PHASE_SUMMARY.md`.
 
 ## Next Task Proposal
 
-Next: implement `028_010`, the hosting, package, and session responsibility
-refactor. Keep authentication algorithms, permission semantics, and public
-route behavior unchanged.
+Next: implement `028_011`, the stable contracts boundary audit. Extract a
+package only when at least two concrete consumers or an external-host contract
+justify it; otherwise document the deferral.

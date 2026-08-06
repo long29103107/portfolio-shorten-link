@@ -130,6 +130,7 @@ public static partial class Services
         services.TryAddSingleton<IShortCodeGenerator, Base62ShortCodeGenerator>();
         services.TryAddSingleton<IShortLinkImportValidator, ShortLinkImportValidator>();
         services.TryAddSingleton<IShortLinkExpirationEvaluator, ShortLinkExpirationEvaluator>();
+        services.TryAddScoped<ISecuritySessionService, SecuritySessionServiceAdapter>();
         if (!hostOptions.UseExternalPersistence)
         {
             services.TryAddScoped<IShortLinkRepository, EfCoreShortLinkRepository>();

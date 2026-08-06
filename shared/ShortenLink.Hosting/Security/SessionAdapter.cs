@@ -1,8 +1,12 @@
 using ShortenLink.Application.Abstractions;
-using ShortenLink.Hosting;
 
-namespace ShortenLink.Api;
+namespace ShortenLink.Hosting;
 
+/// <summary>
+/// Adapts the host-facing session contract to the application session boundary.
+/// The API host should only compose endpoints; session orchestration belongs to
+/// the reusable hosting package.
+/// </summary>
 internal sealed class SecuritySessionServiceAdapter(
     IShortenLinkUserSessionService sessionService) : ISecuritySessionService
 {

@@ -3479,6 +3479,7 @@ public sealed class ShortLinkEndpointsTests
 
         Assert.IsType<ConsumerRequestContext>(provider.GetRequiredService<ICurrentRequestContext>());
         Assert.IsType<ConsumerAuthorizationService>(provider.GetRequiredService<IShortenLinkAuthorizationService>());
+        Assert.NotNull(provider.GetRequiredService<ISecuritySessionService>());
     }
 
     private sealed class ConsumerRequestContext : ICurrentRequestContext
