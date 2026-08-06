@@ -5,6 +5,7 @@ using ShortenLink.Application.Contracts.Responses;
 using ShortenLink.Core.Security;
 using ShortenLink.Mediator;
 using ShortenLink.Auditing;
+using ShortenLink.Core.Querying;
 
 namespace ShortenLink.Application.Features.Audit;
 
@@ -47,6 +48,7 @@ internal sealed class ListShortLinkAuditEventsQueryHandler(
         ListShortLinkAuditEventsQuery request,
         CancellationToken cancellationToken)
     {
+        ValidateFilter(request.Params.Fe);
         var actor = await requestContext.AuthorizeAsync(
             ShortenLinkPermissionCatalog.AuditLogsRead,
             cancellationToken);
@@ -69,11 +71,7 @@ internal sealed class ListShortLinkAuditEventsQueryHandler(
                 limit,
                 beforeOccurredAt,
                 beforeId,
-                Normalize(request.Params.Action),
-                Normalize(request.Params.TargetId),
-                Normalize(request.Params.ActorId),
-                request.Params.From,
-                request.Params.To,
+                Normalize(request.Params.Fe),
                 new AuditReadScope(actor.UserId, actor.IsAdmin, sharedCodes)),
             cancellationToken);
 
@@ -90,6 +88,47 @@ internal sealed class ListShortLinkAuditEventsQueryHandler(
 
     private static string? Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static void ValidateFilter(string? filterExpression)
+    {
+        if (string.IsNullOrWhiteSpace(filterExpression))
+        {
+            return;
+        }
+
+        try
+        {
+            _ = FilterExpressionParser.Parse<AuditFilterFields>(
+                filterExpression,
+                AuditFilterFields.AllowedProperties);
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException or OverflowException)
+        {
+            throw new RequestValidationException(ErrorCodes.InvalidFilter, exception.Message);
+        }
+    }
+
+    private sealed class AuditFilterFields
+    {
+        public static readonly string[] AllowedProperties =
+        [
+            nameof(ActorId),
+            nameof(Action),
+            nameof(TargetType),
+            nameof(TargetId),
+            nameof(Outcome),
+            nameof(OccurredAt),
+            nameof(SubjectUserId)
+        ];
+
+        public string ActorId { get; init; } = string.Empty;
+        public string Action { get; init; } = string.Empty;
+        public string TargetType { get; init; } = string.Empty;
+        public string TargetId { get; init; } = string.Empty;
+        public string Outcome { get; init; } = string.Empty;
+        public DateTimeOffset OccurredAt { get; init; }
+        public string? SubjectUserId { get; init; }
+    }
 
     private static bool TryDecodeCursor(
         string? cursor,

@@ -31,6 +31,16 @@ public sealed class ShortLinkDbContext : DbContext
 
     public DbSet<ShortenLinkUserApiKeyPersistenceEntity> SecurityUserApiKeys => Set<ShortenLinkUserApiKeyPersistenceEntity>();
 
+    protected override void ConfigureConventions(
+        ModelConfigurationBuilder configurationBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(configurationBuilder);
+
+        configurationBuilder
+            .Properties<DateTimeOffset>()
+            .HaveConversion<UtcDateTimeOffsetConverter>();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);

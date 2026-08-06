@@ -4,11 +4,7 @@ public sealed record AuditQuery(
     int Limit,
     DateTimeOffset? BeforeOccurredAt,
     Guid? BeforeId,
-    string? Action,
-    string? TargetId,
-    string? ActorId,
-    DateTimeOffset? From,
-    DateTimeOffset? To,
+    string? FilterExpression,
     AuditReadScope ReadScope);
 
 public sealed record AuditReadScope(

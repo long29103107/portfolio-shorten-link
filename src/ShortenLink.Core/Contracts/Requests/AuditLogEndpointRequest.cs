@@ -11,14 +11,4 @@ public sealed class AuditLogEndpointRequest : ListRequest
     public int? Limit { get; set; }
 
     public string? Cursor { get; set; }
-
-    public string? Action { get; set; }
-
-    public string? TargetId { get; set; }
-
-    public string? ActorId { get; set; }
-
-    public DateTimeOffset? From { get; set; }
-
-    public DateTimeOffset? To { get; set; }
 }

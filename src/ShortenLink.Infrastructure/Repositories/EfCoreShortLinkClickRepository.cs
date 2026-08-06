@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ShortenLink.Core;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence;
+using ShortenLink.Infrastructure.Persistence.ReadModels;
 
 namespace ShortenLink.Infrastructure.Repositories;
 
@@ -32,7 +33,7 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
         var lastClickedAtUtc = clickCount == 0
             ? null
             : await query
-                .OrderByDescending(click => click.ClickedAtUtc.ToString())
+                .OrderByDescending(click => click.ClickedAtUtc)
                 .Select(click => (DateTimeOffset?)click.ClickedAtUtc)
                 .FirstAsync(cancellationToken);
 
@@ -53,13 +54,14 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
         ShortCodeValidator.ValidateCodeOrThrow(shortCode);
 
         var safeLimit = Math.Clamp(limit, 1, 100);
-        return await ReadOnlyEntities
+        var records = await ReadOnlyEntities
             .Where(click => click.ShortCode == shortCode)
-            .OrderByDescending(click => click.ClickedAtUtc.ToString())
+            .OrderByDescending(click => click.ClickedAtUtc)
             .ThenByDescending(click => click.Id)
             .Take(safeLimit)
-            .Select(record => record.ToDomain())
+            .Select(ShortLinkClickPersistenceReadModel.Projection)
             .ToListAsync(cancellationToken);
+        return records.Select(static record => record.ToDomain()).ToList();
     }
 
     public Task<IReadOnlyList<ShortLinkClick>> ListRecentAsync(
@@ -81,7 +83,7 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
         var lastClickedAtUtc = clickCount == 0
             ? null
             : await query
-                .OrderByDescending(click => click.ClickedAtUtc.ToString())
+                .OrderByDescending(click => click.ClickedAtUtc)
                 .Select(click => (DateTimeOffset?)click.ClickedAtUtc)
                 .FirstAsync(cancellationToken);
         return new ShortLinkClickSummaryResponse(
@@ -98,12 +100,13 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
     {
         ShortCodeValidator.ValidateCodeOrThrow(shortCode);
         ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
-        return await ReadOnlyEntities
+        var records = await ReadOnlyEntities
             .Where(click => click.ShortCode == shortCode && click.TenantId == tenantId)
-            .OrderByDescending(click => click.ClickedAtUtc.ToString())
+            .OrderByDescending(click => click.ClickedAtUtc)
             .ThenByDescending(click => click.Id)
             .Take(Math.Clamp(limit, 1, 100))
-            .Select(record => record.ToDomain())
+            .Select(ShortLinkClickPersistenceReadModel.Projection)
             .ToListAsync(cancellationToken);
+        return records.Select(static record => record.ToDomain()).ToList();
     }
 }

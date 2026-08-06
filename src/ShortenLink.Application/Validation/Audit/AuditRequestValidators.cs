@@ -12,14 +12,5 @@ public sealed class ListShortLinkAuditEventsQueryValidator
             .NotNull()
             .WithMessage("The audit filter is required.")
             .WithErrorCode(ErrorCodes.InvalidFilter);
-
-        RuleFor(query => query.Params)
-            .Must(static request => request.From is null
-                || request.To is null
-                || request.From <= request.To)
-            .When(static query => query.Params is not null)
-            .WithName("from")
-            .WithMessage("The audit time range is invalid.")
-            .WithErrorCode(ErrorCodes.InvalidFilter);
     }
 }

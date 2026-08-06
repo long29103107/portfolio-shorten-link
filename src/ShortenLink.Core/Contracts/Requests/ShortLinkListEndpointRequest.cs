@@ -1,6 +1,6 @@
 using ShortenLink.Core.Contracts.Requests.BaseRequest;
 
-namespace ShortenLink.Hosting;
+namespace ShortenLink.Core.Contracts.Requests;
 
 public sealed class ShortLinkListEndpointRequest : ListRequest
 {
@@ -11,12 +11,4 @@ public sealed class ShortLinkListEndpointRequest : ListRequest
     public int? Limit { get; set; }
 
     public string? Cursor { get; set; }
-
-    public string? Search { get; set; }
-
-    public string? Status { get; set; }
-
-    public string? SortBy { get; set; }
-
-    public string? SortDirection { get; set; }
 }

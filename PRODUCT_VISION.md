@@ -148,6 +148,7 @@ applications.
 
 ```txt
 shared/
+  ShortenLink.Contracts/         # Transport-neutral requests, responses, pagination, and errors
   ShortenLink.Mediator/          # Dependency-free mediator contracts and dispatcher
   ShortenLink.Hosting/           # ASP.NET Core DI, authorization, and host integration
 

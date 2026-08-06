@@ -100,10 +100,10 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal(HttpStatusCode.NoContent, revokeResponse.StatusCode);
         Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
 
-        const string auditPath = "/api/audit-logs?limit=20&targetId=";
+        var auditFilter = Uri.EscapeDataString($"(TargetId eq `{created.Code}`)");
         var payload = await WaitForAuditPayloadAsync(
             client,
-            $"{auditPath}{created.Code}",
+            $"/api/audit-logs?limit=20&fe={auditFilter}",
             audit => audit.Items.Count == 8);
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
@@ -133,12 +133,14 @@ public sealed class ShortLinkEndpointsTests
         var first = await CreateShortLinkAsync(client, "https://example.com/first");
         var second = await CreateShortLinkAsync(client, "https://example.com/second");
 
+        var auditFilter = Uri.EscapeDataString(
+            "(Action eq `short_link.created`) & (ActorId eq `system:admin`)");
         _ = await WaitForAuditPayloadAsync(
             client,
-            "/api/audit-logs?limit=200&action=short_link.created&actorId=system%3Aadmin",
+            $"/api/audit-logs?limit=200&fe={auditFilter}",
             audit => audit.Items.Count == 2);
         using var firstPageResponse = await client.GetAsync(
-            "/api/audit-logs?limit=1&action=short_link.created&actorId=system%3Aadmin");
+            $"/api/audit-logs?limit=1&fe={auditFilter}");
         var firstPage = await firstPageResponse.Content
             .ReadFromJsonAsync<ShortLinkAuditEventsResponse>();
         Assert.Equal(HttpStatusCode.OK, firstPageResponse.StatusCode);
@@ -147,7 +149,7 @@ public sealed class ShortLinkEndpointsTests
         Assert.NotNull(firstPage.NextCursor);
 
         using var secondPageResponse = await client.GetAsync(
-            $"/api/audit-logs?limit=1&cursor={Uri.EscapeDataString(firstPage.NextCursor)}&action=short_link.created");
+            $"/api/audit-logs?limit=1&cursor={Uri.EscapeDataString(firstPage.NextCursor)}&fe={Uri.EscapeDataString("(Action eq `short_link.created`)")}");
         var secondPage = await secondPageResponse.Content
             .ReadFromJsonAsync<ShortLinkAuditEventsResponse>();
 
@@ -518,9 +520,10 @@ public sealed class ShortLinkEndpointsTests
         Assert.NotNull(replayPayload);
         Assert.Equal(firstPayload.Code, replayPayload.Code);
 
+        var auditFilter = Uri.EscapeDataString($"(TargetId eq `{firstPayload.Code}`)");
         var audit = await WaitForAuditPayloadAsync(
             client,
-            $"/api/audit-logs?limit=20&targetId={firstPayload.Code}",
+            $"/api/audit-logs?limit=20&fe={auditFilter}",
             payload => payload.Items.Count == 1);
         Assert.Single(audit.Items);
         Assert.Equal(ShortLinkAuditActions.Created, audit.Items[0].Action);
@@ -1956,7 +1959,9 @@ public sealed class ShortLinkEndpointsTests
             AllowAutoRedirect = false
         });
 
-        using var response = await client.GetAsync("/api/short-links?page=1&limit=10&search=example.com/docs&sortBy=destination&sortDirection=asc");
+        var filter = Uri.EscapeDataString("(OriginalUrl contains `example.com/docs`)");
+        using var response = await client.GetAsync(
+            $"/api/short-links?page=1&limit=10&fe={filter}&sort={Uri.EscapeDataString("+OriginalUrl")}");
         var payload = await response.Content.ReadFromJsonAsync<ShortLinkAdminListResponse>();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -2012,10 +2017,12 @@ public sealed class ShortLinkEndpointsTests
     }
 
     [Theory]
-    [InlineData("status=missing", "invalid_filter")]
-    [InlineData("sortBy=missing", "invalid_sort")]
-    [InlineData("sortDirection=sideways", "invalid_sort_direction")]
-    public async Task GetList_ReturnsBadRequestForInvalidDiscoveryQuery(string query, string expectedErrorCode)
+    [InlineData("fe", "(Missing eq `value`)", "invalid_filter")]
+    [InlineData("sort", "missing", "invalid_sort")]
+    public async Task GetList_ReturnsBadRequestForInvalidDiscoveryQuery(
+        string parameter,
+        string value,
+        string expectedErrorCode)
     {
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -2023,7 +2030,8 @@ public sealed class ShortLinkEndpointsTests
             AllowAutoRedirect = false
         });
 
-        using var response = await client.GetAsync($"/api/short-links?page=1&{query}");
+        using var response = await client.GetAsync(
+            $"/api/short-links?page=1&{parameter}={Uri.EscapeDataString(value)}");
         var payload = await response.Content.ReadFromJsonAsync<ShortLinkErrorResponse>();
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -3224,7 +3232,17 @@ public sealed class ShortLinkEndpointsTests
 
     private static async Task<string[]> GetListCodesAsync(HttpClient client, string status)
     {
-        using var response = await client.GetAsync($"/api/short-links?page=1&limit=10&status={status}&sortBy=code&sortDirection=asc");
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var filterExpression = status switch
+        {
+            "expired" => $"(IsActive eq `true`) & (ExpiresAt le `{now:O}`)",
+            "inactive" => "(IsActive eq `false`)",
+            "expiring-soon" => $"(IsActive eq `true`) & (ExpiresAt gt `{now:O}`) & (ExpiresAt le `{now.AddDays(7):O}`)",
+            "active" => $"(IsActive eq `true`) & ((ExpiresAt eq `null`) | (ExpiresAt gt `{now:O}`))",
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
+        };
+        using var response = await client.GetAsync(
+            $"/api/short-links?page=1&limit=10&fe={Uri.EscapeDataString(filterExpression)}&sort={Uri.EscapeDataString("+Code")}");
         var payload = await response.Content.ReadFromJsonAsync<ShortLinkAdminListResponse>();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

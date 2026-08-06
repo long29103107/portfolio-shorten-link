@@ -1,4 +1,4 @@
-using ShortenLink.Hosting;
+using ShortenLink.Core.Contracts.Requests;
 using Xunit;
 
 namespace ShortenLink.Api.Tests;

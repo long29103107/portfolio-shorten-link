@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { filter, serializeFilter, serializeSort } from "../src/shared/queryExpression";
-import { toggleShortLinkSort } from "../src/features/short-links/queryExpression";
+import { buildShortLinkFilterExpression, toggleShortLinkSort } from "../src/features/short-links/queryExpression";
 
 describe("query expression", () => {
   test("serializes nested filter groups", () => {
@@ -25,5 +25,16 @@ describe("query expression", () => {
     expect(toggleShortLinkSort(query, "created").sortDirection).toBe("asc");
     expect(toggleShortLinkSort({ ...query, sortDirection: "asc" }, "created").sortDirection).toBe("desc");
     expect(toggleShortLinkSort(query, "code")).toMatchObject({ sortBy: "code", sortDirection: "asc" });
+  });
+
+  test("moves derived status filters into the filter expression", () => {
+    const expression = buildShortLinkFilterExpression(
+      { search: "", status: "expiring-soon", sortBy: "created", sortDirection: "desc" },
+      new Date("2026-07-15T12:00:00.000Z")
+    );
+
+    expect(serializeFilter(expression!)).toBe(
+      "((IsActive eq `true`) & (ExpiresAt gt `2026-07-15T12:00:00.000Z`) & (ExpiresAt le `2026-07-22T12:00:00.000Z`))"
+    );
   });
 });

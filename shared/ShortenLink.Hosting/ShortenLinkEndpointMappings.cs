@@ -138,9 +138,9 @@ public static class ShortenLinkEndpointMappings
         [AsParameters] ShortLinkListEndpointRequest request,
         ISender sender, IOptions<ShortenLinkOptions> options,
         HttpContext httpContext, CancellationToken cancellationToken) =>
-        sender.Send(CreateListQuery(
-            GetBaseUrl(options.Value, httpContext), request.Limit, request.Page, request.Cursor,
-            request.Search, request.Status, request.SortBy, request.SortDirection, request.Fe, request.Sort),
+        sender.Send(new ListShortLinksQuery(
+            GetBaseUrl(options.Value, httpContext),
+            request),
             cancellationToken);
 
     private static Task<ShortLinkImportDryRunResponse> DryRunShortLinkImportAsync(
@@ -160,19 +160,6 @@ public static class ShortenLinkEndpointMappings
         ISender sender,
         CancellationToken cancellationToken) =>
         sender.Send(new ExportShortLinksQuery(limit), cancellationToken);
-
-    private static ListShortLinksQuery CreateListQuery(
-        string baseUrl, int? limit, int? page, string? cursor,
-        string? search, string? status, string? sortBy, string? sortDirection,
-        string? filter, string? sort)
-    {
-        if (string.IsNullOrWhiteSpace(filter) && string.IsNullOrWhiteSpace(sort))
-            return new ListShortLinksQuery(baseUrl, limit, page, cursor, search, status, sortBy, sortDirection);
-
-        var parsed = ShortLinkListQueryParameterParser.Parse(filter, sort);
-        return new ListShortLinksQuery(
-            baseUrl, limit, page, cursor, parsed.Search, parsed.Status, parsed.SortBy, parsed.SortDirection);
-    }
 
     private static Task<ShortLinkAdminListItemResponse> UpdateShortLinkAsync(
         string code, ShortLinkUpdateRequest request, ISender sender, IOptions<ShortenLinkOptions> options,

@@ -10,7 +10,10 @@ const sortFields: Record<Exclude<ShortLinkDiscoveryQuery["sortBy"], "status">, S
   code: "Code"
 };
 
-export function buildShortLinkFilterExpression(query: ShortLinkDiscoveryQuery): FilterExpression | undefined {
+export function buildShortLinkFilterExpression(
+  query: ShortLinkDiscoveryQuery,
+  now = new Date()
+): FilterExpression | undefined {
   const search = query.search.trim();
   const expressions: FilterExpression[] = [];
   if (search) {
@@ -19,8 +22,28 @@ export function buildShortLinkFilterExpression(query: ShortLinkDiscoveryQuery): 
       filter.condition("OriginalUrl", "contains", search)
     ));
   }
-  if (query.status === "active" || query.status === "inactive") {
-    expressions.push(filter.condition("IsActive", "eq", query.status === "active"));
+  if (query.status === "inactive") {
+    expressions.push(filter.condition("IsActive", "eq", false));
+  } else if (query.status === "active") {
+    expressions.push(filter.and(
+      filter.condition("IsActive", "eq", true),
+      filter.or(
+        filter.condition("ExpiresAt", "eq", "null"),
+        filter.condition("ExpiresAt", "gt", now)
+      )
+    ));
+  } else if (query.status === "expired") {
+    expressions.push(filter.and(
+      filter.condition("IsActive", "eq", true),
+      filter.condition("ExpiresAt", "le", now)
+    ));
+  } else if (query.status === "expiring-soon") {
+    const expiringSoonBefore = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    expressions.push(filter.and(
+      filter.condition("IsActive", "eq", true),
+      filter.condition("ExpiresAt", "gt", now),
+      filter.condition("ExpiresAt", "le", expiringSoonBefore)
+    ));
   }
   if (expressions.length === 0) return undefined;
   return expressions.length === 1 ? expressions[0] : filter.and(...expressions);

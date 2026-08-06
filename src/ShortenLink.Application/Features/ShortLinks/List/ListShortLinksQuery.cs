@@ -1,4 +1,6 @@
 using ShortenLink.Core.Security;
+using ShortenLink.Core.Querying;
+using ShortenLink.Core.Contracts.Requests;
 using ShortenLink.Mediator;
 using System.Text.RegularExpressions;
 
@@ -6,53 +8,37 @@ namespace ShortenLink.Application.Features.ShortLinks.List;
 
 public sealed record ListShortLinksQuery(
     string BaseUrl,
-    int? Limit,
-    int? Page,
-    string? Cursor,
-    string? Search,
-    string? Status,
-    string? SortBy,
-    string? SortDirection) : IRequest<ShortLinkAdminListResponse>;
+    ShortLinkListEndpointRequest Params) : IRequest<ShortLinkAdminListResponse>;
 
-public sealed record ShortLinkListQueryParameters(
-    string? Search,
-    string Status,
+public sealed record ShortLinkSortParameters(
     string SortBy,
     string SortDirection);
 
 public static partial class ShortLinkListQueryParameterParser
 {
-    public static ShortLinkListQueryParameters Parse(string? filter, string? sort)
+    public static ShortLinkSortParameters ParseSort(string? sort)
     {
-        var search = SearchPattern().Match(filter ?? string.Empty).Groups[1].Value;
-        var status = StatusPattern().Match(filter ?? string.Empty).Groups[1].Value.ToLowerInvariant() switch
-        {
-            "true" => "active",
-            "false" => "inactive",
-            _ => "all"
-        };
         var sortMatch = SortPattern().Match(sort ?? string.Empty);
+        if (!string.IsNullOrWhiteSpace(sort) && !sortMatch.Success)
+        {
+            throw new RequestValidationException(ErrorCodes.InvalidSort, "Sort expression is invalid.");
+        }
+
         var field = sortMatch.Groups[2].Value.ToLowerInvariant() switch
         {
+            "" => "created",
+            "createdat" => "created",
             "expiresat" => "expiry",
             "originalurl" => "destination",
             "code" => "code",
             "isactive" => "status",
-            _ => "created"
+            _ => throw new RequestValidationException(ErrorCodes.InvalidSort, "Sort field is invalid.")
         };
 
-        return new ShortLinkListQueryParameters(
-            string.IsNullOrWhiteSpace(search) ? null : search,
-            status,
+        return new ShortLinkSortParameters(
             field,
             sortMatch.Success && sortMatch.Groups[1].Value == "-" ? "desc" : "asc");
     }
-
-    [GeneratedRegex(@"(?:Code|OriginalUrl) contains `([^`]*)`", RegexOptions.IgnoreCase)]
-    private static partial Regex SearchPattern();
-
-    [GeneratedRegex(@"IsActive eq `(true|false)`", RegexOptions.IgnoreCase)]
-    private static partial Regex StatusPattern();
 
     [GeneratedRegex(@"^([+-]?)([A-Za-z][A-Za-z0-9.]*)$")]
     private static partial Regex SortPattern();
@@ -67,35 +53,33 @@ internal sealed class ListShortLinksQueryHandler(
         ListShortLinksQuery request,
         CancellationToken cancellationToken)
     {
+        var parameters = request.Params;
+        ValidateFilter(parameters.Fe);
         var user = await accessGuard.GetAuthorizedUserAsync(
             ShortenLinkPermissionCatalog.ShortLinksRead, cancellationToken);
         var scope = await accessGuard.CreateScopeAsync(user, cancellationToken);
-        var limit = Math.Clamp(request.Limit ?? 100, 1, 500);
-        var hasListQuery = request.Page is not null
-            || !string.IsNullOrWhiteSpace(request.Search)
-            || !string.IsNullOrWhiteSpace(request.Status)
-            || !string.IsNullOrWhiteSpace(request.SortBy)
-            || !string.IsNullOrWhiteSpace(request.SortDirection);
+        var limit = Math.Clamp(parameters.Limit ?? 100, 1, 500);
+        var hasListQuery = parameters.Page is not null
+            || !string.IsNullOrWhiteSpace(parameters.Fe)
+            || !string.IsNullOrWhiteSpace(parameters.Sort);
 
-        var status = ParseStatus(request.Status);
-        var sortBy = ParseSortBy(request.SortBy);
-        var direction = ParseDirection(request.SortDirection);
-        if (request.Page is null
-            && !string.IsNullOrWhiteSpace(request.Cursor)
-            && status == ShortLinkListStatus.All
+        var parsedSort = ShortLinkListQueryParameterParser.ParseSort(parameters.Sort);
+        var sortBy = ParseSortBy(parsedSort.SortBy);
+        var direction = ParseDirection(parsedSort.SortDirection);
+        if (parameters.Page is null
+            && !string.IsNullOrWhiteSpace(parameters.Cursor)
             && sortBy == ShortLinkListSortBy.Created
             && direction == ShortLinkSortDirection.Desc)
         {
             if (!ShortLinkFeatureSupport.TryDecodeCursor(
-                request.Cursor, out var cursorCreatedAt, out var cursorCode))
+                parameters.Cursor, out var cursorCreatedAt, out var cursorCode))
             {
                 throw new RequestValidationException(ErrorCodes.InvalidCursor, "Cursor is invalid.");
             }
 
             var cursorPage = await shortLinkService.ListAccessibleCursorPageAsync(
                 Math.Min(limit + 1, 501),
-                request.Search,
-                status,
+                parameters.Fe,
                 sortBy,
                 direction,
                 cursorCreatedAt!.Value,
@@ -115,12 +99,11 @@ internal sealed class ListShortLinksQueryHandler(
 
         if (hasListQuery)
         {
-            var page = Math.Max(request.Page ?? 1, 1);
+            var page = Math.Max(parameters.Page ?? 1, 1);
             var result = await shortLinkService.ListAccessiblePageAsync(
                 (page - 1) * limit,
                 limit,
-                request.Search,
-                status,
+                parameters.Fe,
                 sortBy,
                 direction,
                 scope,
@@ -135,7 +118,7 @@ internal sealed class ListShortLinksQueryHandler(
         }
 
         if (!ShortLinkFeatureSupport.TryDecodeCursor(
-                request.Cursor, out var beforeCreatedAt, out var beforeCode))
+                parameters.Cursor, out var beforeCreatedAt, out var beforeCode))
             throw new RequestValidationException(ErrorCodes.InvalidCursor, "Cursor is invalid.");
         var links = await shortLinkService.ListAccessibleRecentAsync(
             limit + 1, beforeCreatedAt, beforeCode, scope, cancellationToken);
@@ -157,17 +140,6 @@ internal sealed class ListShortLinksQueryHandler(
             ShortLinkFeatureSupport.BuildShortUrl(baseUrl, link.Code),
             ShortLinkAccessGuard.GetAccessLevel(link, scope));
 
-    private static ShortLinkListStatus ParseStatus(string? value) =>
-        value?.ToLowerInvariant() switch
-        {
-            null or "" or "all" => ShortLinkListStatus.All,
-            "active" => ShortLinkListStatus.Active,
-            "inactive" => ShortLinkListStatus.Inactive,
-            "expired" => ShortLinkListStatus.Expired,
-            "expiring-soon" => ShortLinkListStatus.ExpiringSoon,
-            _ => throw new RequestValidationException(ErrorCodes.InvalidFilter, "Status filter is invalid.")
-        };
-
     private static ShortLinkListSortBy ParseSortBy(string? value) =>
         value?.ToLowerInvariant() switch
         {
@@ -186,4 +158,45 @@ internal sealed class ListShortLinksQueryHandler(
             "asc" => ShortLinkSortDirection.Asc,
             _ => throw new RequestValidationException(ErrorCodes.InvalidSortDirection, "Sort direction is invalid.")
         };
+
+    private static void ValidateFilter(string? filterExpression)
+    {
+        if (string.IsNullOrWhiteSpace(filterExpression))
+        {
+            return;
+        }
+
+        try
+        {
+            _ = FilterExpressionParser.Parse<ShortLinkFilterFields>(
+                filterExpression,
+                ShortLinkFilterFields.AllowedProperties);
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException or OverflowException)
+        {
+            throw new RequestValidationException(
+                ErrorCodes.InvalidFilter,
+                exception.Message);
+        }
+    }
+
+    private sealed class ShortLinkFilterFields
+    {
+        public static readonly string[] AllowedProperties =
+        [
+            nameof(Code),
+            nameof(OriginalUrl),
+            nameof(ExpiresAt),
+            nameof(IsActive),
+            nameof(CreatedAt),
+            nameof(CreatedByUserId)
+        ];
+
+        public string Code { get; init; } = string.Empty;
+        public string OriginalUrl { get; init; } = string.Empty;
+        public DateTimeOffset? ExpiresAt { get; init; }
+        public bool IsActive { get; init; }
+        public DateTimeOffset CreatedAt { get; init; }
+        public string? CreatedByUserId { get; init; }
+    }
 }

@@ -27,8 +27,7 @@ public interface IShortLinkService
     Task<ShortLinkListPage> ListPageAsync(
         int skip,
         int limit,
-        string? search,
-        ShortLinkListStatus status,
+        string? filterExpression,
         ShortLinkListSortBy sortBy,
         ShortLinkSortDirection sortDirection,
         CancellationToken cancellationToken = default);
@@ -36,8 +35,7 @@ public interface IShortLinkService
     Task<ShortLinkListPage> ListAccessiblePageAsync(
         int skip,
         int limit,
-        string? search,
-        ShortLinkListStatus status,
+        string? filterExpression,
         ShortLinkListSortBy sortBy,
         ShortLinkSortDirection sortDirection,
         ShortLinkAccessScope accessScope,
@@ -45,8 +43,7 @@ public interface IShortLinkService
 
     Task<ShortLinkListPage> ListAccessibleCursorPageAsync(
         int limit,
-        string? search,
-        ShortLinkListStatus status,
+        string? filterExpression,
         ShortLinkListSortBy sortBy,
         ShortLinkSortDirection sortDirection,
         DateTimeOffset beforeCreatedAt,
@@ -56,8 +53,7 @@ public interface IShortLinkService
         ListAccessiblePageAsync(
             0,
             limit,
-            search,
-            status,
+            filterExpression,
             sortBy,
             sortDirection,
             accessScope,

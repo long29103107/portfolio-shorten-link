@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.Sqlite;
 using Npgsql;
-using ShortenLink.Core.Domain;
-using ShortenLink.Core.Exceptions;
-using ShortenLink.Core.Services;
 using ShortenLink.Infrastructure.Persistence;
+using ShortenLink.Infrastructure.Persistence.ReadModels;
 using ShortenLink.Core.Security;
+using ShortenLink.Core.Querying;
 
 namespace ShortenLink.Infrastructure.Repositories;
 
@@ -16,6 +15,16 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
       IShortLinkTenantRepository,
       IShortLinkExpirationRepository
 {
+    private static readonly string[] FilterableProperties =
+    [
+        nameof(ShortLinkPersistenceEntity.Code),
+        nameof(ShortLinkPersistenceEntity.OriginalUrl),
+        nameof(ShortLinkPersistenceEntity.ExpiresAt),
+        nameof(ShortLinkPersistenceEntity.IsActive),
+        nameof(ShortLinkPersistenceEntity.CreatedAt),
+        nameof(ShortLinkPersistenceEntity.CreatedByUserId)
+    ];
+
     public async Task<IReadOnlyList<ShortLink>> ListRecentAsync(
         int limit,
         DateTimeOffset? beforeCreatedAt = null,
@@ -35,6 +44,7 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             var equalTimestamp = await query
                 .Where(link => link.CreatedAt == cursorCreatedAt)
                 .OrderBy(link => link.Code)
+                .Select(ShortLinkPersistenceReadModel.Projection)
                 .ToListAsync(cancellationToken);
             var selected = equalTimestamp
                 .Where(link => string.CompareOrdinal(link.Code, beforeCode) > 0)
@@ -44,13 +54,12 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             if (selected.Count < safeLimit)
             {
                 var remaining = safeLimit - selected.Count;
-                var older = await (DbContext.Database.IsSqlite()
-                    ? DbContext.Set<ShortLinkPersistenceEntity>()
-                        .FromSqlInterpolated($"SELECT * FROM short_links WHERE TenantId = {string.Empty} AND CreatedAt < {cursorCreatedAt}")
-                    : query.Where(link => link.CreatedAt < cursorCreatedAt))
-                    .OrderByDescending(link => link.CreatedAt.ToString())
+                var older = await query
+                    .Where(link => link.CreatedAt < cursorCreatedAt)
+                    .OrderByDescending(link => link.CreatedAt)
                     .ThenBy(link => link.Code)
                     .Take(remaining)
+                    .Select(ShortLinkPersistenceReadModel.Projection)
                     .ToListAsync(cancellationToken);
                 selected.AddRange(older);
             }
@@ -58,22 +67,12 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             return selected.Select(record => record.ToDomain()).ToList();
         }
 
-        if (beforeCreatedAt is not null && DbContext.Database.IsSqlite())
-        {
-            query = DbContext.Set<ShortLinkPersistenceEntity>()
-                .FromSqlInterpolated($"SELECT * FROM short_links WHERE TenantId = {string.Empty} AND CreatedAt < {beforeCreatedAt.Value}");
-        }
-        else
-        {
-            query = ApplyRecentCursor(query, beforeCreatedAt, beforeCode);
-        }
+        query = ApplyRecentCursor(query, beforeCreatedAt, beforeCode);
 
-        return await query
-            .OrderByDescending(link => link.CreatedAt.ToString())
+        return await MaterializeReadModelsAsync(query
+            .OrderByDescending(link => link.CreatedAt)
             .ThenBy(link => link.Code)
-            .Take(safeLimit)
-            .Select(record => record.ToDomain())
-            .ToListAsync(cancellationToken);
+            .Take(safeLimit), cancellationToken);
     }
 
     public async Task<IReadOnlyList<ShortLink>> ListExpirationCandidatesAsync(
@@ -98,6 +97,7 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             var equalTimestamp = await query
                 .Where(link => link.ExpiresAt == cursorExpiresAt)
                 .OrderBy(link => link.Code)
+                .Select(ShortLinkPersistenceReadModel.Projection)
                 .ToListAsync(cancellationToken);
             var selected = equalTimestamp
                 .Where(link => string.CompareOrdinal(link.Code, beforeCode) > 0)
@@ -107,11 +107,12 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             if (selected.Count < safeLimit)
             {
                 var remaining = safeLimit - selected.Count;
-                var newer = await DbContext.Set<ShortLinkPersistenceEntity>()
-                    .FromSqlInterpolated($"SELECT * FROM short_links WHERE TenantId = {tenantKey} AND ExpiresAt IS NOT NULL AND ExpiresAt > {cursorExpiresAt}")
-                    .OrderBy(link => link.ExpiresAt!.Value.ToString())
+                var newer = await query
+                    .Where(link => link.ExpiresAt > cursorExpiresAt)
+                    .OrderBy(link => link.ExpiresAt)
                     .ThenBy(link => link.Code)
                     .Take(remaining)
+                    .Select(ShortLinkPersistenceReadModel.Projection)
                     .ToListAsync(cancellationToken);
                 selected.AddRange(newer);
             }
@@ -119,22 +120,12 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             return selected.Select(record => record.ToDomain()).ToList();
         }
 
-        if (beforeExpiresAt is not null && DbContext.Database.IsSqlite())
-        {
-            query = DbContext.Set<ShortLinkPersistenceEntity>()
-                .FromSqlInterpolated($"SELECT * FROM short_links WHERE TenantId = {tenantKey} AND ExpiresAt IS NOT NULL AND ExpiresAt > {beforeExpiresAt.Value}");
-        }
-        else
-        {
-            query = ApplyExpirationCursor(query, beforeExpiresAt, beforeCode);
-        }
+        query = ApplyExpirationCursor(query, beforeExpiresAt, beforeCode);
 
-        return await query
-            .OrderBy(record => record.ExpiresAt!.Value.ToString())
+        return await MaterializeReadModelsAsync(query
+            .OrderBy(record => record.ExpiresAt)
             .ThenBy(record => record.Code)
-            .Take(safeLimit)
-            .Select(record => record.ToDomain())
-            .ToListAsync(cancellationToken);
+            .Take(safeLimit), cancellationToken);
     }
 
     public async Task<IReadOnlyList<ShortLink>> ListAccessibleRecentAsync(
@@ -155,6 +146,7 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
                 var equalTimestamp = await query
                     .Where(link => link.CreatedAt == cursorCreatedAt)
                     .OrderBy(link => link.Code)
+                    .Select(ShortLinkPersistenceReadModel.Projection)
                     .ToListAsync(cancellationToken);
                 var selected = equalTimestamp
                     .Where(link => string.CompareOrdinal(link.Code, beforeCode) > 0)
@@ -163,12 +155,12 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
                 if (selected.Count < Math.Clamp(limit, 1, 500))
                 {
                     var remaining = Math.Clamp(limit, 1, 500) - selected.Count;
-                    var olderSource = DbContext.Set<ShortLinkPersistenceEntity>()
-                        .FromSqlInterpolated($"SELECT * FROM short_links WHERE TenantId = {accessScope.TenantId ?? string.Empty} AND CreatedAt < {cursorCreatedAt}");
-                    var older = await ApplyAccessScope(olderSource, accessScope)
-                        .OrderByDescending(link => link.CreatedAt.ToString())
+                    var older = await query
+                        .Where(link => link.CreatedAt < cursorCreatedAt)
+                        .OrderByDescending(link => link.CreatedAt)
                         .ThenBy(link => link.Code)
                         .Take(remaining)
+                        .Select(ShortLinkPersistenceReadModel.Projection)
                         .ToListAsync(cancellationToken);
                     selected.AddRange(older);
                 }
@@ -176,21 +168,17 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
                 return selected.Select(record => record.ToDomain()).ToList();
             }
 
-            var source = DbContext.Set<ShortLinkPersistenceEntity>()
-                .FromSqlInterpolated($"SELECT * FROM short_links WHERE TenantId = {accessScope.TenantId ?? string.Empty} AND CreatedAt < {cursorCreatedAt}");
-            query = ApplyAccessScope(source, accessScope);
+            query = query.Where(link => link.CreatedAt < cursorCreatedAt);
         }
         else
         {
             query = ApplyRecentCursor(query, beforeCreatedAt, beforeCode);
         }
 
-        return await query
-            .OrderByDescending(link => link.CreatedAt.ToString())
+        return await MaterializeReadModelsAsync(query
+            .OrderByDescending(link => link.CreatedAt)
             .ThenBy(link => link.Code)
-            .Take(Math.Clamp(limit, 1, 500))
-            .Select(record => record.ToDomain())
-            .ToListAsync(cancellationToken);
+            .Take(Math.Clamp(limit, 1, 500)), cancellationToken);
     }
 
     private IQueryable<ShortLinkPersistenceEntity> ApplyRecentCursor(
@@ -235,14 +223,12 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
     {
         var safeSkip = Math.Max(skip, 0);
         var safeLimit = Math.Clamp(limit, 1, 500);
-        return await ReadOnlyEntities
+        return await MaterializeReadModelsAsync(ReadOnlyEntities
             .Where(record => record.TenantId == string.Empty)
-            .OrderByDescending(link => link.CreatedAt.ToString())
+            .OrderByDescending(link => link.CreatedAt)
             .ThenBy(link => link.Code)
             .Skip(safeSkip)
-            .Take(safeLimit)
-            .Select(record => record.ToDomain())
-            .ToListAsync(cancellationToken);
+            .Take(safeLimit), cancellationToken);
     }
 
     public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
@@ -259,33 +245,16 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
         var safeSkip = Math.Max(skip, 0);
         var cursorMode = query.BeforeCreatedAt is not null
             && query.SortBy == ShortLinkListSortBy.Created
-            && query.SortDirection == ShortLinkSortDirection.Desc
-            && (!DbContext.Database.IsSqlite() || query.Status == ShortLinkListStatus.All);
+            && query.SortDirection == ShortLinkSortDirection.Desc;
         var safeLimit = Math.Clamp(limit, 1, cursorMode ? 501 : 500);
-        var statusScoped = ReadOnlyEntities;
-        var statusAppliedInSql = false;
-        var cursorAppliedInSql = false;
-        if (cursorMode && query.Status == ShortLinkListStatus.All && DbContext.Database.IsSqlite())
-        {
-            var cursorCreatedAt = query.BeforeCreatedAt!.Value;
-            statusScoped = string.IsNullOrWhiteSpace(query.BeforeCode)
-                ? DbContext.Set<ShortLinkPersistenceEntity>()
-                    .FromSqlInterpolated($"SELECT * FROM short_links WHERE CreatedAt < {cursorCreatedAt}")
-                : DbContext.Set<ShortLinkPersistenceEntity>()
-                    .FromSqlInterpolated($"SELECT * FROM short_links WHERE CreatedAt < {cursorCreatedAt} OR (CreatedAt = {cursorCreatedAt} AND Code > {query.BeforeCode})");
-            cursorAppliedInSql = true;
-        }
-        else if (DbContext.Database.IsSqlite())
-        {
-            statusScoped = ApplySqliteStatusBoundary(statusScoped, query, out statusAppliedInSql);
-        }
+        var statusScoped = ApplyProviderCreatedCursor(
+            ReadOnlyEntities,
+            query,
+            cursorMode,
+            out var cursorAppliedInSql);
 
         var filtered = ApplyAccessScope(statusScoped, query.AccessScope);
-        filtered = ApplySearch(filtered, query.Search);
-        if (!statusAppliedInSql)
-        {
-            filtered = ApplyStatus(filtered, query);
-        }
+        filtered = filtered.ApplyFilter(query.FilterExpression, FilterableProperties);
         var totalCount = await filtered.CountAsync(cancellationToken);
         var orderedQuery = ApplySort(filtered, query);
         if (cursorMode && !cursorAppliedInSql)
@@ -300,36 +269,44 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
             orderedQuery = orderedQuery.Skip(safeSkip);
         }
 
-        var ordered = orderedQuery
-            .Take(safeLimit)
-            .Select(record => record.ToDomain())
-            .ToListAsync(cancellationToken);
+        var ordered = MaterializeReadModelsAsync(
+            orderedQuery.Take(safeLimit),
+            cancellationToken);
 
         return new ShortLinkListPage(await ordered, totalCount);
     }
 
-    private IQueryable<ShortLinkPersistenceEntity> ApplySqliteStatusBoundary(
-        IQueryable<ShortLinkPersistenceEntity> query,
-        ShortLinkListQuery listQuery,
-        out bool statusApplied)
+    private IQueryable<ShortLinkPersistenceEntity> ApplyProviderCreatedCursor(
+        IQueryable<ShortLinkPersistenceEntity> source,
+        ShortLinkListQuery query,
+        bool cursorMode,
+        out bool cursorApplied)
     {
-        statusApplied = listQuery.Status is ShortLinkListStatus.Active
-            or ShortLinkListStatus.Expired
-            or ShortLinkListStatus.ExpiringSoon;
-        if (!statusApplied)
+        cursorApplied = cursorMode
+            && DbContext.Database.IsSqlite();
+        if (!cursorApplied)
         {
-            return query;
+            return source;
         }
 
-        return listQuery.Status switch
-        {
-            ShortLinkListStatus.Active => DbContext.Set<ShortLinkPersistenceEntity>()
-                .FromSqlInterpolated($"SELECT * FROM short_links WHERE IsActive = 1 AND (ExpiresAt IS NULL OR ExpiresAt > {listQuery.Now})"),
-            ShortLinkListStatus.Expired => DbContext.Set<ShortLinkPersistenceEntity>()
-                .FromSqlInterpolated($"SELECT * FROM short_links WHERE IsActive = 1 AND ExpiresAt IS NOT NULL AND ExpiresAt <= {listQuery.Now}"),
-            _ => DbContext.Set<ShortLinkPersistenceEntity>()
-                .FromSqlInterpolated($"SELECT * FROM short_links WHERE IsActive = 1 AND ExpiresAt > {listQuery.Now} AND ExpiresAt <= {listQuery.ExpiringSoonBefore}")
-        };
+        var cursorCreatedAt = query.BeforeCreatedAt!.Value.UtcDateTime;
+        return string.IsNullOrWhiteSpace(query.BeforeCode)
+            ? DbContext.Set<ShortLinkPersistenceEntity>()
+                .FromSqlInterpolated(
+                    $"SELECT * FROM short_links WHERE CreatedAt < {cursorCreatedAt}")
+            : DbContext.Set<ShortLinkPersistenceEntity>()
+                .FromSqlInterpolated(
+                    $"SELECT * FROM short_links WHERE CreatedAt < {cursorCreatedAt} OR (CreatedAt = {cursorCreatedAt} AND Code > {query.BeforeCode})");
+    }
+
+    private static async Task<IReadOnlyList<ShortLink>> MaterializeReadModelsAsync(
+        IQueryable<ShortLinkPersistenceEntity> query,
+        CancellationToken cancellationToken)
+    {
+        var records = await query
+            .Select(ShortLinkPersistenceReadModel.Projection)
+            .ToListAsync(cancellationToken);
+        return records.Select(static record => record.ToDomain()).ToList();
     }
 
     private static IQueryable<ShortLinkPersistenceEntity> ApplyAccessScope(
@@ -357,38 +334,6 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
                 || sharedCodes.Contains(record.Code));
     }
 
-    private static IQueryable<ShortLinkPersistenceEntity> ApplySearch(
-        IQueryable<ShortLinkPersistenceEntity> query,
-        string? search)
-    {
-        if (string.IsNullOrWhiteSpace(search))
-        {
-            return query;
-        }
-
-        var normalizedSearch = search.ToLowerInvariant();
-        return query.Where(record => record.Code.ToLower().Contains(normalizedSearch)
-            || record.OriginalUrl.ToLower().Contains(normalizedSearch));
-    }
-
-    private static IQueryable<ShortLinkPersistenceEntity> ApplyStatus(
-        IQueryable<ShortLinkPersistenceEntity> query,
-        ShortLinkListQuery listQuery) =>
-        listQuery.Status switch
-        {
-            ShortLinkListStatus.Active => query.Where(record => record.IsActive
-                && (record.ExpiresAt == null || record.ExpiresAt > listQuery.Now)),
-            ShortLinkListStatus.Inactive => query.Where(record => !record.IsActive),
-            ShortLinkListStatus.Expired => query.Where(record => record.IsActive
-                && record.ExpiresAt != null
-                && record.ExpiresAt <= listQuery.Now),
-            ShortLinkListStatus.ExpiringSoon => query.Where(record => record.IsActive
-                && record.ExpiresAt != null
-                && record.ExpiresAt > listQuery.Now
-                && record.ExpiresAt <= listQuery.ExpiringSoonBefore),
-            _ => query
-        };
-
     private static IQueryable<ShortLinkPersistenceEntity> ApplySort(
         IQueryable<ShortLinkPersistenceEntity> query,
         ShortLinkListQuery listQuery)
@@ -397,8 +342,12 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
         return listQuery.SortBy switch
         {
             ShortLinkListSortBy.Expiry => descending
-                ? query.OrderByDescending(record => (record.ExpiresAt ?? DateTimeOffset.MaxValue).ToString()).ThenBy(record => record.Code)
-                : query.OrderBy(record => (record.ExpiresAt ?? DateTimeOffset.MaxValue).ToString()).ThenBy(record => record.Code),
+                ? query.OrderByDescending(record => record.ExpiresAt == null)
+                    .ThenByDescending(record => record.ExpiresAt)
+                    .ThenBy(record => record.Code)
+                : query.OrderBy(record => record.ExpiresAt == null)
+                    .ThenBy(record => record.ExpiresAt)
+                    .ThenBy(record => record.Code),
             ShortLinkListSortBy.Destination => descending
                 ? query.OrderByDescending(record => record.OriginalUrl).ThenBy(record => record.Code)
                 : query.OrderBy(record => record.OriginalUrl).ThenBy(record => record.Code),
@@ -415,8 +364,8 @@ public sealed class EfCoreShortLinkRepository(ShortLinkDbContext dbContext)
                     : record.ExpiresAt != null && record.ExpiresAt <= listQuery.Now ? 1 : 0)
                     .ThenBy(record => record.Code),
             _ => descending
-                ? query.OrderByDescending(record => record.CreatedAt.ToString()).ThenBy(record => record.Code)
-                : query.OrderBy(record => record.CreatedAt.ToString()).ThenBy(record => record.Code)
+                ? query.OrderByDescending(record => record.CreatedAt).ThenBy(record => record.Code)
+                : query.OrderBy(record => record.CreatedAt).ThenBy(record => record.Code)
         };
     }
 

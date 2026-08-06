@@ -57,20 +57,12 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             null,
             null,
             null,
-            null,
-            null,
-            null,
-            null,
             new AuditReadScope(
                 "owner-1",
                 HasFullAccess: false,
                 new HashSet<string>(["shared"], StringComparer.Ordinal))));
         var adminFirstPage = await repository.ListAsync(new AuditQuery(
             1,
-            null,
-            null,
-            null,
-            null,
             null,
             null,
             null,
@@ -83,10 +75,6 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             adminFirstPage.Items[0].OccurredAt,
             adminFirstPage.Items[0].Id,
             null,
-            null,
-            null,
-            null,
-            null,
             new AuditReadScope(
                 "admin",
                 HasFullAccess: true,
@@ -95,11 +83,7 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             10,
             null,
             null,
-            ShortLinkAuditActions.Updated,
-            "shared",
-            "admin",
-            occurredAt,
-            occurredAt,
+            $"(Action eq `{ShortLinkAuditActions.Updated}`) & (TargetId eq `shared`) & (ActorId eq `admin`) & (OccurredAt ge `{occurredAt:O}`) & (OccurredAt le `{occurredAt:O}`)",
             new AuditReadScope(
                 "admin",
                 HasFullAccess: true,
@@ -144,11 +128,7 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
             10,
             null,
             null,
-            null,
-            "durable",
-            null,
-            null,
-            null,
+            "(TargetId eq `durable`)",
             new AuditReadScope(
                 "owner-1",
                 HasFullAccess: false,
@@ -204,10 +184,6 @@ public sealed class EfCoreShortLinkAuditRepositoryTests
 
         var page = await repository.ListAsync(new AuditQuery(
             10,
-            null,
-            null,
-            null,
-            null,
             null,
             null,
             null,

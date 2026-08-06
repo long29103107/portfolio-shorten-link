@@ -97,7 +97,12 @@ public static class FilterExpressionParser
                 return Expression.Call(typeof(Enumerable), nameof(Enumerable.Contains), [type], Expression.Constant(array), property);
             }
 
-            var constant = Expression.Constant(ConvertValue(rawValue, type), type);
+            var convertedValue = ConvertValue(rawValue, type);
+            Expression constant = convertedValue is null
+                ? Expression.Constant(null, type)
+                : Nullable.GetUnderlyingType(type) is { } nullableType
+                    ? Expression.Convert(Expression.Constant(convertedValue, nullableType), type)
+                    : Expression.Constant(convertedValue, type);
             return operation.ToLowerInvariant() switch
             {
                 "eq" => Expression.Equal(property, constant),

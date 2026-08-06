@@ -499,20 +499,36 @@ These endpoints require `Authorization: Bearer <token>` from `POST /api/security
 
 When security is enabled, missing credentials return `401 unauthorized`; valid credentials without the required permission return `403 forbidden`. The React app routes those outcomes to `/unauthorized` and `/forbidden`.
 
-The admin list endpoint supports numbered discovery queries:
+The admin list endpoint uses `fe` as the single filter expression and `sort` as
+the sort expression:
 
-```http
-GET /api/short-links?page=1&limit=25&search=docs&status=active&sortBy=created&sortDirection=desc
+```bash
+curl --get http://localhost:5000/api/short-links \
+  --data-urlencode 'page=1' \
+  --data-urlencode 'limit=25' \
+  --data-urlencode 'fe=(((Code contains `docs`) | (OriginalUrl contains `docs`)) & (IsActive eq `true`))' \
+  --data-urlencode 'sort=-CreatedAt'
 ```
 
-Accepted values:
+Filter conditions use the following grammar shape, combined with `&`, `|`, `!`,
+and grouped parentheses:
 
-- `search`: optional text matched against short code or destination URL.
-- `status`: `all`, `active`, `inactive`, `expired`, or `expiring-soon`. Expiring-soon means active links expiring within the next 7 days.
-- `sortBy`: `created`, `expiry`, `destination`, `code`, or `status`.
-- `sortDirection`: `asc` or `desc`.
+```text
+(Field operator `value`)
+```
 
-Numbered list responses include `items`, `totalCount`, `page`, `pageSize`, and `totalPages`, with counts calculated after search and status filters. Invalid filter or sort values return `400` with a stable error code.
+Supported operators are `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `contains`,
+`startsWith`, and `in`. Values must be wrapped in backticks.
+
+Short-link filters allow `Code`, `OriginalUrl`, `ExpiresAt`, `IsActive`,
+`CreatedAt`, and `CreatedByUserId`. Use `+Field` or `-Field` for ascending or
+descending sort. Sort supports `CreatedAt`, `ExpiresAt`, `OriginalUrl`, `Code`,
+and `IsActive`. Clients derive status choices such as expired or expiring-soon
+into `IsActive` and `ExpiresAt` conditions in `fe`.
+
+Numbered list responses include `items`, `totalCount`, `page`, `pageSize`, and
+`totalPages`, with counts calculated after applying `fe`. Invalid expressions or
+non-whitelisted fields return `400` with a stable error code.
 
 The React app includes `/login`; successful sign-in redirects to `/`. The `/`
 workspace creates personal links, `/short-links` manages owned/shared links, and
@@ -856,9 +872,15 @@ eventually consistent with the completed mutation.
 
 Authorized callers with `audit_logs.read` can query:
 
-```http
-GET /api/audit-logs?limit=50&cursor=<cursor>&action=short_link.updated&targetId=abc1234&actorId=user-1&from=2026-07-01T00:00:00Z&to=2026-07-31T23:59:59Z
+```bash
+curl --get http://localhost:5000/api/audit-logs \
+  --data-urlencode 'limit=50' \
+  --data-urlencode 'cursor=<cursor>' \
+  --data-urlencode 'fe=((Action eq `short_link.updated`) & (TargetId eq `abc1234`) & (ActorId eq `user-1`) & (OccurredAt ge `2026-07-01T00:00:00Z`) & (OccurredAt le `2026-07-31T23:59:59Z`))'
 ```
+
+Audit filters allow `ActorId`, `Action`, `TargetType`, `TargetId`, `Outcome`,
+`OccurredAt`, and `SubjectUserId`. HTTP clients must URL-encode the `fe` value.
 
 Results are newest-first and return `{ "items": [...], "nextCursor": "..." }`.
 Admin can inspect all matching events. User results remain limited to events for
@@ -1054,6 +1076,26 @@ Phase 2 adds configuration-driven provider selection to the reusable library bou
 - Set `ShortenLink:Database:UsePostgres` to `true` and provide `ShortenLink:Database:PostgresConnectionString` to switch the same host and library code to PostgreSQL.
 - The reusable API, repository, and service contracts do not change between providers.
 - `dotnet pack ShortenLink.slnx -c Release` still produces the same reusable packages; provider choice stays in configuration.
+
+### UTC Timestamp Storage
+
+Public and domain contracts continue to use `DateTimeOffset`, while the EF
+persistence boundary converts timestamps to UTC `DateTime` values. This keeps
+SQLite range/order predicates index-friendly and maps to PostgreSQL
+`timestamp with time zone` without provider-specific behavior in application
+code.
+
+On SQLite startup, the built-in host performs an idempotent compatibility pass
+that converts legacy timestamp strings containing `Z` or an explicit offset to
+the UTC storage format. Custom hosts that initialize an existing SQLite schema
+themselves should call:
+
+```csharp
+await ShortLinkDatabaseSchema.EnsureUtcTimestampSchemaAsync(dbContext, cancellationToken);
+```
+
+Fresh databases already write the normalized format and do not require a data
+rewrite.
 
 ### Local PostgreSQL Host Smoke
 

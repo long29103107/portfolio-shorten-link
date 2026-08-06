@@ -65,11 +65,9 @@ public sealed class EfCoreShortLinkRepositoryTests
             25,
             new ShortLinkListQuery(
                 null,
-                ShortLinkListStatus.All,
                 ShortLinkListSortBy.Created,
                 ShortLinkSortDirection.Desc,
                 now,
-                now.AddDays(7),
                 new ShortLinkAccessScope(
                     "user-1",
                     false,
@@ -102,11 +100,9 @@ public sealed class EfCoreShortLinkRepositoryTests
             2,
             new ShortLinkListQuery(
                 null,
-                ShortLinkListStatus.All,
                 ShortLinkListSortBy.Created,
                 ShortLinkSortDirection.Desc,
                 cursorTime,
-                cursorTime.AddDays(7),
                 BeforeCreatedAt: cursorTime,
                 BeforeCode: "a000001"));
 

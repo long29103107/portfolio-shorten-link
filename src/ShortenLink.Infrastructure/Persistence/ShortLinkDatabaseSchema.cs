@@ -8,6 +8,44 @@ namespace ShortenLink.Infrastructure.Persistence;
 /// </summary>
 public static class ShortLinkDatabaseSchema
 {
+    public static async Task EnsureUtcTimestampSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+
+        if (!dbContext.Database.IsSqlite())
+        {
+            return;
+        }
+
+        foreach (var (table, columns) in SqliteTimestampColumns)
+        {
+            if (!await SqliteTableExistsAsync(dbContext, table, cancellationToken))
+            {
+                continue;
+            }
+
+            foreach (var column in columns)
+            {
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    CreateSqliteTimestampNormalizationSql(table, column),
+                    cancellationToken);
+            }
+        }
+    }
+
+    private static string CreateSqliteTimestampNormalizationSql(
+        string table,
+        string column) =>
+        string.Concat(
+            "UPDATE \"", table, "\" ",
+            "SET \"", column, "\" = strftime('%Y-%m-%d %H:%M:%f0000', \"", column, "\") ",
+            "WHERE \"", column, "\" IS NOT NULL ",
+            "AND (substr(\"", column, "\", -1) = 'Z' ",
+            "OR substr(\"", column, "\", -6, 1) IN ('+', '-'));"
+        );
+
     public static async Task EnsureIdempotencySchemaAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken = default)
@@ -257,4 +295,20 @@ public static class ShortLinkDatabaseSchema
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_short_link_expiration_checkpoints_TenantId"
             ON "short_link_expiration_checkpoints" ("TenantId");
         """;
+
+    private static readonly IReadOnlyDictionary<string, string[]> SqliteTimestampColumns =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["short_links"] = ["CreatedAt", "UpdatedAt", "ExpiresAt"],
+            ["short_link_clicks"] = ["CreatedAt", "UpdatedAt", "ClickedAtUtc"],
+            ["short_link_shares"] = ["CreatedAt", "UpdatedAt"],
+            ["short_link_audit_events"] = ["CreatedAt", "UpdatedAt", "OccurredAt"],
+            ["short_link_expiration_checkpoints"] =
+                ["CreatedAt", "UpdatedAt", "EvaluatedAtUtc", "CheckpointUpdatedAtUtc"],
+            ["shorten_link_security_assignments"] = ["CreatedAt", "UpdatedAt"],
+            ["shorten_link_security_custom_roles"] = ["CreatedAt", "UpdatedAt"],
+            ["shorten_link_security_role_permission_overrides"] = ["CreatedAt", "UpdatedAt"],
+            ["shorten_link_security_users"] = ["CreatedAt", "UpdatedAt"],
+            ["shorten_link_security_user_api_keys"] = ["CreatedAt", "UpdatedAt"]
+        };
 }

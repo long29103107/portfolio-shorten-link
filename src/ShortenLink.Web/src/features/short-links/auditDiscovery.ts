@@ -3,6 +3,7 @@ import type {
   AuditLogFilters,
   AuditLogQuery
 } from "./types";
+import { appendQueryExpression, filter, type FilterExpression } from "../../shared/queryExpression";
 
 export const emptyAuditLogFilters: AuditLogFilters = {
   action: "",
@@ -22,11 +23,19 @@ export function buildAuditLogUrl(query: AuditLogQuery = {}): string {
   }
 
   const filters = { ...emptyAuditLogFilters, ...(query.filters ?? {}) };
-  setTrimmed(params, "action", filters.action);
-  setTrimmed(params, "targetId", filters.targetId);
-  setTrimmed(params, "actorId", filters.actorId);
-  setTrimmed(params, "from", filters.from);
-  setTrimmed(params, "to", filters.to);
+  const expressions: FilterExpression[] = [];
+  addCondition(expressions, "Action", "eq", filters.action);
+  addCondition(expressions, "TargetId", "eq", filters.targetId);
+  addCondition(expressions, "ActorId", "eq", filters.actorId);
+  addCondition(expressions, "OccurredAt", "ge", filters.from);
+  addCondition(expressions, "OccurredAt", "le", filters.to);
+  appendQueryExpression(params, {
+    filter: expressions.length === 0
+      ? undefined
+      : expressions.length === 1
+        ? expressions[0]
+        : filter.and(...expressions)
+  });
 
   return `/api/audit-logs?${params.toString()}`;
 }
@@ -80,9 +89,14 @@ export function formatAuditLabel(value: string): string {
     .join(" ");
 }
 
-function setTrimmed(params: URLSearchParams, key: string, value: string) {
+function addCondition(
+  expressions: FilterExpression[],
+  field: string,
+  operator: "eq" | "ge" | "le",
+  value: string
+) {
   const normalized = value.trim();
   if (normalized) {
-    params.set(key, normalized);
+    expressions.push(filter.condition(field, operator, normalized));
   }
 }

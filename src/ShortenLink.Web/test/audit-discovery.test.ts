@@ -22,13 +22,13 @@ describe("audit investigation discovery", () => {
         to: "2026-07-31T23:59:59.000Z"
       }
     })).toBe(
-      "/api/audit-logs?limit=200&cursor=opaque%2B%2F%3D&action=short_link.updated&targetId=abc+123&actorId=user%40example.com&from=2026-07-01T00%3A00%3A00.000Z&to=2026-07-31T23%3A59%3A59.000Z"
+      "/api/audit-logs?limit=200&cursor=opaque%2B%2F%3D&fe=%28%28Action+eq+%60short_link.updated%60%29+%26+%28TargetId+eq+%60abc+123%60%29+%26+%28ActorId+eq+%60user%40example.com%60%29+%26+%28OccurredAt+ge+%602026-07-01T00%3A00%3A00.000Z%60%29+%26+%28OccurredAt+le+%602026-07-31T23%3A59%3A59.000Z%60%29%29"
     );
   });
 
   test("serializes a selected action for the audit API", () => {
     expect(buildAuditLogUrl({ filters: { action: "short_link.created" } }))
-      .toBe("/api/audit-logs?limit=50&action=short_link.created");
+      .toBe("/api/audit-logs?limit=50&fe=%28Action+eq+%60short_link.created%60%29");
   });
 
   test("omits blank filters and uses the newest-page defaults", () => {

@@ -575,20 +575,7 @@ public sealed class ShortLinkServiceTests
                         link.TenantId,
                         ShortLinkTenantId.Normalize(query.AccessScope.TenantId),
                         StringComparison.Ordinal))
-                .Where(link => string.IsNullOrWhiteSpace(query.Search)
-                    || link.Code.Contains(query.Search, StringComparison.OrdinalIgnoreCase)
-                    || link.OriginalUrl.AbsoluteUri.Contains(query.Search, StringComparison.OrdinalIgnoreCase))
-                .Where(link => query.Status switch
-                {
-                    ShortLinkListStatus.Active => link.IsActive && !link.IsExpired(query.Now),
-                    ShortLinkListStatus.Inactive => !link.IsActive,
-                    ShortLinkListStatus.Expired => link.IsActive && link.IsExpired(query.Now),
-                    ShortLinkListStatus.ExpiringSoon => link.IsActive
-                        && !link.IsExpired(query.Now)
-                        && link.ExpiresAt is not null
-                        && link.ExpiresAt <= query.ExpiringSoonBefore,
-                    _ => true
-                })
+                .Where(CreateFilterPredicate(query.FilterExpression))
                 .ToList();
 
             var sorted = query.SortBy switch
@@ -623,6 +610,40 @@ public sealed class ShortLinkServiceTests
             }
 
             return shortLink.IsExpired(now) ? 1 : 0;
+        }
+
+        private static Func<ShortLink, bool> CreateFilterPredicate(string? filterExpression)
+        {
+            if (string.IsNullOrWhiteSpace(filterExpression))
+            {
+                return static _ => true;
+            }
+
+            var predicate = ShortenLink.Core.Querying.FilterExpressionParser.Parse<ShortLinkFilterRow>(
+                filterExpression,
+                ShortLinkFilterRow.AllowedProperties).Compile();
+            return link => predicate(new ShortLinkFilterRow
+            {
+                Code = link.Code,
+                OriginalUrl = link.OriginalUrl.AbsoluteUri,
+                ExpiresAt = link.ExpiresAt,
+                IsActive = link.IsActive,
+                CreatedAt = link.CreatedAt,
+                CreatedByUserId = link.CreatedByUserId
+            });
+        }
+
+        private sealed class ShortLinkFilterRow
+        {
+            public static readonly string[] AllowedProperties =
+            [nameof(Code), nameof(OriginalUrl), nameof(ExpiresAt), nameof(IsActive), nameof(CreatedAt), nameof(CreatedByUserId)];
+
+            public string Code { get; init; } = string.Empty;
+            public string OriginalUrl { get; init; } = string.Empty;
+            public DateTimeOffset? ExpiresAt { get; init; }
+            public bool IsActive { get; init; }
+            public DateTimeOffset CreatedAt { get; init; }
+            public string? CreatedByUserId { get; init; }
         }
 
         public Task<ShortLink?> FindByCodeAsync(string code, CancellationToken cancellationToken = default)

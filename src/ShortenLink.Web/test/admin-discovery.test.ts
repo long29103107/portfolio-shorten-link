@@ -10,7 +10,7 @@ describe("admin discovery", () => {
   test("serializes supported list discovery parameters", () => {
     expect(buildShortLinkListUrl(10, 3, {
       search: "  docs.example  ",
-      status: "expiring-soon",
+      status: "all",
       sortBy: "destination",
       sortDirection: "asc"
     })).toBe(

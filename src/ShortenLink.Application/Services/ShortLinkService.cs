@@ -87,20 +87,17 @@ public sealed class ShortLinkService : IShortLinkService, ITenantAwareShortLinkS
     public Task<ShortLinkListPage> ListPageAsync(
         int skip,
         int limit,
-        string? search,
-        ShortLinkListStatus status,
+        string? filterExpression,
         ShortLinkListSortBy sortBy,
         ShortLinkSortDirection sortDirection,
         CancellationToken cancellationToken = default)
     {
         var now = timeProvider.GetUtcNow();
         var query = new ShortLinkListQuery(
-            string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
-            status,
+            NormalizeFilter(filterExpression),
             sortBy,
             sortDirection,
-            now,
-            now.AddDays(7));
+            now);
 
         return repository.ListPageAsync(
             Math.Max(skip, 0),
@@ -112,8 +109,7 @@ public sealed class ShortLinkService : IShortLinkService, ITenantAwareShortLinkS
     public Task<ShortLinkListPage> ListAccessiblePageAsync(
         int skip,
         int limit,
-        string? search,
-        ShortLinkListStatus status,
+        string? filterExpression,
         ShortLinkListSortBy sortBy,
         ShortLinkSortDirection sortDirection,
         ShortLinkAccessScope accessScope,
@@ -122,12 +118,10 @@ public sealed class ShortLinkService : IShortLinkService, ITenantAwareShortLinkS
         accessScope = NormalizeTenantScope(accessScope);
         var now = timeProvider.GetUtcNow();
         var query = new ShortLinkListQuery(
-            string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
-            status,
+            NormalizeFilter(filterExpression),
             sortBy,
             sortDirection,
             now,
-            now.AddDays(7),
             accessScope);
         return repository.ListPageAsync(
             Math.Max(skip, 0),
@@ -138,8 +132,7 @@ public sealed class ShortLinkService : IShortLinkService, ITenantAwareShortLinkS
 
     public Task<ShortLinkListPage> ListAccessibleCursorPageAsync(
         int limit,
-        string? search,
-        ShortLinkListStatus status,
+        string? filterExpression,
         ShortLinkListSortBy sortBy,
         ShortLinkSortDirection sortDirection,
         DateTimeOffset beforeCreatedAt,
@@ -150,12 +143,10 @@ public sealed class ShortLinkService : IShortLinkService, ITenantAwareShortLinkS
         accessScope = NormalizeTenantScope(accessScope);
         var now = timeProvider.GetUtcNow();
         var query = new ShortLinkListQuery(
-            string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
-            status,
+            NormalizeFilter(filterExpression),
             sortBy,
             sortDirection,
             now,
-            now.AddDays(7),
             accessScope,
             beforeCreatedAt,
             string.IsNullOrWhiteSpace(beforeCode) ? null : beforeCode.Trim());
@@ -165,6 +156,9 @@ public sealed class ShortLinkService : IShortLinkService, ITenantAwareShortLinkS
             query,
             cancellationToken);
     }
+
+    private static string? NormalizeFilter(string? filterExpression) =>
+        string.IsNullOrWhiteSpace(filterExpression) ? null : filterExpression.Trim();
 
     public async Task<CreateShortLinkResponse> CreateAsync(
         CreateShortLinkRequest request,
