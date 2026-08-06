@@ -4,9 +4,9 @@ title: Backend Boundary Refactor and Optimization
 status: active
 created_at: 2026-08-03
 updated_at: 2026-08-06
-current_task: 028_009
+current_task: 028_010
 task_count: 12
-done_count: 8
+done_count: 9
 depends_on:
   - 027
 ---
@@ -63,15 +63,16 @@ Out:
 | 028_006 | Split large services and composition modules | Refactor | done | 2026-08-06 |
 | 028_007 | Normalize options and structured logging conventions | Convention | done | 2026-08-06 |
 | 028_008 | Isolate schema and persistence compatibility boundaries | Refactor | done | 2026-08-06 |
-| 028_009 | Refactor audit and event-delivery ownership boundaries | Refactor | planned | |
+| 028_009 | Refactor audit and event-delivery ownership boundaries | Refactor | done | 2026-08-06 |
 | 028_010 | Split hosting, package, and session responsibilities | Architecture | planned | |
 | 028_011 | Extract stable contracts only when reuse is proven | Architecture | planned | |
 | 028_012 | Audit and document the security package boundary | Architecture | planned | |
 
 ## Current Task
 
-`028_009` is the next planned audit and event-delivery ownership task. The
-schema and persistence compatibility refactor in `028_008` is complete; the
+`028_010` is the next planned hosting, package, and session responsibility
+task. The audit and event-delivery ownership refactor in `028_009` and the
+schema/persistence compatibility refactor in `028_008` are complete; the
 options and structured-logging convention refactor in `028_007` and the
 diagnostics seam audit in `028_005` remain complete without adding new
 telemetry or monitoring behavior.
@@ -672,7 +673,31 @@ split into reusable boundaries.
 
 #### Done Notes
 
-Planned; not started.
+Done on 2026-08-06.
+
+Implemented a behavior-preserving event-delivery ownership refactor:
+
+- Centralized queue consumption, scoped dependency resolution, acknowledgement,
+  cancellation handling, and poison-message rejection in the internal
+  `MessageDeliveryWorker<TMessage>` boundary.
+- Reduced `AuditWorker` and `ClickWorker` to their owned responsibilities:
+  mapping each payload to its repository operation and retaining the existing
+  failure diagnostics.
+- Preserved audit/click payloads, tenant propagation, queue provider behavior,
+  ack/reject semantics, cancellation behavior, idempotency boundaries, and
+  existing log meaning. No new retry, outbox, dead-letter, or delivery
+  guarantee was introduced.
+- Kept the seam internal because both consumers are in the hosting layer and
+  no second external package consumer justifies extraction.
+
+Verification:
+
+- Focused application tests passed: 20/20.
+- Focused messaging tests passed: 6/6.
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal
+  --disable-build-servers` passed with 0 warnings and 0 errors.
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+  passed: 231/231 tests.
 
 ### 028_010 - Split hosting, package, and session responsibilities
 
@@ -823,6 +848,6 @@ Source before compaction: `.okf/phase/030/PHASE_SUMMARY.md`.
 
 ## Next Task Proposal
 
-Next: implement `028_009`, the audit and event-delivery ownership boundary
-refactor. Keep new delivery guarantees, retry policy, and event capabilities
-out of this phase.
+Next: implement `028_010`, the hosting, package, and session responsibility
+refactor. Keep authentication algorithms, permission semantics, and public
+route behavior unchanged.
