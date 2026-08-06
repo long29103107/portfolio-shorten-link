@@ -4,9 +4,9 @@ title: Backend Boundary Refactor and Optimization
 status: active
 created_at: 2026-08-03
 updated_at: 2026-08-06
-current_task: 028_005
+current_task: 028_007
 task_count: 12
-done_count: 4
+done_count: 6
 depends_on:
   - 027
 ---
@@ -15,42 +15,41 @@ depends_on:
 
 ## Phase Goal
 
-Refactor and optimize the backend around reusable hosting, persistence,
-messaging, observability, schema, contract, and security boundaries without
-changing public API behavior or business semantics.
+Refactor the backend into clear, reusable code and package boundaries while
+preserving every existing public route, contract, business rule, persistence
+semantic, and runtime behavior. This phase is for code quality, convention,
+dependency direction, and structural reuse; it does not add product features.
 
 ## Phase Done Criteria
 
-- The demo API does not duplicate endpoint mapping or backend business logic
-  already owned by reusable projects.
-- Shared hosting remains the canonical endpoint composition boundary.
-- Hot read paths use seek-friendly pagination, bounded materialization, and
-  cache/queue protection appropriate to their workload.
-- Database, cache, and background-queue behavior has actionable latency,
-  failure, retry, and backpressure telemetry.
-- Large composition and service files are split into cohesive modules while
-  preserving dependency direction and public contracts.
-- Options, logging, schema evolution, tenant isolation, event delivery,
-  contracts, hosting, and security responsibilities follow explicit boundaries.
-- Focused tests and the full solution verification stay green after every task.
+- Existing API, DTO, domain, persistence, queue, authorization, and session
+  behavior remains compatible.
+- Large services and composition files are split into cohesive modules with
+  explicit responsibilities and stable lifetimes.
+- Options, logging, persistence, messaging, hosting, and security conventions
+  are consistent and testable without process-global coupling.
+- A separate library is created only when a concrete reusable consumer and an
+  acyclic dependency boundary justify it.
+- No new route, payload field, business policy, authentication algorithm, retry
+  policy, telemetry product, or user-facing capability is introduced.
+- Focused architecture/build/test verification remains green after each task.
 
 ## Scope
 
 In:
 
-- Consolidating duplicated API and reusable hosting endpoint mappings.
-- Maintaining one provider-neutral messaging boundary.
-- Backend performance, observability, composition, configuration, persistence,
-  tenancy, event-delivery, package, contract, and security-boundary work.
-- Preserving task goals, acceptance criteria, verification evidence, and done
-  notes from the former phase 030.
+- Refactoring code structure, naming, dependency direction, conventions, and
+  module/package boundaries.
+- Extracting reusable libraries only when reuse is demonstrated by at least two
+  legitimate consumers or a clearly documented external-host contract.
+- Adding characterization tests, architecture checks, and ADRs needed to prove
+  behavior preservation.
 
 Out:
 
-- Public route or DTO behavior changes.
-- Unrelated frontend redesign.
-- Vendor-specific monitoring adoption without evidence.
-- Authentication algorithm or permission-semantic changes.
+- New product features, public API changes, schema capabilities, queue
+  semantics, authorization semantics, or monitoring-vendor adoption.
+- Broad rewrites without a measurable ownership or reuse benefit.
 
 ## Task Index
 
@@ -60,19 +59,19 @@ Out:
 | 028_002 | Extract provider-neutral queue library with memory and RabbitMQ adapters | Boundary | done | 2026-08-03 |
 | 028_003 | Replace offset hot paths and protect cache misses | Performance | done | 2026-08-03 |
 | 028_004 | Normalize UTC timestamps and project lean read models | Performance | done | 2026-08-04 |
-| 028_005 | Add observability, backpressure, and bounded retry metrics | Performance | planned | |
-| 028_006 | Split large services and composition modules | Convention | planned | |
-| 028_007 | Unify options binding and structured logging conventions | Convention | planned | |
-| 028_008 | Introduce versioned schema migration and compatibility boundaries | Architecture | planned | |
-| 028_009 | Add tenant-aware audit and durable event delivery boundaries | Architecture | planned | |
-| 028_010 | Split hosting/package boundaries and session responsibilities | Architecture | planned | |
-| 028_011 | Extract stable contracts package | Architecture | planned | |
-| 028_012 | Reassess the security package boundary | Architecture | planned | |
+| 028_005 | Audit cross-cutting diagnostics and operational seams | Refactor | done | 2026-08-06 |
+| 028_006 | Split large services and composition modules | Refactor | done | 2026-08-06 |
+| 028_007 | Normalize options and structured logging conventions | Convention | planned | |
+| 028_008 | Isolate schema and persistence compatibility boundaries | Refactor | planned | |
+| 028_009 | Refactor audit and event-delivery ownership boundaries | Refactor | planned | |
+| 028_010 | Split hosting, package, and session responsibilities | Architecture | planned | |
+| 028_011 | Extract stable contracts only when reuse is proven | Architecture | planned | |
+| 028_012 | Audit and document the security package boundary | Architecture | planned | |
 
 ## Current Task
 
-`028_004` is complete. `028_005` is the next planned task and remains
-unstarted until explicitly selected.
+`028_007` is the next planned convention task. The diagnostics seam audit in
+`028_005` is complete without adding new telemetry or monitoring behavior.
 
 ## Task Notes
 
@@ -355,155 +354,176 @@ Verification:
   post-delete behavior (`201/200/302/200/404`).
 - Release dry-run passed with `Published: false`.
 
-### 028_005 - Add observability, backpressure, and bounded retry metrics
+### 028_005 - Audit cross-cutting diagnostics and operational seams
 
 #### Step Goal
 
-Expose actionable metrics and structured events for database/cache/queue
-latency, drops, retries, queue depth, and worker throughput.
-
-#### Use Cases
-
-- Operators can distinguish a slow database from a cache miss storm.
-- Queue saturation is visible before request latency becomes an outage.
-- Rejected or dead-lettered messages include enough context to diagnose the
-  failure without logging secrets or full payloads.
+Inventory existing diagnostics, timing hooks, and operational extension points,
+then refactor their ownership and naming without introducing new metrics,
+events, dashboards, or monitoring dependencies.
 
 #### Scope
 
-In: `Activity`/`Meter` instrumentation, queue depth/backpressure hooks,
-bounded retry outcome metrics, dashboard-friendly names, and tests.
+In: characterize current diagnostic behavior; remove duplicated or ad-hoc
+diagnostic helpers; centralize stable internal seams; preserve existing log
+levels, event text where externally consumed, and disabled-path overhead.
 
-Out: selecting a hosted monitoring vendor and changing business retry policy
-without evidence.
+Out: new telemetry signals, retry/backpressure policy changes, vendor
+integration, dashboards, and new operational features.
 
 #### Acceptance Criteria
 
-- Key repository, cache, and worker paths emit duration/count/failure signals.
-- Queue saturation and rejected-message outcomes are observable.
-- Correlation identifiers are preserved without sensitive data leakage.
-- Instrumentation is disabled or low-overhead when no listener is configured.
+- Existing diagnostics have one clear owner and no duplicate production paths.
+- Refactoring does not add a new observable contract or change business flow.
+- Sensitive values remain excluded and existing tests continue to pass.
+- Any future instrumentation opportunity is recorded as a follow-up, not built.
 
 #### Foundation for Next Step
 
-Measured boundaries provide baselines for safely splitting large modules in the
-convention tasks.
+The codebase has a documented diagnostic boundary that can be considered while
+splitting large services and composition modules.
 
 #### Affected Files
 
-- `shared/ShortenLink.Hosting/`
-- `src/ShortenLink.Infrastructure/`
-- `shared/ShortenLink.Messaging/` or queue library projects
-- Tests and observability documentation.
+- Existing hosting, application, infrastructure, and worker diagnostic helpers.
+- Focused architecture and characterization tests.
+- Phase documentation for deferred instrumentation opportunities.
 
 #### Verification
 
-- Focused instrumentation tests with an in-memory listener.
-- Queue saturation/failure tests.
-- Full solution build and tests.
+- Focused diagnostics/log-capture tests.
+- Architecture/build verification for affected projects.
+- Full solution verification when shared hosting code changes.
 
 #### Done Notes
 
-Planned; not started.
+Done on 2026-08-06.
+
+Implemented a refactor-only diagnostics seam audit:
+
+- Centralized the existing mediator `Trace.WriteLine` messages in the internal
+  `RequestDiagnostics` seam while preserving message text and failure behavior.
+- Kept redirect `ActivitySource`/`Meter` ownership in Core unchanged; no new
+  metrics, events, dashboards, exporters, or observable contract were added.
+- Added characterization tests for successful and failed request diagnostics,
+  including an assertion that exception payload text is never logged.
+- Recorded structured logging as the explicitly deferred concern for `028_007`.
+
+Verification:
+
+- Focused application tests passed: 20/20.
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal --disable-build-servers`
+  passed with 0 warnings and 0 errors.
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+  passed: 230/230 tests.
 
 ### 028_006 - Split large services and composition modules
 
 #### Step Goal
 
-Split oversized service, DI, endpoint, DbContext, and response-contract files
-into cohesive modules while retaining the same public behavior.
-
-#### Use Cases
-
-- A change to link creation does not require navigating an unrelated 25 KB
-  service file.
-- Hosting registration can be reviewed by feature/provider without accidental
-  order changes.
-- Endpoint and EF model changes have focused ownership and tests.
+Split the oversized application service and host dependency-registration module
+into cohesive partial modules while preserving public behavior and dependency
+direction.
 
 #### Scope
 
-In: split `ShortLinkService` behind focused create, resolve, read, and management
-collaborators while retaining a compatibility facade; split hosting registrations
-by persistence, security, caching, messaging, and validation; split endpoint
-mappings by feature; move EF mappings into `IEntityTypeConfiguration<TEntity>`
-classes; group response contracts by feature; and rename transport-neutral Core
-request types such as `AuditLogEndpointRequest` so Core does not expose HTTP
-terminology. Remove unused inherited paging/filter members where compatibility
-evidence permits.
+In: extract focused service collaborators behind the existing compatibility
+facade; split hosting registrations by mediator, rate limiting, cache, queue,
+and validation concern; preserve the existing endpoint, EF, and response
+contract boundaries for later focused tasks.
 
-Out: business rule changes and public route/DTO changes.
+Out: business-rule changes, route/DTO changes, new abstractions without a
+consumer, and feature additions.
 
 #### Acceptance Criteria
 
-- Each extracted module has one clear responsibility and stable DI lifetime.
-- No circular dependency or duplicate registration is introduced.
-- Public routes, DTOs, and domain behavior remain unchanged.
-- Existing `IShortLinkService` consumers remain source-compatible through a
-  facade or an explicitly documented migration path.
-- Core request types contain no `Endpoint` naming or unused HTTP-only state.
-- File-size and namespace conventions are documented or enforced where useful.
+- Each extracted module has one responsibility and an explicit DI lifetime.
+- Existing consumers remain source-compatible through a facade or documented
+  migration path.
+- No duplicate registration, circular dependency, route change, or response
+  shape change is introduced.
+- Refactor characterization tests prove behavior parity.
 
 #### Foundation for Next Step
 
-The codebase has smaller seams for applying unified options and logging rules.
+Smaller modules expose consistent seams for options and logging convention
+cleanup.
 
 #### Affected Files
 
 - `src/ShortenLink.Application/Services/ShortLinkService.cs`
 - `shared/ShortenLink.Hosting/ShortenLinkServiceCollectionExtensions.cs`
-- `shared/ShortenLink.Hosting/ShortenLinkEndpointMappings.cs`
-- `src/ShortenLink.Infrastructure/Persistence/ShortLinkDbContext.cs`
-- `src/ShortenLink.Application/Contracts/Responses/ApplicationResponses.cs`
-- `src/ShortenLink.Core/Contracts/Requests/AuditLogEndpointRequest.cs`
+- `src/ShortenLink.Application/Services/ShortLinkService.cs`
+- New service and hosting partial module files.
+- Focused architecture and service tests.
 
 #### Verification
 
-- Architecture/build checks and focused endpoint/service tests.
+- Architecture/dependency graph checks.
+- Focused endpoint, service, and persistence tests.
 - Full solution build and tests.
 
 #### Done Notes
 
-Planned; not started.
+Done on 2026-08-06.
 
-### 028_007 - Unify options binding and structured logging conventions
+Implemented a behavior-preserving structural split without adding features:
+
+- Split `ShortLinkService` into focused listing, operations, and resolution
+  partial modules while retaining the same public interfaces and constructor.
+- Split hosting service registration into focused mediator, rate-limiting,
+  cache, queue, and validation partial modules.
+- Kept the main service-registration and service files as thin composition
+  boundaries; no route, DTO, business-rule, DI lifetime, or runtime behavior
+  changed.
+- Followed up by grouping `ShortenLink.Hosting` into responsibility folders
+  (`Registration`, `Endpoints`, `Options`, `Security`, `Caching`, `Messaging`,
+  `Persistence`, `Health`, `Context`, and `Policies`), shortening implementation
+  file/class names while retaining public option and interface contracts.
+
+Verification:
+
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal --disable-build-servers`
+  passed with 0 warnings and 0 errors.
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+  passed: 228/228 tests.
+
+### 028_007 - Normalize options and structured logging conventions
 
 #### Step Goal
 
-Use one validated options source per feature and replace ad-hoc diagnostic
-writes with structured, configurable logging.
-
-#### Use Cases
-
-- Worker activation and request behavior read the same effective configuration
-  snapshot instead of separately bound values.
-- Operators can filter logs by feature, short code, correlation id, and outcome.
-- Tests can replace options/logging without depending on process-global state.
+Refactor configuration and logging access so each feature has one canonical
+binding path and stable structured conventions, without changing effective
+configuration, log policy, or business behavior.
 
 #### Scope
 
-In: options registration/validation, `IOptions` usage, logging pipeline,
-event IDs, sensitive-data redaction, and convention tests/docs.
+In: consolidate duplicate options binding; add validation around existing
+configuration; replace ad-hoc production diagnostics with existing logging
+abstractions; redact sensitive fields; preserve compatible keys and event
+meaning.
 
-Out: changing log retention or adopting a vendor-specific sink.
+Out: new configuration capabilities, retention/vendor changes, new log
+consumers, and behavior changes driven by new options.
 
 #### Acceptance Criteria
 
-- Each feature has one canonical options binding path with startup validation.
-- `Trace.WriteLine`-style production diagnostics are removed from hot paths.
-- Logs use stable event names/IDs and avoid tokens, payloads, and secrets.
-- Existing configuration keys remain compatible or have an explicit migration.
+- Each feature has one canonical options source and test-replaceable dependency.
+- Existing configuration keys remain compatible or have a documented mapping.
+- Production diagnostics use stable structured logging without secrets or full
+  payloads.
+- Tests cover binding precedence and logging redaction.
 
 #### Foundation for Next Step
 
-Configuration and diagnostics are consistent before schema and package
-boundaries are changed.
+Configuration and logging conventions are stable before persistence-boundary
+refactors are reviewed.
 
 #### Affected Files
 
-- `shared/ShortenLink.Hosting/ShortenLinkServiceCollectionExtensions.cs`
+- `shared/ShortenLink.Hosting/`
 - `src/ShortenLink.Application/Behaviors/LoggingPipelineBehavior.cs`
-- Feature option records and related tests.
+- Feature option records, registration code, and tests.
 
 #### Verification
 
@@ -514,245 +534,229 @@ boundaries are changed.
 
 Planned; not started.
 
-### 028_008 - Introduce versioned schema migration and compatibility boundaries
+### 028_008 - Isolate schema and persistence compatibility boundaries
 
 #### Step Goal
 
-Replace implicit schema evolution and scattered provider SQL with a versioned,
-repeatable migration boundary that includes all current indexes.
-
-#### Use Cases
-
-- A new deployment upgrades an existing database deterministically instead of
-  relying on `EnsureCreated` or startup side effects.
-- Fresh SQLite and PostgreSQL databases receive the same required indexes.
-- A failed migration can be diagnosed and resumed safely.
+Refactor schema initialization, provider-specific SQL, and compatibility code
+behind one explicit persistence boundary without adding tables, indexes, or
+business capabilities.
 
 #### Scope
 
-In: migration/version metadata, provider-specific compatibility adapters,
-legacy schema rehearsal, and composite-index upgrade scripts.
+In: isolate existing schema creation/upgrade helpers; make provider dialect
+selection explicit; document current version/compatibility assumptions; add
+characterization coverage for fresh and legacy databases.
 
-Out: changing business tables beyond the required migration boundary.
+Out: new schema features, new migration policy, business-table redesign, and
+provider replacement.
 
 #### Acceptance Criteria
 
-- Fresh and existing databases converge to the same schema version.
-- Current composite indexes are present in both fresh and upgrade paths.
-- Migration execution is idempotent/transaction-safe for supported providers.
-- Startup failures identify the schema version and actionable remediation.
+- Fresh and existing supported databases retain the current effective schema.
+- Provider-specific behavior is localized to persistence adapters.
+- Startup/upgrade behavior remains idempotent and diagnosable.
+- No public or domain behavior changes.
 
 #### Foundation for Next Step
 
-Schema changes have a durable foundation for tenant audit columns and outbox
-records.
+A stable persistence boundary makes audit and event ownership refactors
+reviewable without mixing provider concerns into business code.
 
 #### Affected Files
 
-- `src/ShortenLink.Infrastructure/Persistence/ShortLinkDatabaseSchema.cs`
-- `src/ShortenLink.Infrastructure/Persistence/ShortLinkDbContext.cs`
-- Migration/compatibility tests and deployment documentation.
+- `src/ShortenLink.Infrastructure/Persistence/`
+- Database initialization and compatibility helpers.
+- Provider contract and schema tests.
 
 #### Verification
 
-- Fresh database and upgrade rehearsal for each supported provider.
+- Fresh/legacy SQLite and supported-provider compatibility tests.
 - Schema/index assertions and full solution tests.
 
 #### Done Notes
 
 Planned; not started.
 
-### 028_009 - Add tenant-aware audit and durable event delivery boundaries
+### 028_009 - Refactor audit and event-delivery ownership boundaries
 
 #### Step Goal
 
-Make audit ownership tenant-explicit and provide a durable outbox boundary for
-events whose loss or cross-tenant visibility is unacceptable.
-
-#### Use Cases
-
-- A tenant audit query cannot accidentally discover another tenant's event by
-  sharing an owner or short code.
-- A request that commits a link change and emits an audit/click event either
-  persists both or leaves a retryable outbox record.
-- Poison messages are isolated through explicit retry/dead-letter state.
+Clarify ownership and dependency direction for existing audit, click, and
+queue-delivery code while preserving current payloads, retry behavior, and
+tenant semantics.
 
 #### Scope
 
-In: tenant fields/constraints/indexes for audit, outbox record/dispatcher
-contracts, idempotency keys, and queue integration tests.
+In: extract repository/dispatcher/worker seams; isolate idempotency and
+ownership checks already present; add characterization tests; create a reusable
+library only if existing consumers demonstrably need the same boundary.
 
-Out: replacing RabbitMQ or introducing a distributed workflow engine.
+Out: new outbox semantics, tenant model changes, retry/dead-letter policy
+changes, event schema changes, and new delivery guarantees.
 
 #### Acceptance Criteria
 
-- Audit writes and reads require explicit tenant context.
-- Outbox records are transactionally coupled to the business write and safely
-  retried/marked terminal.
-- Dispatch is idempotent and observable.
-- Existing audit and analytics behavior remains compatible for current data.
+- Audit and event code has explicit ownership and no cross-layer leakage.
+- Existing queue behavior, payloads, idempotency, and tenant visibility remain
+  unchanged.
+- Any extracted library has an acyclic dependency graph and a real second
+  consumer; otherwise the seam stays internal.
+- Failure paths remain covered by focused tests.
 
 #### Foundation for Next Step
 
-Durable event and tenant boundaries allow hosting/package extraction without
-leaking persistence concerns into business code.
+Event ownership is explicit before hosting and session responsibilities are
+split into reusable boundaries.
 
 #### Affected Files
 
-- Audit domain contracts/entities/repositories.
-- `src/ShortenLink.Infrastructure/Persistence/`
-- Queue abstractions/adapters and integration tests.
+- Audit contracts/entities/repositories.
+- Existing queue adapters and worker composition.
+- Application/infrastructure integration tests.
 
 #### Verification
 
-- Tenant isolation, transaction, idempotency, and retry tests.
-- Provider migration rehearsal and full solution tests.
+- Focused audit, queue, idempotency, and tenant-scope tests.
+- Dependency graph and full solution verification.
 
 #### Done Notes
 
 Planned; not started.
 
-### 028_010 - Split hosting/package boundaries and session responsibilities
+### 028_010 - Split hosting, package, and session responsibilities
 
 #### Step Goal
 
-Separate reusable ASP.NET Core integration, workers, and security-session
-responsibilities so business projects do not depend on host composition details.
-
-#### Use Cases
-
-- A consumer can reuse endpoint/auth middleware registration without importing
-  the entire demo host and EF implementation.
-- Session token crypto can be tested independently from permission resolution
-  and user-session orchestration.
-- Worker hosting can be replaced without changing application use cases.
+Separate reusable ASP.NET Core integration, worker composition, and session
+token/permission/orchestration responsibilities without changing algorithms or
+public contracts.
 
 #### Scope
 
-In: hosting package boundaries, worker registration adapters, session token
-service extraction, permission resolver extraction, and dependency direction.
+In: extract host adapters and focused security-session interfaces; remove
+unnecessary demo-host dependencies; create a separate library only where a
+real external or second internal host can consume it.
 
-Out: changing authentication algorithms or public API contracts.
+Out: authentication algorithm changes, permission semantic changes, route
+changes, and packages created solely for theoretical reuse.
 
 #### Acceptance Criteria
 
-- Reusable host integration has no unnecessary dependency on the demo API.
-- Session token, permission, and orchestration responsibilities are separate
-  interfaces with explicit lifetimes.
-- Dependency graph remains acyclic and business projects stay host-agnostic.
-- Existing authentication, authorization, and API tests remain green.
+- Business projects remain host-agnostic and the dependency graph is acyclic.
+- Session token, permission, and orchestration responsibilities have explicit
+  interfaces and lifetimes.
+- Existing authentication/authorization/API tests remain green.
+- Extracted libraries are independently buildable only when justified.
 
 #### Foundation for Next Step
 
-The backend has clear package seams for future provider swaps and independent
-deployment/testing.
+Hosting and session seams are stable enough to evaluate a contracts package
+without importing host or application implementation details.
 
 #### Affected Files
 
-- `shared/ShortenLink.Hosting/ShortenLink.Hosting.csproj`
-- `shared/ShortenLink.Hosting/SecuritySessionServiceAdapter.cs`
-- `shared/ShortenLink.Hosting/ShortenLinkUserSessionService.cs`
-- `shared/ShortenLink.Hosting/ShortenLinkAuthorizationService.cs`
-- New host/security package projects and related tests.
+- `shared/ShortenLink.Hosting/`
+- Session/authorization adapters and related project files.
+- Hosting and security tests.
 
 #### Verification
 
 - Dependency/build graph checks.
-- Focused authentication/authorization tests.
-- Full solution build and tests.
+- Focused authentication, authorization, and host integration tests.
+- Full solution verification.
 
 #### Done Notes
 
 Planned; not started.
 
-### 028_011 - Extract stable contracts package
+### 028_011 - Extract stable contracts only when reuse is proven
 
 #### Step Goal
 
-Create a dependency-light `ShortenLink.Contracts` package for stable requests,
-responses, pagination, and error payloads without pulling the application
-pipeline, domain services, host integration, or persistence stack.
+Audit request/response/pagination contracts and extract a dependency-light
+contracts library only if at least two concrete consumers or an external-host
+contract justify the boundary; otherwise document why extraction is deferred.
 
 #### Scope
 
-In: add `shared/ShortenLink.Contracts`; move transport-neutral DTOs; keep domain
-mapping in Application/adapters; update references, package scripts, contract
-tests, README integration guidance, and consumer smoke. Out: domain entities,
-validators, handlers, EF entities, ASP.NET attributes, and authorization state.
+In: classify transport-neutral DTOs; remove application/domain mapping from
+contracts; preserve JSON shapes; update references and package metadata only
+when extraction is justified.
+
+Out: domain entities, validators, handlers, ASP.NET attributes, authorization
+state, DTO redesign, and speculative package creation.
 
 #### Acceptance Criteria
 
-- The package has no dependency on Application, Infrastructure, Hosting,
-  FluentValidation, mediator, EF Core, or demo API projects.
-- Contracts contain no domain mapping methods or ASP.NET-specific types.
-- Existing JSON shapes remain compatible and Application owns DTO mapping.
-- Release dry-run and clean consumer smoke include the package.
+- The decision is evidence-based and recorded in an ADR or task notes.
+- If extracted, the library has no Application, Infrastructure, Hosting, EF, or
+  ASP.NET dependency and existing JSON shapes remain compatible.
+- If deferred, the blocker and concrete extraction criteria are documented.
+- Consumer/build/package checks pass for the selected outcome.
 
 #### Foundation for Next Step
 
-An independent DTO boundary makes the remaining Security dependencies measurable
-before deciding whether Security warrants a package family.
+Contract ownership is explicit before the final security-boundary audit.
 
 #### Affected Files
 
 - `src/ShortenLink.Core/Contracts/`
 - `src/ShortenLink.Application/Contracts/`
-- `src/ShortenLink.Application/Features/`
-- `src/ShortenLink.Api/Endpoints/`
-- `shared/ShortenLink.Contracts/`
-- Project files, release scripts, README, and contract tests.
+- API adapters, project files, package metadata, and contract tests.
 
 #### Verification
 
-- Dependency graph and serialization/contract tests.
-- Full solution build and tests.
-- Release dry-run and clean consumer package smoke.
+- Dependency graph and serialization tests.
+- Full solution build/tests.
+- Package/consumer smoke only if a package is extracted.
 
 #### Done Notes
 
 Planned; not started.
 
-### 028_012 - Reassess the security package boundary
+### 028_012 - Audit and document the security package boundary
 
 #### Step Goal
 
-Evaluate Security after the service, hosting, persistence, and contracts seams
-are split; either extract an acyclic package family or record a durable ADR that
-defines why extraction is deferred and what would justify it.
+Classify existing security code by layer and decide whether extraction is
+justified by a concrete reusable consumer, preserving all authentication,
+authorization, redirect, ownership, and sharing behavior.
 
 #### Scope
 
-In: classify Security code into domain, application, persistence, and host
-adapters; inspect redirect-only/external-host dependency graphs; extract only
-when each project has one layer and clear consumer. Out: authentication
-algorithm, permission semantic, route, ownership, or sharing behavior changes.
+In: dependency graph audit; classify Core/Application/Infrastructure/Hosting
+responsibilities; document redirect-only and external-host dependencies; extract
+only a proven acyclic reusable seam.
+
+Out: authentication algorithms, permission semantics, route behavior, ownership
+rules, sharing behavior, and speculative package families.
 
 #### Acceptance Criteria
 
 - Security responsibilities and dependency direction are documented.
-- Redirect-only consumers avoid unnecessary demo session/admin components.
-- Extracted projects are independently buildable, packable, and tested; or the
-  ADR records concrete blockers and future extraction criteria.
-- Existing authentication and authorization behavior remains unchanged.
+- Redirect-only consumers avoid unnecessary admin/session dependencies where
+  the current graph permits a behavior-preserving refactor.
+- An extracted package is independently buildable/testable only when justified;
+  otherwise the ADR records concrete blockers and future criteria.
+- Existing security tests remain green.
 
 #### Foundation for Next Step
 
-Phase 028 leaves explicit service, persistence, contracts, hosting, and security
-boundaries that later work can extend without reopening these decisions.
+Phase 028 leaves explicit, behavior-preserving boundaries for future work
+without requiring another broad security rewrite.
 
 #### Affected Files
 
 - `src/ShortenLink.Core/Security/`
 - `src/ShortenLink.Application/Features/Security/`
-- `src/ShortenLink.Infrastructure/Repositories/*Security*.cs`
-- `shared/ShortenLink.Hosting/*Security*.cs`
-- Project files, architecture docs/ADR, and security tests.
+- Security repositories, hosting adapters, project files, ADRs, and tests.
 
 #### Verification
 
 - Dependency graph and focused security tests.
-- Full solution build and tests.
-- Pack and consumer smoke when extraction occurs.
+- Full solution build/tests.
+- Pack and consumer smoke only if extraction occurs.
 
 #### Done Notes
 
@@ -761,35 +765,13 @@ Planned; not started.
 ## Compaction Provenance
 
 Tasks formerly stored in `.okf/phase/030/PHASE_SUMMARY.md` were merged into
-this phase on 2026-08-06. The original ids remain searchable through this map:
-
-| Original ID | Phase 028 ID |
-|---|---|
-| 030_001 | 028_003 |
-| 030_002 | 028_004 |
-| 030_003 | 028_005 |
-| 030_004 | 028_006 |
-| 030_005 | 028_007 |
-| 030_006 | 028_008 |
-| 030_007 | 028_009 |
-| 030_008 | 028_010 |
-| 030_009 | 028_011 |
-| 030_010 | 028_012 |
+this phase on 2026-08-06. Their task ids were retained while their scopes were
+audited and rewritten to be refactor-only. The former feature-oriented scopes
+are intentionally superseded by the task notes above.
 
 Source before compaction: `.okf/phase/030/PHASE_SUMMARY.md`.
 
 ## Next Task Proposal
 
-Next: implement `028_005` to add observability, backpressure, and bounded retry
-metrics on top of the completed cursor, cache, UTC timestamp, and lean read
-boundaries from `028_003` and `028_004`.
-
-Planned refactor sequence after the performance and observability foundations:
-
-1. `028_006` creates internal seams and removes misleading request/endpoint
-   naming without changing public behavior.
-2. `028_010` separates ASP.NET Core hosting, workers, and session/security
-   orchestration responsibilities.
-3. `028_011` extracts the transport-neutral `ShortenLink.Contracts` package.
-4. `028_012` makes an evidence-based Security package decision after those
-   dependencies are no longer entangled.
+Next: implement `028_007`, the options and structured-logging convention
+refactor. Keep new telemetry and monitoring behavior out of this phase.

@@ -58,7 +58,7 @@ public sealed record ShortenLinkUserSessionResult(
         new(false, false, null, null, null, "invalid_login", "Username or password is invalid.");
 }
 
-public sealed class ShortenLinkUserSessionService(
+public sealed class UserSessionService(
     IOptions<ShortenLinkOptions> options,
     IShortenLinkSecurityUserRepository userRepository,
     IShortenLinkSecurityRoleRepository roleRepository,

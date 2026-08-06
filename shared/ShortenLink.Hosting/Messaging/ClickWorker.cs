@@ -7,10 +7,10 @@ using ShortenLink.Messaging;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class ShortLinkClickBackgroundService(
+internal sealed class ClickWorker(
     IMessageQueue<RecordShortLinkClickRequest> queue,
     IServiceScopeFactory scopeFactory,
-    ILogger<ShortLinkClickBackgroundService> logger) : BackgroundService
+    ILogger<ClickWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

@@ -2379,7 +2379,7 @@ public sealed class ShortLinkEndpointsTests
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false, analyticsEnabled: true);
         Assert.Contains(
             factory.Services.GetServices<IHostedService>(),
-            service => service.GetType().Name == "ShortLinkClickBackgroundService");
+            service => service.GetType().Name == "ClickWorker");
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -2680,7 +2680,7 @@ public sealed class ShortLinkEndpointsTests
         });
         Assert.DoesNotContain(
             disabledServices.GetServices<IHostedService>(),
-            service => service.GetType().Name == "ShortLinkClickBackgroundService");
+            service => service.GetType().Name == "ClickWorker");
 
         await using var synchronousServices = BuildServiceProvider(new Dictionary<string, string?>
         {
@@ -2689,9 +2689,9 @@ public sealed class ShortLinkEndpointsTests
         });
         Assert.DoesNotContain(
             synchronousServices.GetServices<IHostedService>(),
-            service => service.GetType().Name == "ShortLinkClickBackgroundService");
+            service => service.GetType().Name == "ClickWorker");
         Assert.Equal(
-            "SynchronousShortLinkClickRecorder",
+            "SyncClickRecorder",
             synchronousServices.GetRequiredService<IShortLinkClickRecorder>().GetType().Name);
     }
 
@@ -2706,7 +2706,7 @@ public sealed class ShortLinkEndpointsTests
 
         Assert.NotNull(services.GetService<IMessageQueue<RecordShortLinkClickRequest>>());
         Assert.Equal(
-            "MessageQueueShortLinkClickRecorder",
+            "ClickRecorder",
             services.GetRequiredService<IShortLinkClickRecorder>().GetType().Name);
     }
 
@@ -2766,7 +2766,7 @@ public sealed class ShortLinkEndpointsTests
         var shortLinkCache = services.GetRequiredService<IShortLinkCache>();
 
         Assert.Contains("Memory", distributedCache.GetType().Name, StringComparison.Ordinal);
-        Assert.Equal("DistributedShortLinkCache", shortLinkCache.GetType().Name);
+        Assert.Equal("DistributedCache", shortLinkCache.GetType().Name);
     }
 
     [Fact]
@@ -2812,7 +2812,7 @@ public sealed class ShortLinkEndpointsTests
         var shortLinkCache = services.GetRequiredService<IShortLinkCache>();
 
         Assert.Contains("Redis", distributedCache.GetType().Name, StringComparison.Ordinal);
-        Assert.Equal("DistributedShortLinkCache", shortLinkCache.GetType().Name);
+        Assert.Equal("DistributedCache", shortLinkCache.GetType().Name);
     }
 
     [Fact]

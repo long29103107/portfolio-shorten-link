@@ -3,11 +3,11 @@ using ShortenLink.Core.Services;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class SynchronousShortLinkClickRecorder : IShortLinkClickRecorder
+internal sealed class SyncClickRecorder : IShortLinkClickRecorder
 {
     private readonly IShortLinkClickRepository repository;
 
-    public SynchronousShortLinkClickRecorder(IShortLinkClickRepository repository)
+    public SyncClickRecorder(IShortLinkClickRepository repository)
     {
         this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
     }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ShortenLink.Application.Diagnostics;
 using ShortenLink.Mediator;
 
 namespace ShortenLink.Application.Behaviors;
@@ -17,14 +18,12 @@ public sealed class LoggingPipelineBehavior<TRequest, TResponse>
         try
         {
             var response = await next();
-            System.Diagnostics.Trace.WriteLine(
-                $"ShortenLinkRequestCompleted request={requestName} elapsed_ms={stopwatch.ElapsedMilliseconds}.");
+            RequestDiagnostics.RecordCompleted(requestName, stopwatch.ElapsedMilliseconds);
             return response;
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.WriteLine(
-                $"ShortenLinkRequestFailed request={requestName} elapsed_ms={stopwatch.ElapsedMilliseconds} exception_type={exception.GetType().Name}.");
+            RequestDiagnostics.RecordFailed(requestName, stopwatch.ElapsedMilliseconds, exception.GetType());
             throw;
         }
     }

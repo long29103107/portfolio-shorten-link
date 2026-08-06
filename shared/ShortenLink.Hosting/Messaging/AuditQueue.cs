@@ -5,9 +5,9 @@ using ShortenLink.Messaging;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class MessageQueueAuditEventQueue(
+internal sealed class AuditQueue(
     IMessageQueue<AuditEvent> queue,
-    ILogger<MessageQueueAuditEventQueue> logger) : IAuditEventQueue
+    ILogger<AuditQueue> logger) : IAuditEventQueue
 {
     public async Task<bool> EnqueueAsync(
         AuditEvent auditEvent,

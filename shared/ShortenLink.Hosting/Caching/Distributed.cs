@@ -7,7 +7,7 @@ using ShortenLink.Core.Services;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class DistributedShortLinkCache : IShortLinkCache, ITenantAwareShortLinkCache, IShortLinkCacheLoader
+internal sealed class DistributedCache : IShortLinkCache, ITenantAwareShortLinkCache, IShortLinkCacheLoader
 {
     private const string KeyPrefix = "short-links:resolve:";
     private const string NegativeCacheMarker = "__shortenlink_negative__";
@@ -19,7 +19,7 @@ internal sealed class DistributedShortLinkCache : IShortLinkCache, ITenantAwareS
     private readonly IOptions<ShortenLinkOptions> options;
     private readonly ConcurrentDictionary<string, Lazy<Task<ShortLink?>>> inFlightLoads = new();
 
-    public DistributedShortLinkCache(
+    public DistributedCache(
         IDistributedCache distributedCache,
         TimeProvider timeProvider,
         IOptions<ShortenLinkOptions> options)

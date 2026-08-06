@@ -3,7 +3,7 @@ using ShortenLink.Core.Contracts.Expiration;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class ShortLinkExpirationCacheInvalidationSink(IShortLinkCache cache)
+internal sealed class ExpirationCache(IShortLinkCache cache)
     : IShortLinkExpirationCacheInvalidationSink
 {
     public async Task<bool> TryInvalidateAsync(

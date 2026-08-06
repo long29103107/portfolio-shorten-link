@@ -41,7 +41,7 @@ public sealed record ShortenLinkAuthorizationResult(
         new(false, true, "forbidden", "The credential does not include the required permission.", null, false, null);
 }
 
-public sealed class ShortenLinkAuthorizationService(
+public sealed class AuthorizationService(
     IOptions<ShortenLinkOptions> options,
     IShortenLinkSecurityAssignmentRepository securityAssignmentRepository,
     IShortenLinkUserApiKeyRepository userApiKeyRepository,

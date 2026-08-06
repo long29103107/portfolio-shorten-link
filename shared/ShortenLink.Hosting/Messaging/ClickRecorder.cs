@@ -4,9 +4,9 @@ using ShortenLink.Messaging;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class MessageQueueShortLinkClickRecorder(
+internal sealed class ClickRecorder(
     IMessageQueue<RecordShortLinkClickRequest> queue,
-    ILogger<MessageQueueShortLinkClickRecorder> logger) : IShortLinkClickRecorder
+    ILogger<ClickRecorder> logger) : IShortLinkClickRecorder
 {
     public async Task RecordAsync(
         RecordShortLinkClickRequest request,

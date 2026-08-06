@@ -4,7 +4,7 @@ using ShortenLink.Application.Contracts.Responses;
 
 namespace ShortenLink.Hosting;
 
-public sealed class ShortenLinkRateLimitMonitor(
+public sealed class RateMonitor(
     IOptions<ShortenLinkOptions> options,
     TimeProvider timeProvider) : IRateLimitActivityReader
 {

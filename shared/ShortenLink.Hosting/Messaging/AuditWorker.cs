@@ -7,10 +7,10 @@ using ShortenLink.Messaging;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class ShortLinkAuditBackgroundService(
+internal sealed class AuditWorker(
     IMessageQueue<AuditEvent> queue,
     IServiceScopeFactory scopeFactory,
-    ILogger<ShortLinkAuditBackgroundService> logger) : BackgroundService
+    ILogger<AuditWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

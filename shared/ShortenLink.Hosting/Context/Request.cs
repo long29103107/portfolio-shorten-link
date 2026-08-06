@@ -4,7 +4,7 @@ using ShortenLink.Core.Exceptions;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class HttpCurrentRequestContext(
+internal sealed class RequestContext(
     IHttpContextAccessor httpContextAccessor,
     IShortenLinkAuthorizationService authorizationService,
     IShortenLinkUserSessionService userSessionService) : ICurrentRequestContext

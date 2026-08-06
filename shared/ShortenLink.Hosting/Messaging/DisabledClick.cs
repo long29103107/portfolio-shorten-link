@@ -2,7 +2,7 @@ using ShortenLink.Core.Services;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class DisabledShortLinkClickRecorder : IShortLinkClickRecorder
+internal sealed class DisabledClickRecorder : IShortLinkClickRecorder
 {
     public Task RecordAsync(
         RecordShortLinkClickRequest request,

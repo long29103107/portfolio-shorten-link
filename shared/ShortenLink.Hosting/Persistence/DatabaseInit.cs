@@ -6,12 +6,12 @@ using ShortenLink.Infrastructure.Persistence;
 
 namespace ShortenLink.Hosting;
 
-internal sealed class ShortLinkDatabaseInitializationService : IHostedService
+internal sealed class DatabaseInit : IHostedService
 {
     private readonly IServiceScopeFactory scopeFactory;
     private readonly bool initializeSecurity;
 
-    public ShortLinkDatabaseInitializationService(IServiceScopeFactory scopeFactory, bool initializeSecurity = true)
+    public DatabaseInit(IServiceScopeFactory scopeFactory, bool initializeSecurity = true)
     {
         this.scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         this.initializeSecurity = initializeSecurity;
