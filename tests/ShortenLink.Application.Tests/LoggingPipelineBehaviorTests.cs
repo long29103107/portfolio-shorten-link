@@ -1,6 +1,5 @@
-using System.Diagnostics;
-using System.Text;
 using ShortenLink.Application.Behaviors;
+using ShortenLink.Application.Diagnostics;
 using ShortenLink.Mediator;
 using Xunit;
 
@@ -9,69 +8,51 @@ namespace ShortenLink.Application.Tests;
 public sealed class LoggingPipelineBehaviorTests
 {
     [Fact]
-    public async Task Handle_PreservesExistingTraceDiagnosticMessages()
+    public async Task Handle_ReportsCompletionThroughStructuredLogger()
     {
-        var listener = new BufferTraceListener();
-        Trace.Listeners.Add(listener);
-        try
-        {
-            var behavior = new LoggingPipelineBehavior<TestRequest, string>();
+        var logger = new CaptureLogger();
+        var behavior = new LoggingPipelineBehavior<TestRequest, string>(logger);
 
-            var response = await behavior.Handle(
-                new TestRequest(),
-                () => Task.FromResult("ok"),
-                CancellationToken.None);
+        var response = await behavior.Handle(
+            new TestRequest(),
+            () => Task.FromResult("ok"),
+            CancellationToken.None);
 
-            Assert.Equal("ok", response);
-            Assert.Contains(
-                "ShortenLinkRequestCompleted request=TestRequest elapsed_ms=",
-                listener.Text);
-        }
-        finally
-        {
-            Trace.Listeners.Remove(listener);
-            listener.Dispose();
-        }
+        Assert.Equal("ok", response);
+        var completed = Assert.Single(logger.Completed);
+        Assert.Equal(nameof(TestRequest), completed.RequestName);
+        Assert.True(completed.ElapsedMilliseconds >= 0);
     }
 
     [Fact]
-    public async Task Handle_PreservesFailureDiagnosticAndRethrows()
+    public async Task Handle_ReportsFailureTypeWithoutExceptionPayloadAndRethrows()
     {
-        var listener = new BufferTraceListener();
-        Trace.Listeners.Add(listener);
-        try
-        {
-            var behavior = new LoggingPipelineBehavior<TestRequest, string>();
+        var logger = new CaptureLogger();
+        var behavior = new LoggingPipelineBehavior<TestRequest, string>(logger);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                behavior.Handle(
-                    new TestRequest(),
-                    () => throw new InvalidOperationException("do not log this payload"),
-                    CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            behavior.Handle(
+                new TestRequest(),
+                () => throw new InvalidOperationException("do not log this payload"),
+                CancellationToken.None));
 
-            Assert.Contains(
-                "ShortenLinkRequestFailed request=TestRequest elapsed_ms=",
-                listener.Text);
-            Assert.Contains("exception_type=InvalidOperationException", listener.Text);
-            Assert.DoesNotContain("do not log this payload", listener.Text);
-        }
-        finally
-        {
-            Trace.Listeners.Remove(listener);
-            listener.Dispose();
-        }
+        var failed = Assert.Single(logger.Failed);
+        Assert.Equal(nameof(TestRequest), failed.RequestName);
+        Assert.Equal(typeof(InvalidOperationException), failed.ExceptionType);
+        Assert.True(failed.ElapsedMilliseconds >= 0);
     }
 
     private sealed record TestRequest : IRequest<string>;
 
-    private sealed class BufferTraceListener : TraceListener
+    private sealed class CaptureLogger : IRequestLogger
     {
-        private readonly StringBuilder buffer = new();
+        public List<(string RequestName, long ElapsedMilliseconds)> Completed { get; } = [];
+        public List<(string RequestName, long ElapsedMilliseconds, Type ExceptionType)> Failed { get; } = [];
 
-        public string Text => buffer.ToString();
+        public void RequestCompleted(string requestName, long elapsedMilliseconds)
+            => Completed.Add((requestName, elapsedMilliseconds));
 
-        public override void Write(string? message) => buffer.Append(message);
-
-        public override void WriteLine(string? message) => buffer.AppendLine(message);
+        public void RequestFailed(string requestName, long elapsedMilliseconds, Type exceptionType)
+            => Failed.Add((requestName, elapsedMilliseconds, exceptionType));
     }
 }

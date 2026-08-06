@@ -33,9 +33,8 @@ public static partial class Services
     private static void RegisterCache(IServiceCollection services, IConfiguration configuration)
     {
         var cacheOptions = configuration
-            .GetSection(ShortenLinkOptions.SectionName)
-            .Get<ShortenLinkOptions>()
-            ?.Cache ?? new ShortenLinkCacheOptions();
+            .GetSection($"{ShortenLinkOptions.SectionName}:Cache")
+            .Get<ShortenLinkCacheOptions>() ?? new ShortenLinkCacheOptions();
 
         if (!cacheOptions.Enabled)
         {

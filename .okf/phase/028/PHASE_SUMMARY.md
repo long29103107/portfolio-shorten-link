@@ -4,9 +4,9 @@ title: Backend Boundary Refactor and Optimization
 status: active
 created_at: 2026-08-03
 updated_at: 2026-08-06
-current_task: 028_007
+current_task: 028_009
 task_count: 12
-done_count: 6
+done_count: 8
 depends_on:
   - 027
 ---
@@ -61,8 +61,8 @@ Out:
 | 028_004 | Normalize UTC timestamps and project lean read models | Performance | done | 2026-08-04 |
 | 028_005 | Audit cross-cutting diagnostics and operational seams | Refactor | done | 2026-08-06 |
 | 028_006 | Split large services and composition modules | Refactor | done | 2026-08-06 |
-| 028_007 | Normalize options and structured logging conventions | Convention | planned | |
-| 028_008 | Isolate schema and persistence compatibility boundaries | Refactor | planned | |
+| 028_007 | Normalize options and structured logging conventions | Convention | done | 2026-08-06 |
+| 028_008 | Isolate schema and persistence compatibility boundaries | Refactor | done | 2026-08-06 |
 | 028_009 | Refactor audit and event-delivery ownership boundaries | Refactor | planned | |
 | 028_010 | Split hosting, package, and session responsibilities | Architecture | planned | |
 | 028_011 | Extract stable contracts only when reuse is proven | Architecture | planned | |
@@ -70,8 +70,11 @@ Out:
 
 ## Current Task
 
-`028_007` is the next planned convention task. The diagnostics seam audit in
-`028_005` is complete without adding new telemetry or monitoring behavior.
+`028_009` is the next planned audit and event-delivery ownership task. The
+schema and persistence compatibility refactor in `028_008` is complete; the
+options and structured-logging convention refactor in `028_007` and the
+diagnostics seam audit in `028_005` remain complete without adding new
+telemetry or monitoring behavior.
 
 ## Task Notes
 
@@ -532,7 +535,30 @@ refactors are reviewed.
 
 #### Done Notes
 
-Planned; not started.
+Done on 2026-08-06.
+
+Implemented a behavior-preserving options and logging convention refactor:
+
+- Kept one canonical root `IOptions<ShortenLinkOptions>` binding with
+  validation-on-start; cache registration now reads only the existing nested
+  cache section and the health-check gate reads only its existing scalar key,
+  avoiding duplicate root options materialization.
+- Replaced the application `Trace.WriteLine` seam with host-neutral
+  `IRequestLogger` callbacks and a hosting `StructuredRequestLogger` adapter
+  using stable event ids 2001/2002.
+- Structured diagnostics contain only request type, elapsed milliseconds, and
+  exception type; request payloads and exception objects are never logged.
+- Preserved existing configuration keys, effective provider/health-check
+  behavior, exception propagation, and log meaning; no new capability was
+  introduced.
+
+Verification:
+
+- Focused application tests passed: 20/20.
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal
+  --disable-build-servers` passed with 0 warnings and 0 errors.
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+  passed: 230/230 tests.
 
 ### 028_008 - Isolate schema and persistence compatibility boundaries
 
@@ -576,7 +602,31 @@ reviewable without mixing provider concerns into business code.
 
 #### Done Notes
 
-Planned; not started.
+Done on 2026-08-06.
+
+Implemented a behavior-preserving persistence compatibility boundary:
+
+- Kept `ShortLinkDatabaseSchema` as the stable public facade while moving
+  provider-specific SQL and upgrade routines into explicit SQLite and
+  PostgreSQL dialect adapters.
+- Added an explicit provider resolver with a safe no-op dialect for unsupported
+  providers; the host continues to use the same `EnsureCreated` startup flow.
+- Preserved the existing audit-event, expiration-checkpoint,
+  tenant/idempotency, and UTC timestamp compatibility SQL, including all
+  table/index names and defaults.
+- Documented the current `EnsureCreated` compatibility assumptions and kept
+  the boundary idempotent without introducing migrations, tables, indexes, or
+  business capabilities.
+- Added fresh-database idempotency characterization coverage in addition to
+  the existing legacy SQLite schema tests.
+
+Verification:
+
+- Focused infrastructure tests passed: 51/51.
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal
+  --disable-build-servers` passed with 0 warnings and 0 errors.
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+  passed: 231/231 tests.
 
 ### 028_009 - Refactor audit and event-delivery ownership boundaries
 
@@ -773,5 +823,6 @@ Source before compaction: `.okf/phase/030/PHASE_SUMMARY.md`.
 
 ## Next Task Proposal
 
-Next: implement `028_007`, the options and structured-logging convention
-refactor. Keep new telemetry and monitoring behavior out of this phase.
+Next: implement `028_009`, the audit and event-delivery ownership boundary
+refactor. Keep new delivery guarantees, retry policy, and event capabilities
+out of this phase.

@@ -16,6 +16,7 @@ using ShortenLink.Core.Domain;
 using ShortenLink.Core.Services;
 using ShortenLink.Core.Abstractions;
 using ShortenLink.Application.Services;
+using ShortenLink.Application.Diagnostics;
 using ShortenLink.Application.Abstractions;
 using ShortenLink.Application.Behaviors;
 using ShortenLink.Application.Features.Audit;
@@ -119,6 +120,7 @@ public static partial class Services
         }
 
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.TryAddSingleton<IRequestLogger, StructuredRequestLogger>();
         services.AddHttpContextAccessor();
         services.TryAddScoped<ICurrentRequestContext, RequestContext>();
         services.TryAddSingleton<RateMonitor>();
@@ -188,11 +190,9 @@ public static partial class Services
         RegisterAnalytics(services);
         RegisterAuditQueue(services);
 
-        var observability = configuration
-            .GetSection(ShortenLinkOptions.SectionName)
-            .Get<ShortenLinkOptions>()?
-            .Observability;
-        if (observability?.HealthChecksEnabled == true)
+        var healthChecksEnabled = configuration.GetValue<bool>(
+            $"{ShortenLinkOptions.SectionName}:Observability:HealthChecksEnabled");
+        if (healthChecksEnabled)
         {
             services.AddShortenLinkHealthChecks();
         }

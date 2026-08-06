@@ -4,6 +4,9 @@ Reusable .NET short-link library plus a demo ASP.NET Core API and React frontend
 
 The reusable library projects are intentionally separated from the demo application so they can be packed as NuGet packages and consumed by other .NET applications. `ShortenLink.Hosting` is the normal package for ASP.NET Core hosts; the demo API and React app exist to prove the package behavior, not to own short-link business logic.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the Git commit convention used by
+this repository.
+
 ## Project Structure
 
 ```text
@@ -592,6 +595,13 @@ Switch to PostgreSQL by configuration only:
 ```
 
 The demo host still uses `AddShortenLink(builder.Configuration);` with no application-code changes. On startup it calls `EnsureCreated()` for the selected provider, so SQLite remains the default local path while PostgreSQL can be enabled with a valid connection string.
+
+The compatibility boundary in `ShortenLink.Infrastructure.Persistence.ShortLinkDatabaseSchema`
+keeps the existing `EnsureCreated` startup path safe for databases created by
+older releases. Provider-specific compatibility SQL is selected explicitly for
+SQLite or PostgreSQL, and each upgrade is idempotent. The boundary only restores
+the existing audit, expiration-checkpoint, tenant/idempotency, and UTC timestamp
+schema; it does not create new product tables or change migration policy.
 
 `IShortLinkService`, `CreateShortLinkRequest`, and `CreateShortLinkResponse` live in `ShortenLink.Core.Services`. Consumer code should continue to call the reusable service contract instead of re-creating short-link rules in the host app.
 

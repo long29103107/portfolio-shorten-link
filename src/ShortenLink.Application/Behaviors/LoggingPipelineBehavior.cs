@@ -8,6 +8,11 @@ public sealed class LoggingPipelineBehavior<TRequest, TResponse>
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {
+    private readonly IRequestLogger requestLogger;
+
+    public LoggingPipelineBehavior(IRequestLogger? requestLogger = null) =>
+        this.requestLogger = requestLogger ?? new NullRequestLogger();
+
     public async Task<TResponse> Handle(
         TRequest request,
         RequestHandlerDelegate<TResponse> next,
@@ -18,12 +23,12 @@ public sealed class LoggingPipelineBehavior<TRequest, TResponse>
         try
         {
             var response = await next();
-            RequestDiagnostics.RecordCompleted(requestName, stopwatch.ElapsedMilliseconds);
+            requestLogger.RequestCompleted(requestName, stopwatch.ElapsedMilliseconds);
             return response;
         }
         catch (Exception exception)
         {
-            RequestDiagnostics.RecordFailed(requestName, stopwatch.ElapsedMilliseconds, exception.GetType());
+            requestLogger.RequestFailed(requestName, stopwatch.ElapsedMilliseconds, exception.GetType());
             throw;
         }
     }
