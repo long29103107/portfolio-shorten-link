@@ -1,13 +1,9 @@
-import { useEffect, useState } from "react";
-import { getRateLimitActivity, listSecurityRoles, listSecurityUsers, listShortLinks } from "../api/shortLinksApi";
-import {
-  composeDashboardSnapshot,
-  type DashboardSnapshot,
-  type DashboardSource
-} from "../adminDashboard";
-import type { RateLimitActivity, ShortLinkStatusFilter } from "../types";
+import type { DashboardSource } from "../adminDashboard";
+import type { DashboardSnapshot } from "../adminDashboard";
+import { DASHBOARD_DEFAULTS } from "../constants/defaults";
 import { formatDateTime } from "../types";
 import { buildRateLimitPolicyViews } from "../rateLimitPresentation";
+import { useAdminDashboardData } from "../hooks/useAdminDashboardData";
 import { RefreshButton } from "../../../shared/components/RefreshButton";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Card, CardContent } from "../../../shared/components/ui/card";
@@ -18,64 +14,8 @@ const sourceLabels: Record<DashboardSource, string> = {
   roles: "Roles"
 };
 
-function listLinksByStatus(status: ShortLinkStatusFilter, limit = 1) {
-  return listShortLinks(1, limit, {
-    search: "",
-    status,
-    sortBy: "created",
-    sortDirection: "desc"
-  });
-}
-
 export function AdminDashboardPage() {
-  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
-  const [rateLimitActivity, setRateLimitActivity] = useState<RateLimitActivity | null>(null);
-  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const loadDashboard = async () => {
-    setIsLoading(true);
-    const [allLinks, activeLinks, inactiveLinks, users, roles, rateLimits] = await Promise.allSettled([
-      listLinksByStatus("all", 6),
-      listLinksByStatus("active"),
-      listLinksByStatus("inactive"),
-      listSecurityUsers(),
-      listSecurityRoles(),
-      getRateLimitActivity()
-    ]);
-    const linksFailed = [allLinks, activeLinks, inactiveLinks].some(
-      (result) => result.status === "rejected"
-    );
-    const failedSources: DashboardSource[] = [
-      ...(linksFailed ? ["shortLinks" as const] : []),
-      ...(users.status === "rejected" ? ["users" as const] : []),
-      ...(roles.status === "rejected" ? ["roles" as const] : [])
-    ];
-
-    setSnapshot(composeDashboardSnapshot({
-      totalLinks: allLinks.status === "fulfilled" ? allLinks.value.totalCount ?? undefined : undefined,
-      activeLinks: activeLinks.status === "fulfilled" ? activeLinks.value.totalCount ?? undefined : undefined,
-      deactivatedLinks: inactiveLinks.status === "fulfilled" ? inactiveLinks.value.totalCount ?? undefined : undefined,
-      users: users.status === "fulfilled" ? users.value.items : undefined,
-      shortLinks: allLinks.status === "fulfilled" ? allLinks.value.items : undefined,
-      roles: roles.status === "fulfilled"
-        ? roles.value.systemRoles.length + roles.value.customRoles.length
-        : undefined,
-      failedSources
-    }));
-    if (rateLimits.status === "fulfilled") {
-      setRateLimitActivity(rateLimits.value);
-      setRateLimitError(null);
-    } else {
-      setRateLimitActivity(null);
-      setRateLimitError("Rate-limit activity is unavailable for this workspace.");
-    }
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    void loadDashboard();
-  }, []);
+  const { snapshot, rateLimitActivity, rateLimitError, isLoading, loadDashboard } = useAdminDashboardData();
 
   const degraded = hasFailedSource(snapshot);
 
@@ -148,7 +88,7 @@ export function AdminDashboardPage() {
                 {rateLimitActivity.recentRejections.length > 0 ? (
                   <div className="rate-limit-rejection-list">
                     <span className="dashboard-activity-note">Recent throttles</span>
-                    {rateLimitActivity.recentRejections.slice(0, 5).map((rejection, index) => (
+                    {rateLimitActivity.recentRejections.slice(0, DASHBOARD_DEFAULTS.RECENT_REJECTION_LIMIT).map((rejection, index) => (
                       <div className="rate-limit-rejection" key={`${rejection.occurredAtUtc}-${rejection.policy}-${index}`}>
                         <strong>{rejection.policy}</strong>
                         <time dateTime={rejection.occurredAtUtc}>{formatDateTime(rejection.occurredAtUtc)}</time>

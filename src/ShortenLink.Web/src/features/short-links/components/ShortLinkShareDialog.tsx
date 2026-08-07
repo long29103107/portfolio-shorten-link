@@ -6,6 +6,7 @@ import {
   upsertShortLinkShare
 } from "../api/shortLinksApi";
 import { ApiError } from "../api/http";
+import { HTTP_STATUS } from "../../../shared/constants/http";
 import type { ShortLinkAdminItem, ShortLinkShare, ShortLinkSharingMode } from "../types";
 import { ConfirmDialog } from "../../../shared/components/ConfirmDialog";
 import { Button } from "../../../shared/components/ui/button";
@@ -258,11 +259,11 @@ function getShareError(error: unknown, fallback: string): string {
     return fallback;
   }
 
-  if (error.status === 401) {
+  if (error.status === HTTP_STATUS.UNAUTHORIZED) {
     return "Your session expired. Sign in again and retry.";
   }
 
-  if (error.status === 403) {
+  if (error.status === HTTP_STATUS.FORBIDDEN) {
     return "Your account does not have permission to manage this link.";
   }
 

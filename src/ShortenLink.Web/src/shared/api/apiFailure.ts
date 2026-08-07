@@ -1,3 +1,5 @@
+import { HTTP_STATUS } from "../constants/http";
+
 export type ApiFailureKind =
   | "network"
   | "timeout"
@@ -26,23 +28,23 @@ export type ApiFailurePayload = {
 };
 
 export function classifyHttpFailure(status: number, payload: ApiFailurePayload): ApiFailure {
-  if (status === 401) {
+  if (status === HTTP_STATUS.UNAUTHORIZED) {
     return createFailure("authentication", status, payload, false, true);
   }
 
-  if (status === 403) {
+  if (status === HTTP_STATUS.FORBIDDEN) {
     return createFailure("authorization", status, payload, false, true);
   }
 
-  if (status === 404) {
+  if (status === HTTP_STATUS.NOT_FOUND) {
     return createFailure("not-found", status, payload, false, false);
   }
 
-  if (status === 408) {
+  if (status === HTTP_STATUS.REQUEST_TIMEOUT) {
     return createFailure("timeout", status, payload, true, false);
   }
 
-  if (status === 429) {
+  if (status === HTTP_STATUS.TOO_MANY_REQUESTS) {
     return createFailure("rate-limit", status, payload, true, false);
   }
 
@@ -50,7 +52,11 @@ export function classifyHttpFailure(status: number, payload: ApiFailurePayload):
     return createFailure("server", status, payload, true, false);
   }
 
-  if (status === 400 || status === 409 || status === 422) {
+  if (
+    status === HTTP_STATUS.BAD_REQUEST
+    || status === HTTP_STATUS.CONFLICT
+    || status === HTTP_STATUS.UNPROCESSABLE_ENTITY
+  ) {
     return createFailure("validation", status, payload, false, false);
   }
 

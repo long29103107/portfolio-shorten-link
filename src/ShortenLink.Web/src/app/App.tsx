@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from "react";
+import { lazy, startTransition, Suspense, useEffect, useState } from "react";
 import { CreateShortLinkPage } from "../features/short-links/pages/CreateShortLinkPage";
 import {
   clearStoredSession,
@@ -10,12 +10,12 @@ import {
 } from "../features/short-links/api/adminSecurity";
 import { getCurrentSecurityUser } from "../features/short-links/api/shortLinksApi";
 import { LoginPage } from "../features/short-links/pages/LoginPage";
-import { AdminDashboardPage } from "../features/short-links/pages/AdminDashboardPage";
-import { AuditLogPage } from "../features/short-links/pages/AuditLogPage";
-import { SecurityManagementPage } from "../features/short-links/pages/SecurityManagementPage";
-import { ShortLinkAdminPage } from "../features/short-links/pages/ShortLinkAdminPage";
+const AdminDashboardPage = lazy(() => import("../features/short-links/pages/AdminDashboardPage").then(({ AdminDashboardPage }) => ({ default: AdminDashboardPage })));
+const AuditLogPage = lazy(() => import("../features/short-links/pages/AuditLogPage").then(({ AuditLogPage }) => ({ default: AuditLogPage })));
+const SecurityManagementPage = lazy(() => import("../features/short-links/pages/SecurityManagementPage").then(({ SecurityManagementPage }) => ({ default: SecurityManagementPage })));
+const ShortLinkAdminPage = lazy(() => import("../features/short-links/pages/ShortLinkAdminPage").then(({ ShortLinkAdminPage }) => ({ default: ShortLinkAdminPage })));
 import { StatusPage } from "../features/short-links/pages/StatusPage";
-import { ShortLinkDetailPage } from "../features/short-links/pages/ShortLinkDetailPage";
+const ShortLinkDetailPage = lazy(() => import("../features/short-links/pages/ShortLinkDetailPage").then(({ ShortLinkDetailPage }) => ({ default: ShortLinkDetailPage })));
 import type { AppRoute, CreatedShortLink } from "../features/short-links/types";
 import { Button } from "../shared/components/ui/button";
 import {
@@ -26,6 +26,9 @@ import {
 } from "../shared/components/ui/dropdown-menu";
 import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 import { Toaster } from "../shared/components/Toaster";
+import { APP_ROUTES, buildSecurityRoute } from "../shared/constants/routes";
+import { APP_EVENTS } from "../shared/constants/events";
+import { HTTP_STATUS } from "../shared/constants/http";
 import { parseRoute } from "./router";
 
 type NavigationIconName = "endpoint" | "admin" | "audit" | "users" | "roles" | "sign-in";
@@ -50,21 +53,21 @@ export function App() {
     const handleAuthChanged = () => {
       const nextUser = getStoredCurrentUser();
       setCurrentUser(nextUser);
-      if (!getStoredSessionToken() && window.location.pathname !== "/login") {
-        window.history.replaceState({}, "", "/login");
+      if (!getStoredSessionToken() && window.location.pathname !== APP_ROUTES.LOGIN) {
+        window.history.replaceState({}, "", APP_ROUTES.LOGIN);
         setRoute({ kind: "login" });
       }
     };
 
-    window.addEventListener("shortenlink-auth-changed", handleAuthChanged);
-    return () => window.removeEventListener("shortenlink-auth-changed", handleAuthChanged);
+    window.addEventListener(APP_EVENTS.AUTH_CHANGED, handleAuthChanged);
+    return () => window.removeEventListener(APP_EVENTS.AUTH_CHANGED, handleAuthChanged);
   }, []);
 
   useEffect(() => {
     const token = getStoredSessionToken();
     if (!token) {
-      if (window.location.pathname !== "/login") {
-        window.history.replaceState({}, "", "/login");
+      if (window.location.pathname !== APP_ROUTES.LOGIN) {
+        window.history.replaceState({}, "", APP_ROUTES.LOGIN);
       }
       return;
     }
@@ -105,19 +108,19 @@ export function App() {
   useEffect(() => {
     const handlePopState = () => {
       const nextPath = window.location.pathname;
-      if (!getStoredSessionToken() && nextPath !== "/login") {
-        window.history.replaceState({}, "", "/login");
+      if (!getStoredSessionToken() && nextPath !== APP_ROUTES.LOGIN) {
+        window.history.replaceState({}, "", APP_ROUTES.LOGIN);
         setRoute({ kind: "login" });
         return;
       }
       const currentPath = route.kind === "admin"
-        ? "/short-links"
+        ? APP_ROUTES.SHORT_LINKS
         : route.kind === "security"
-          ? `/admin/security/${route.section}`
+          ? buildSecurityRoute(route.section)
           : route.kind === "audit"
-            ? "/audit-logs"
+            ? APP_ROUTES.AUDIT_LOGS
           : route.kind === "dashboard"
-            ? "/admin/dashboard"
+            ? APP_ROUTES.ADMIN_DASHBOARD
             : window.location.pathname;
       if (hasAdminEditChanges && nextPath !== currentPath) {
         window.history.pushState({}, "", currentPath);
@@ -138,8 +141,8 @@ export function App() {
   }, [hasAdminEditChanges, route]);
 
   const commitNavigation = (requestedPath: string) => {
-    const path = !getStoredSessionToken() && requestedPath !== "/login"
-      ? "/login"
+    const path = !getStoredSessionToken() && requestedPath !== APP_ROUTES.LOGIN
+      ? APP_ROUTES.LOGIN
       : requestedPath;
     if (window.location.pathname !== path) {
       window.history.pushState({}, "", path);
@@ -209,11 +212,11 @@ export function App() {
         {route.kind === "status" ? (
           <StatusPage
             statusCode={route.statusCode}
-            onBackHome={() => navigate("/")}
+            onBackHome={() => navigate(APP_ROUTES.HOME)}
           />
         ) : (
           <LoginPage
-            onSignedIn={() => navigate("/")}
+            onSignedIn={() => navigate(APP_ROUTES.HOME)}
           />
         )}
         <ConfirmDialog
@@ -253,7 +256,7 @@ export function App() {
               className="sidebar-nav-button"
               aria-current={route.kind === "dashboard" ? "page" : undefined}
               variant="ghost"
-              onClick={() => navigate("/admin/dashboard")}
+              onClick={() => navigate(APP_ROUTES.ADMIN_DASHBOARD)}
             >
               <NavigationIcon name="admin" />
               Dashboard
@@ -262,7 +265,7 @@ export function App() {
               <Button
                 className="sidebar-nav-button"
                 variant="ghost"
-                onClick={() => navigate("/audit-logs")}
+                onClick={() => navigate(APP_ROUTES.AUDIT_LOGS)}
               >
                 <NavigationIcon name="audit" />
                 Audit logs
@@ -276,7 +279,7 @@ export function App() {
                   className="sidebar-nav-button sidebar-nav-child"
                   aria-current={route.kind === "security" && route.section === section ? "page" : undefined}
                   variant="ghost"
-                  onClick={() => navigate(`/admin/security/${section}`)}
+                  onClick={() => navigate(buildSecurityRoute(section))}
                 >
                   <NavigationIcon name={securitySectionIcons[section]} />
                   {section[0].toUpperCase() + section.slice(1)}
@@ -292,7 +295,7 @@ export function App() {
                 className="sidebar-nav-button"
                 aria-current={route.kind === "admin" ? "page" : undefined}
                 variant="ghost"
-                onClick={() => navigate("/short-links")}
+                onClick={() => navigate(APP_ROUTES.SHORT_LINKS)}
               >
                 <NavigationIcon name="endpoint" />
                 Short links
@@ -302,7 +305,7 @@ export function App() {
                   className="sidebar-nav-button"
                   aria-current={route.kind === "audit" ? "page" : undefined}
                   variant="ghost"
-                  onClick={() => navigate("/audit-logs")}
+                  onClick={() => navigate(APP_ROUTES.AUDIT_LOGS)}
                 >
                   <NavigationIcon name="audit" />
                   Audit logs
@@ -335,16 +338,16 @@ export function App() {
                 </DropdownMenuTrigger>
                 {isAccountMenuOpen ? (
                   <DropdownMenuContent className="sidebar-account-menu" placement="right-end">
-                    <DropdownMenuItem onClick={() => navigate("/")}>
+                    <DropdownMenuItem onClick={() => navigate(APP_ROUTES.HOME)}>
                       Back to home
                     </DropdownMenuItem>
                     {route.kind === "dashboard" || route.kind === "security" ? (
-                      <DropdownMenuItem onClick={() => navigate("/short-links")}>
+                      <DropdownMenuItem onClick={() => navigate(APP_ROUTES.SHORT_LINKS)}>
                         Manage short links
                       </DropdownMenuItem>
                     ) : null}
                     {route.kind === "admin" && adminPermissions.canManageSecurityAssignments ? (
-                      <DropdownMenuItem onClick={() => navigate("/admin/dashboard")}>
+                      <DropdownMenuItem onClick={() => navigate(APP_ROUTES.ADMIN_DASHBOARD)}>
                         Admin management
                       </DropdownMenuItem>
                     ) : null}
@@ -352,7 +355,7 @@ export function App() {
                       className="account-sign-out"
                       onClick={() => {
                         clearStoredSession();
-                        navigate("/login");
+                        navigate(APP_ROUTES.LOGIN);
                       }}
                     >
                       Sign out
@@ -365,7 +368,7 @@ export function App() {
             <Button
               className="sidebar-nav-button"
               variant="ghost"
-              onClick={() => navigate("/login")}
+              onClick={() => navigate(APP_ROUTES.LOGIN)}
             >
               <NavigationIcon name="sign-in" />
               Sign in
@@ -399,11 +402,11 @@ export function App() {
               </DropdownMenuTrigger>
               {isAccountMenuOpen ? (
                 <DropdownMenuContent className="account-menu-content">
-                  <DropdownMenuItem onClick={() => navigate("/short-links")}>
+                  <DropdownMenuItem onClick={() => navigate(APP_ROUTES.SHORT_LINKS)}>
                     Short links management
                   </DropdownMenuItem>
                   {adminPermissions.canManageSecurityAssignments ? (
-                    <DropdownMenuItem onClick={() => navigate("/admin/dashboard")}>
+                    <DropdownMenuItem onClick={() => navigate(APP_ROUTES.ADMIN_DASHBOARD)}>
                       Admin management
                     </DropdownMenuItem>
                   ) : null}
@@ -411,7 +414,7 @@ export function App() {
                     className="account-sign-out"
                     onClick={() => {
                       clearStoredSession();
-                      navigate("/login");
+                      navigate(APP_ROUTES.LOGIN);
                     }}
                   >
                     Sign out
@@ -432,6 +435,7 @@ export function App() {
           </header>
         ) : null}
 
+        <Suspense fallback={<RouteLoading />}>
         <div className="workspace">
         {route.kind === "home" ? (
           <CreateShortLinkPage
@@ -451,7 +455,7 @@ export function App() {
         {route.kind === "audit" ? (
           adminPermissions.canReadAuditLogs
             ? <AuditLogPage />
-            : <StatusPage statusCode={403} onBackHome={() => navigate("/")} />
+            : <StatusPage statusCode={HTTP_STATUS.FORBIDDEN} onBackHome={() => navigate(APP_ROUTES.HOME)} />
         ) : null}
 
         {route.kind === "security" ? (
@@ -461,11 +465,12 @@ export function App() {
         {route.kind === "detail" ? (
           <ShortLinkDetailPage
             code={route.code}
-            onBackHome={() => navigate("/")}
+            onBackHome={() => navigate(APP_ROUTES.HOME)}
           />
         ) : null}
 
         </div>
+        </Suspense>
       </main>
       <ConfirmDialog
         open={pendingNavigationPath !== null}
@@ -478,6 +483,14 @@ export function App() {
         onCancel={() => setPendingNavigationPath(null)}
       />
       <Toaster />
+    </div>
+  );
+}
+
+function RouteLoading() {
+  return (
+    <div className="workspace" role="status" aria-live="polite">
+      <p className="eyebrow">Loading workspace…</p>
     </div>
   );
 }

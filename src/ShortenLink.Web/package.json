@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "bun test",
+    "check:architecture": "bun scripts/check-architecture.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

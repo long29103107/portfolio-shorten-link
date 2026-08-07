@@ -46,6 +46,7 @@ import {
   validateShortLinkForm,
   type ShortLinkFieldErrors
 } from "../validation";
+import { useShortLinkDiscovery } from "../hooks/useShortLinkDiscovery";
 
 type ShortLinkAdminPageProps = {
   onDirtyChange?: (isDirty: boolean) => void;
@@ -60,10 +61,7 @@ type ConfirmAction = {
 };
 
 export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
-  const [links, setLinks] = useState<ShortLinkAdminItem[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [listFailure, setListFailure] = useState<(RecoveryNotice & { pageNumber: number }) | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [busyCode, setBusyCode] = useState<string | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
@@ -78,13 +76,6 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(() => new Set());
-  const [pageSize, setPageSize] = useState(25);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [discoveryQuery, setDiscoveryQuery] = useState<ShortLinkDiscoveryQuery>(
-    defaultShortLinkDiscoveryQuery
-  );
   const [analyticsCode, setAnalyticsCode] = useState<string | null>(null);
   const [sharingLink, setSharingLink] = useState<ShortLinkAdminItem | null>(null);
   const [qrLink, setQrLink] = useState<ShortLinkAdminItem | null>(null);
@@ -96,6 +87,21 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
   const [exportFailure, setExportFailure] = useState<RecoveryNotice | null>(null);
   const copyFeedbackTimeoutRef = useRef<number | null>(null);
   const adminPermissions = getAdminPermissionState();
+  const {
+    links,
+    setLinks,
+    isLoading,
+    listFailure,
+    loadLinks,
+    pageSize,
+    setPageSize,
+    pageNumber,
+    setPageNumber,
+    totalCount,
+    totalPages,
+    discoveryQuery,
+    setDiscoveryQuery
+  } = useShortLinkDiscovery();
 
   const selectedLinks = links.filter((link) => selectedCodes.has(link.code));
   const selectedCount = selectedCodes.size;
@@ -118,39 +124,11 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
     && (editForm.originalUrl !== initialEditForm.originalUrl
       || editForm.expiredAtLocal !== initialEditForm.expiredAtLocal);
 
-  const loadLinks = async (nextPageNumber = pageNumber) => {
-    setIsLoading(true);
-    setListFailure(null);
-
-    try {
-      const result = await listShortLinks(pageSize, nextPageNumber, discoveryQuery);
-      setLinks(result.items);
-      setTotalCount(result.totalCount ?? result.items.length);
-      setTotalPages(result.totalPages ?? 1);
-      setSelectedCodes(new Set());
-      setPageNumber(result.page ?? nextPageNumber);
-    } catch (error) {
-      const message = error instanceof ApiError
-        ? toFriendlyErrorMessage(error.errorCode, error.message)
-        : "We could not load links right now.";
-      setListFailure({
-        ...createRecoveryNotice(error, message),
-        pageNumber: nextPageNumber
-      });
-    } finally {
-      setIsLoading(false);
+  useEffect(() => () => {
+    if (copyFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(copyFeedbackTimeoutRef.current);
     }
-  };
-
-  useEffect(() => {
-    void loadLinks(1);
-
-    return () => {
-      if (copyFeedbackTimeoutRef.current !== null) {
-        window.clearTimeout(copyFeedbackTimeoutRef.current);
-      }
-    };
-  }, [pageSize, discoveryQuery]);
+  }, []);
 
   useEffect(() => {
     onDirtyChange?.(hasEditChanges);

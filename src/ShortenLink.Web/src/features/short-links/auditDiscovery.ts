@@ -4,6 +4,8 @@ import type {
   AuditLogQuery
 } from "./types";
 import { appendQueryExpression, filter, type FilterExpression } from "../../shared/queryExpression";
+import { SHORT_LINK_API_ROUTES } from "./constants/apiRoutes";
+import { AUDIT_LOG_DEFAULTS } from "./constants/defaults";
 
 export const emptyAuditLogFilters: AuditLogFilters = {
   action: "",
@@ -15,7 +17,10 @@ export const emptyAuditLogFilters: AuditLogFilters = {
 
 export function buildAuditLogUrl(query: AuditLogQuery = {}): string {
   const params = new URLSearchParams({
-    limit: String(Math.min(Math.max(query.limit ?? 50, 1), 200))
+    limit: String(Math.min(
+      Math.max(query.limit ?? AUDIT_LOG_DEFAULTS.LIMIT, AUDIT_LOG_DEFAULTS.MIN_LIMIT),
+      AUDIT_LOG_DEFAULTS.MAX_LIMIT
+    ))
   });
 
   if (query.cursor?.trim()) {
@@ -37,7 +42,7 @@ export function buildAuditLogUrl(query: AuditLogQuery = {}): string {
         : filter.and(...expressions)
   });
 
-  return `/api/audit-logs?${params.toString()}`;
+  return `${SHORT_LINK_API_ROUTES.AUDIT_LOGS}?${params.toString()}`;
 }
 
 export function mergeAuditLogEvents(

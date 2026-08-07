@@ -6,11 +6,12 @@ import {
   type ApiFailure
 } from "../../../shared/api/apiFailure";
 import { clearStoredSession, getAdminApiKeyHeader, getStoredRefreshToken, storeSession } from "./adminSecurity";
+import type { ApiRequestOptions } from "../../../shared/api/apiClient";
+import { HTTP_HEADERS, HTTP_METHODS, HTTP_STATUS } from "../../../shared/constants/http";
+import { APP_ROUTES } from "../../../shared/constants/routes";
+import { SHORT_LINK_API_ROUTES } from "../constants/apiRoutes";
 
-type FetchJsonOptions = RequestInit & {
-  suppressAuthRedirect?: boolean;
-  skipRefresh?: boolean;
-};
+export type FetchJsonOptions = ApiRequestOptions;
 
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -43,7 +44,7 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: FetchJsonOpt
     response = await fetch(input, {
       ...requestInit,
       headers: {
-        "Content-Type": "application/json",
+        [HTTP_HEADERS.CONTENT_TYPE]: HTTP_HEADERS.JSON,
         ...getAdminApiKeyHeader(),
         ...(requestInit.headers ?? {})
       }
@@ -55,14 +56,14 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: FetchJsonOpt
   }
 
   if (response.ok) {
-    if (response.status === 204) {
+    if (response.status === HTTP_STATUS.NO_CONTENT) {
       return undefined as T;
     }
 
     return (await response.json()) as T;
   }
 
-  if (response.status === 401 && !suppressAuthRedirect && !skipRefresh) {
+  if (response.status === HTTP_STATUS.UNAUTHORIZED && !suppressAuthRedirect && !skipRefresh) {
     const refreshed = await refreshSession();
     if (refreshed) {
       return fetchJson<T>(input, { ...init, skipRefresh: true });
@@ -76,7 +77,7 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: FetchJsonOpt
   const failure = classifyHttpFailure(response.status, payload);
 
   if (failure.shouldNavigateToAuth && !suppressAuthRedirect) {
-    if (response.status === 401) {
+    if (response.status === HTTP_STATUS.UNAUTHORIZED) {
       clearStoredSession();
     }
     navigateToStatusPage(response.status);
@@ -105,7 +106,7 @@ async function safeReadError(response: Response): Promise<ApiErrorPayload | null
 }
 
 function navigateToStatusPage(status: number) {
-  const path = status === 401 ? "/login" : "/forbidden";
+  const path = status === HTTP_STATUS.UNAUTHORIZED ? APP_ROUTES.LOGIN : APP_ROUTES.FORBIDDEN;
   if (window.location.pathname !== path) {
     window.history.pushState({}, "", path);
   }
@@ -133,9 +134,9 @@ async function performRefresh(): Promise<boolean> {
   }
 
   try {
-    const response = await fetch("/api/security/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const response = await fetch(SHORT_LINK_API_ROUTES.REFRESH, {
+      method: HTTP_METHODS.POST,
+      headers: { [HTTP_HEADERS.CONTENT_TYPE]: HTTP_HEADERS.JSON },
       body: JSON.stringify({ refreshToken })
     });
     if (!response.ok) {

@@ -1,52 +1,56 @@
 import type { AppRoute } from "../features/short-links/types";
+import { APP_ROUTES } from "../shared/constants/routes";
+import { HTTP_STATUS } from "../shared/constants/http";
 
 export function parseRoute(pathname: string): AppRoute {
-  if (pathname === "/") {
+  if (pathname === APP_ROUTES.HOME) {
     return { kind: "home" };
   }
 
-  if (pathname === "/short-links") {
+  if (pathname === APP_ROUTES.SHORT_LINKS) {
     return { kind: "admin" };
   }
 
-  if (pathname === "/admin/dashboard") {
+  if (pathname === APP_ROUTES.ADMIN_DASHBOARD) {
     return { kind: "dashboard" };
   }
 
-  if (pathname === "/audit-logs") {
+  if (pathname === APP_ROUTES.AUDIT_LOGS) {
     return { kind: "audit" };
   }
 
-  if (pathname === "/admin/security") {
+  if (pathname === APP_ROUTES.ADMIN_SECURITY) {
     return { kind: "security", section: "users" };
   }
 
-  const securityMatch = /^\/admin\/security\/(users|roles)$/.exec(pathname);
+  const securityMatch = new RegExp(`^${APP_ROUTES.ADMIN_SECURITY}/(users|roles)$`).exec(pathname);
   if (securityMatch) {
     return { kind: "security", section: securityMatch[1] as "users" | "roles" };
   }
 
-  if (pathname === "/login") {
+  if (pathname === APP_ROUTES.LOGIN) {
     return { kind: "login" };
   }
 
-  if (pathname === "/unauthorized") {
-    return { kind: "status", statusCode: 401 };
+  if (pathname === APP_ROUTES.UNAUTHORIZED) {
+    return { kind: "status", statusCode: HTTP_STATUS.UNAUTHORIZED };
   }
 
-  if (pathname === "/forbidden") {
-    return { kind: "status", statusCode: 403 };
+  if (pathname === APP_ROUTES.FORBIDDEN) {
+    return { kind: "status", statusCode: HTTP_STATUS.FORBIDDEN };
   }
 
-  if (pathname === "/not-found") {
-    return { kind: "status", statusCode: 404 };
+  if (pathname === APP_ROUTES.NOT_FOUND) {
+    return { kind: "status", statusCode: HTTP_STATUS.NOT_FOUND };
   }
 
-  const detailMatch = /^\/links\/([^/]+)$/.exec(pathname);
+  const detailMatch = new RegExp(`^${APP_ROUTES.LINK_DETAILS}/([^/]+)$`).exec(pathname);
   if (detailMatch) {
     const code = decodeURIComponent(detailMatch[1] ?? "").trim();
-    return code ? { kind: "detail", code } : { kind: "status", statusCode: 404 };
+    return code
+      ? { kind: "detail", code }
+      : { kind: "status", statusCode: HTTP_STATUS.NOT_FOUND };
   }
 
-  return { kind: "status", statusCode: 404 };
+  return { kind: "status", statusCode: HTTP_STATUS.NOT_FOUND };
 }

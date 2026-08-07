@@ -1,12 +1,12 @@
 ---
 phase: 030
 title: Backend Cohesion And Persistence Decomposition
-status: active
+status: complete
 created_at: 2026-08-07
 updated_at: 2026-08-07
 current_task: null
-task_count: 4
-done_count: 4
+task_count: 5
+done_count: 5
 depends_on:
   - 029
 ---
@@ -37,17 +37,18 @@ runtime behavior, and dependency direction.
 | 030_002 | Extract EF entity mappings from ShortLinkDbContext | Refactor | done | 2026-08-07 |
 | 030_003 | Separate RabbitMQ lifecycle, publisher, and consumer | Refactor | done | 2026-08-07 |
 | 030_004 | Separate session token, principal, and session-state responsibilities | Refactor | done | 2026-08-07 |
+| 030_005 | Audit dependency direction and remaining structural duplication | Architecture | done | 2026-08-07 |
 
 ## Current Task
 
-`030_004` is complete. Persistence, messaging, and user sessions now have
-explicit internal boundaries while preserving existing contracts and security
-semantics.
+`030_005` is complete. Phase-wide dependency direction and remaining
+duplication were audited; the graph remains acyclic and no additional shared
+package or behavior-neutral extraction is justified.
 
 ## Next Task Proposal
 
-After review, consider `030_005` to audit phase-wide dependency direction and
-remove only any remaining structural duplication with a measurable benefit.
+Phase 030 is complete. Select the next phase from the product roadmap rather
+than adding more refactor-only tasks here.
 
 ## Task Notes
 
@@ -64,6 +65,55 @@ mutation and provider-conflict handling without changing repository contracts.
   into `EfCoreShortLinkRepository.Read.cs`.
 - Preserved the existing repository facade, interfaces, provider conflict
   handling, projections, and query semantics.
+- Build passed with 0 warnings and 0 errors.
+- All 232 solution tests passed.
+
+### 030_005 - Audit dependency direction and remaining structural duplication
+
+#### Step Goal
+
+Verify the phase-wide dependency graph and remove only structural duplication
+that has a measurable ownership or reuse benefit.
+
+#### Scope
+
+- Audit project references for cycles and forbidden inward dependencies.
+- Review remaining similarly-shaped options, serializer helpers, and contract
+  candidates against the reuse boundary rule.
+- Record decisions and guardrails without introducing a new package or
+  behavior-neutral abstraction without a legitimate consumer.
+
+#### Acceptance Criteria
+
+- Dependency graph is documented and acyclic.
+- Remaining duplication has an explicit ownership decision.
+- No unnecessary shared package or coupling is introduced.
+- Full solution verification passes.
+
+#### Foundation for Next Step
+
+Phase 030 leaves verified persistence, messaging, session, and dependency
+boundaries. The next phase can focus on product roadmap work without carrying
+unresolved backend structural debt.
+
+#### Affected Files
+
+- `.okf/decisions/030-005-dependency-audit.md`
+- `.okf/phase/030/PHASE_SUMMARY.md`
+
+#### Verification
+
+```powershell
+dotnet build ShortenLink.slnx --no-restore --verbosity minimal --disable-build-servers
+dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal
+```
+
+#### Done Notes
+
+- Verified the project-reference graph is acyclic and preserves layer
+  direction.
+- Documented why remaining queue options and serializer helpers should not be
+  merged across ownership boundaries.
 - Build passed with 0 warnings and 0 errors.
 - All 232 solution tests passed.
 

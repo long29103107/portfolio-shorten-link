@@ -1,4 +1,6 @@
 import type { SecurityCurrentUser } from "../types";
+import { HTTP_HEADERS } from "../../../shared/constants/http";
+import { APP_EVENTS } from "../../../shared/constants/events";
 
 export const shortLinkPermissions = {
   read: "short_links.read",
@@ -12,10 +14,12 @@ export const shortLinkPermissions = {
 } as const;
 
 const allPermissions = Object.values(shortLinkPermissions);
-const accessTokenKey = "shortenLink.accessToken";
-const refreshTokenKey = "shortenLink.refreshToken";
-const legacySessionTokenKey = "shortenLink.sessionToken";
-const currentUserKey = "shortenLink.currentUser";
+const SESSION_STORAGE_KEYS = {
+  ACCESS_TOKEN: "shortenLink.accessToken",
+  REFRESH_TOKEN: "shortenLink.refreshToken",
+  LEGACY_SESSION_TOKEN: "shortenLink.sessionToken",
+  CURRENT_USER: "shortenLink.currentUser"
+} as const;
 
 const rolePermissionBundles: Record<string, readonly string[]> = {
   admin: allPermissions,
@@ -43,16 +47,16 @@ export type AdminPermissionState = {
 };
 
 export function getStoredSessionToken(): string | null {
-  return window.localStorage.getItem(accessTokenKey)
-    ?? window.localStorage.getItem(legacySessionTokenKey);
+  return window.localStorage.getItem(SESSION_STORAGE_KEYS.ACCESS_TOKEN)
+    ?? window.localStorage.getItem(SESSION_STORAGE_KEYS.LEGACY_SESSION_TOKEN);
 }
 
 export function getStoredRefreshToken(): string | null {
-  return window.localStorage.getItem(refreshTokenKey);
+  return window.localStorage.getItem(SESSION_STORAGE_KEYS.REFRESH_TOKEN);
 }
 
 export function getStoredCurrentUser(): SecurityCurrentUser | null {
-  const value = window.localStorage.getItem(currentUserKey);
+  const value = window.localStorage.getItem(SESSION_STORAGE_KEYS.CURRENT_USER);
   if (!value) {
     return null;
   }
@@ -66,25 +70,25 @@ export function getStoredCurrentUser(): SecurityCurrentUser | null {
 }
 
 export function storeSession(accessToken: string, refreshToken: string, user: SecurityCurrentUser): void {
-  window.localStorage.setItem(accessTokenKey, accessToken);
-  window.localStorage.setItem(refreshTokenKey, refreshToken);
-  window.localStorage.removeItem(legacySessionTokenKey);
-  window.localStorage.setItem(currentUserKey, JSON.stringify(user));
-  window.dispatchEvent(new Event("shortenlink-auth-changed"));
+  window.localStorage.setItem(SESSION_STORAGE_KEYS.ACCESS_TOKEN, accessToken);
+  window.localStorage.setItem(SESSION_STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+  window.localStorage.removeItem(SESSION_STORAGE_KEYS.LEGACY_SESSION_TOKEN);
+  window.localStorage.setItem(SESSION_STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+  window.dispatchEvent(new Event(APP_EVENTS.AUTH_CHANGED));
 }
 
 export function clearStoredSession(): void {
-  window.localStorage.removeItem(accessTokenKey);
-  window.localStorage.removeItem(refreshTokenKey);
-  window.localStorage.removeItem(legacySessionTokenKey);
-  window.localStorage.removeItem(currentUserKey);
-  window.dispatchEvent(new Event("shortenlink-auth-changed"));
+  window.localStorage.removeItem(SESSION_STORAGE_KEYS.ACCESS_TOKEN);
+  window.localStorage.removeItem(SESSION_STORAGE_KEYS.REFRESH_TOKEN);
+  window.localStorage.removeItem(SESSION_STORAGE_KEYS.LEGACY_SESSION_TOKEN);
+  window.localStorage.removeItem(SESSION_STORAGE_KEYS.CURRENT_USER);
+  window.dispatchEvent(new Event(APP_EVENTS.AUTH_CHANGED));
 }
 
 export function getAdminApiKeyHeader(): Record<string, string> {
   const sessionToken = getStoredSessionToken();
   if (sessionToken) {
-    return { Authorization: `Bearer ${sessionToken}` };
+    return { [HTTP_HEADERS.AUTHORIZATION]: `Bearer ${sessionToken}` };
   }
 
   const apiKey = import.meta.env.VITE_SHORTENLINK_ADMIN_API_KEY?.trim();

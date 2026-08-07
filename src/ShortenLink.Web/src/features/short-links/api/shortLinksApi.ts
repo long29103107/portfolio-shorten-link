@@ -1,4 +1,4 @@
-import { fetchJson } from "./http";
+import { apiClient } from "./apiClient";
 import { appendQueryExpression } from "../../../shared/queryExpression";
 import { buildShortLinkFilterExpression, buildShortLinkSortExpression } from "../queryExpression";
 import type {
@@ -40,62 +40,65 @@ import type {
   UpdateShortLinkRequest
 } from "../types";
 import { buildAuditLogUrl } from "../auditDiscovery";
+import { SHORT_LINK_API_ROUTES } from "../constants/apiRoutes";
+import { SHORT_LINK_DISCOVERY_DEFAULTS } from "../constants/defaults";
 
 export async function loginSecurityUser(
   email: string,
   password: string
 ): Promise<SecurityLoginResponse> {
-  return fetchJson<SecurityLoginResponse>("/api/security/login", {
-    method: "POST",
+  return apiClient.post<SecurityLoginResponse>(SHORT_LINK_API_ROUTES.LOGIN, { email, password }, {
     suppressAuthRedirect: true,
-    body: JSON.stringify({ email, password })
   });
 }
 
 export async function getCurrentSecurityUser(): Promise<SecurityCurrentUser> {
-  return fetchJson<SecurityCurrentUser>("/api/security/me");
+  return apiClient.get<SecurityCurrentUser>(SHORT_LINK_API_ROUTES.CURRENT_USER);
 }
 
 export async function listAuditLogEvents(query: AuditLogQuery = {}): Promise<AuditLogPage> {
-  return fetchJson<AuditLogPage>(buildAuditLogUrl(query));
+  return apiClient.get<AuditLogPage>(buildAuditLogUrl(query));
 }
 
 export async function listAuditLogActions(): Promise<AuditLogActions> {
-  return fetchJson<AuditLogActions>("/api/audit-logs/actions");
+  return apiClient.get<AuditLogActions>(SHORT_LINK_API_ROUTES.AUDIT_LOG_ACTIONS);
 }
 
 export async function getRateLimitActivity(): Promise<RateLimitActivity> {
-  return fetchJson<RateLimitActivity>("/api/admin/rate-limits");
+  return apiClient.get<RateLimitActivity>(SHORT_LINK_API_ROUTES.RATE_LIMITS);
 }
 
 export async function createShortLink(
   request: CreateShortLinkRequest
 ): Promise<CreatedShortLink> {
-  return fetchJson<CreatedShortLink>("/api/short-links", {
-    method: "POST",
-    body: JSON.stringify(request)
-  });
+  return apiClient.post<CreatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINKS, request);
 }
 
 export async function getShortLinkDetails(code: string): Promise<ShortLinkDetails> {
-  return fetchJson<ShortLinkDetails>(`/api/short-links/${encodeURIComponent(code)}`);
+  return apiClient.get<ShortLinkDetails>(SHORT_LINK_API_ROUTES.SHORT_LINK(code));
 }
 
 export async function getShortLinkAnalytics(code: string): Promise<ShortLinkAnalytics> {
-  return fetchJson<ShortLinkAnalytics>(`/api/short-links/${encodeURIComponent(code)}/analytics`);
+  return apiClient.get<ShortLinkAnalytics>(SHORT_LINK_API_ROUTES.SHORT_LINK_ANALYTICS(code));
 }
 
 export async function listShortLinks(
-  limit = 25,
-  page = 1,
-  discovery?: ShortLinkDiscoveryQuery
+  limit = SHORT_LINK_DISCOVERY_DEFAULTS.LIMIT,
+  page = SHORT_LINK_DISCOVERY_DEFAULTS.PAGE,
+  discovery?: ShortLinkDiscoveryQuery,
+  signal?: AbortSignal
 ): Promise<ShortLinkAdminPageResult> {
-  return fetchJson<ShortLinkAdminPageResult>(buildShortLinkListUrl(limit, page, discovery));
+  const query = Object.fromEntries(buildShortLinkQueryParams(limit, page, discovery));
+  return apiClient.query<ShortLinkAdminPageResult>(
+    SHORT_LINK_API_ROUTES.SHORT_LINKS,
+    query,
+    signal ? { signal } : undefined
+  );
 }
 
 export function buildShortLinkQueryParams(
-  limit = 25,
-  page = 1,
+  limit = SHORT_LINK_DISCOVERY_DEFAULTS.LIMIT,
+  page = SHORT_LINK_DISCOVERY_DEFAULTS.PAGE,
   discovery?: ShortLinkDiscoveryQuery
 ) {
   const params = new URLSearchParams({
@@ -114,86 +117,69 @@ export function buildShortLinkQueryParams(
 }
 
 export function buildShortLinkListUrl(
-  limit = 25,
-  page = 1,
+  limit = SHORT_LINK_DISCOVERY_DEFAULTS.LIMIT,
+  page = SHORT_LINK_DISCOVERY_DEFAULTS.PAGE,
   discovery?: ShortLinkDiscoveryQuery
 ) {
-  return `/api/short-links?${buildShortLinkQueryParams(limit, page, discovery).toString()}`;
+  return `${SHORT_LINK_API_ROUTES.SHORT_LINKS}?${buildShortLinkQueryParams(limit, page, discovery).toString()}`;
 }
 
 export async function deactivateShortLink(code: string): Promise<DeactivatedShortLink> {
-  return fetchJson<DeactivatedShortLink>(`/api/short-links/${encodeURIComponent(code)}/deactivate`, {
-    method: "POST"
-  });
+  return apiClient.post<DeactivatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK_DEACTIVATE(code));
 }
 
 export async function activateShortLink(code: string): Promise<DeactivatedShortLink> {
-  return fetchJson<DeactivatedShortLink>(`/api/short-links/${encodeURIComponent(code)}/activate`, {
-    method: "POST"
-  });
+  return apiClient.post<DeactivatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK_ACTIVATE(code));
 }
 
 export async function updateShortLink(
   code: string,
   request: UpdateShortLinkRequest
 ): Promise<ShortLinkAdminItem> {
-  return fetchJson<ShortLinkAdminItem>(`/api/short-links/${encodeURIComponent(code)}`, {
-    method: "PUT",
-    body: JSON.stringify(request)
-  });
+  return apiClient.put<ShortLinkAdminItem>(SHORT_LINK_API_ROUTES.SHORT_LINK(code), request);
 }
 
 export async function deleteShortLink(code: string): Promise<DeletedShortLink> {
-  return fetchJson<DeletedShortLink>(`/api/short-links/${encodeURIComponent(code)}`, {
-    method: "DELETE"
-  });
+  return apiClient.delete<DeletedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK(code));
 }
 
 export async function listSecurityAssignments(): Promise<SecurityAssignmentsList> {
-  return fetchJson<SecurityAssignmentsList>("/api/security/assignments");
+  return apiClient.get<SecurityAssignmentsList>(SHORT_LINK_API_ROUTES.SECURITY_ASSIGNMENTS);
 }
 
 export async function upsertSecurityAssignment(
   request: SecurityAssignmentUpsertRequest
 ): Promise<SecurityAssignment> {
-  return fetchJson<SecurityAssignment>("/api/security/assignments", {
-    method: "PUT",
-    body: JSON.stringify(request)
-  });
+  return apiClient.put<SecurityAssignment>(SHORT_LINK_API_ROUTES.SECURITY_ASSIGNMENTS, request);
 }
 
 export async function disableSecurityAssignment(
   credentialKeyHash: string
 ): Promise<SecurityAssignmentDisabled> {
-  return fetchJson<SecurityAssignmentDisabled>(
-    `/api/security/assignments/${encodeURIComponent(credentialKeyHash)}/disable`,
-    { method: "POST" }
+  return apiClient.post<SecurityAssignmentDisabled>(
+    SHORT_LINK_API_ROUTES.SECURITY_ASSIGNMENT_DISABLE(credentialKeyHash),
   );
 }
 
 export async function listSecurityRoles(): Promise<SecurityRolesList> {
-  return fetchJson<SecurityRolesList>("/api/security/roles");
+  return apiClient.get<SecurityRolesList>(SHORT_LINK_API_ROUTES.SECURITY_ROLES);
 }
 
 export async function upsertCustomSecurityRole(
   request: SecurityCustomRoleUpsertRequest
 ): Promise<SecurityRole> {
-  return fetchJson<SecurityRole>("/api/security/roles/custom", {
-    method: "PUT",
-    body: JSON.stringify(request)
-  });
+  return apiClient.put<SecurityRole>(SHORT_LINK_API_ROUTES.SECURITY_CUSTOM_ROLES, request);
 }
 
 export async function deleteCustomSecurityRole(id: string): Promise<SecurityRoleDeleted> {
-  return fetchJson<SecurityRoleDeleted>(
-    `/api/security/roles/custom/${encodeURIComponent(id)}`,
-    { method: "DELETE" }
+  return apiClient.delete<SecurityRoleDeleted>(
+    SHORT_LINK_API_ROUTES.SECURITY_CUSTOM_ROLE(id),
   );
 }
 
 export async function listShortLinkShares(code: string): Promise<ShortLinkSharesList> {
-  return fetchJson<ShortLinkSharesList>(
-    `/api/short-links/${encodeURIComponent(code)}/shares`
+  return apiClient.get<ShortLinkSharesList>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARES(code)
   );
 }
 
@@ -201,12 +187,9 @@ export async function setShortLinkSharingMode(
   code: string,
   mode: ShortLinkSharingMode
 ): Promise<ShortLinkSharingMode> {
-  return fetchJson<ShortLinkSharingMode>(
-    `/api/short-links/${encodeURIComponent(code)}/sharing-mode`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ mode })
-    }
+  return apiClient.put<ShortLinkSharingMode>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARING_MODE(code),
+    { mode }
   );
 }
 
@@ -215,19 +198,15 @@ export async function upsertShortLinkShare(
   username: string,
   access: "View" | "Edit"
 ): Promise<ShortLinkShare> {
-  return fetchJson<ShortLinkShare>(
-    `/api/short-links/${encodeURIComponent(code)}/shares`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ username, access })
-    }
+  return apiClient.put<ShortLinkShare>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARES(code),
+    { username, access }
   );
 }
 
 export async function deleteShortLinkShare(code: string, userId: string): Promise<void> {
-  await fetchJson<void>(
-    `/api/short-links/${encodeURIComponent(code)}/shares/${encodeURIComponent(userId)}`,
-    { method: "DELETE" }
+  await apiClient.delete<void>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARE(code, userId),
   );
 }
 
@@ -235,53 +214,38 @@ export async function replaceSecurityRolePermissionOverrides(
   roleId: string,
   request: SecurityRolePermissionOverridesRequest
 ): Promise<SecurityRole> {
-  return fetchJson<SecurityRole>(
-    `/api/security/roles/${encodeURIComponent(roleId)}/permission-overrides`,
-    {
-      method: "PUT",
-      body: JSON.stringify(request)
-    }
+  return apiClient.put<SecurityRole>(
+    SHORT_LINK_API_ROUTES.SECURITY_PERMISSION_OVERRIDES(roleId),
+    request
   );
 }
 
 export async function listSecurityUsers(): Promise<SecurityUsersList> {
-  return fetchJson<SecurityUsersList>("/api/security/users");
+  return apiClient.get<SecurityUsersList>(SHORT_LINK_API_ROUTES.SECURITY_USERS);
 }
 
 export async function upsertSecurityUser(request: SecurityUserUpsertRequest): Promise<SecurityUser> {
-  return fetchJson<SecurityUser>("/api/security/users", {
-    method: "PUT",
-    body: JSON.stringify(request)
-  });
+  return apiClient.put<SecurityUser>(SHORT_LINK_API_ROUTES.SECURITY_USERS, request);
 }
 
 export async function disableSecurityUser(id: string): Promise<SecurityUserDisabled> {
-  return fetchJson<SecurityUserDisabled>(`/api/security/users/${encodeURIComponent(id)}/disable`, {
-    method: "POST"
-  });
+  return apiClient.post<SecurityUserDisabled>(SHORT_LINK_API_ROUTES.SECURITY_USER_DISABLE(id));
 }
 
 export async function listUserApiKeys(): Promise<SecurityUserApiKeysList> {
-  return fetchJson<SecurityUserApiKeysList>("/api/security/api-keys");
+  return apiClient.get<SecurityUserApiKeysList>(SHORT_LINK_API_ROUTES.SECURITY_API_KEYS);
 }
 
 export async function createUserApiKey(displayName: string): Promise<SecurityUserApiKeyCreated> {
-  return fetchJson<SecurityUserApiKeyCreated>("/api/security/api-keys", {
-    method: "POST",
-    body: JSON.stringify({ displayName })
-  });
+  return apiClient.post<SecurityUserApiKeyCreated>(SHORT_LINK_API_ROUTES.SECURITY_API_KEYS, { displayName });
 }
 
 export async function renameUserApiKey(id: string, displayName: string): Promise<SecurityUserApiKey> {
-  return fetchJson<SecurityUserApiKey>(`/api/security/api-keys/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    body: JSON.stringify({ displayName })
-  });
+  return apiClient.put<SecurityUserApiKey>(SHORT_LINK_API_ROUTES.SECURITY_API_KEY(id), { displayName });
 }
 
 export async function disableUserApiKey(id: string): Promise<SecurityUserApiKeyDisabled> {
-  return fetchJson<SecurityUserApiKeyDisabled>(
-    `/api/security/api-keys/${encodeURIComponent(id)}/disable`,
-    { method: "POST" }
+  return apiClient.post<SecurityUserApiKeyDisabled>(
+    SHORT_LINK_API_ROUTES.SECURITY_API_KEY_DISABLE(id),
   );
 }

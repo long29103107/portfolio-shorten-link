@@ -3,8 +3,6 @@ import type { CSSProperties, ReactNode } from "react";
 import {
   deleteCustomSecurityRole,
   disableSecurityUser,
-  listSecurityRoles,
-  listSecurityUsers,
   replaceSecurityRolePermissionOverrides,
   upsertCustomSecurityRole,
   upsertSecurityUser
@@ -53,6 +51,7 @@ import { RowActionsMenu } from "../../../shared/components/RowActionsMenu";
 import { Pagination } from "../../../shared/components/Pagination";
 import { getPermissionDescription } from "../permissionCatalog";
 import { useDebouncedCallback } from "../../../shared/hooks/useDebouncedCallback";
+import { useSecurityManagementData } from "../hooks/useSecurityManagementData";
 
 const permissionOptions = Object.values(shortLinkPermissions);
 const permissionGroups = [
@@ -93,12 +92,7 @@ function toRoleForm(role: SecurityRole): RoleFormState {
 export function SecurityManagementPage({ section, onDirtyChange }: { section: SecuritySection; onDirtyChange?: (isDirty: boolean) => void }) {
   const adminPermissions = getAdminPermissionState();
   const currentUser = getStoredCurrentUser();
-  const [isLoading, setIsLoading] = useState(false);
-  const [readFailure, setReadFailure] = useState<RecoveryNotice | null>(null);
   const [actionFailure, setActionFailure] = useState<RecoveryNotice | null>(null);
-  const [users, setUsers] = useState<SecurityUser[]>([]);
-  const [systemRoles, setSystemRoles] = useState<SecurityRole[]>([]);
-  const [customRoles, setCustomRoles] = useState<SecurityRole[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [userDialogMode, setUserDialogMode] = useState<"edit" | "password" | "roles" | null>(null);
   const [userPendingDelete, setUserPendingDelete] = useState<SecurityUser | null>(null);
@@ -127,6 +121,17 @@ export function SecurityManagementPage({ section, onDirtyChange }: { section: Se
   const [isSavingRole, setIsSavingRole] = useState(false);
   const [roleFormBeforeDialog, setRoleFormBeforeDialog] = useState<typeof roleForm | null>(null);
   const [hasRoleDraftChanges, setHasRoleDraftChanges] = useState(false);
+  const {
+    isLoading,
+    readFailure,
+    users,
+    setUsers,
+    systemRoles,
+    setSystemRoles,
+    customRoles,
+    setCustomRoles,
+    loadSecurity
+  } = useSecurityManagementData(adminPermissions.canManageSecurityAssignments);
 
   const selectedUser = useMemo(
     () => users.find((user) => user.id === selectedUserId) ?? null,
@@ -172,28 +177,6 @@ export function SecurityManagementPage({ section, onDirtyChange }: { section: Se
     debouncedUserSearch.cancel();
     setUserSearch(userDiscovery.search);
   }, [userDiscovery.search]);
-
-  const loadSecurity = async () => {
-    setIsLoading(true);
-    setReadFailure(null);
-    try {
-      if (!adminPermissions.canManageSecurityAssignments) {
-        return;
-      }
-      const [rolesResult, usersResult] = await Promise.all([listSecurityRoles(), listSecurityUsers()]);
-      setSystemRoles(rolesResult.systemRoles);
-      setCustomRoles(rolesResult.customRoles);
-      setUsers(usersResult.items);
-    } catch (error) {
-      setReadFailure(toRecoveryNotice(error, "Security data could not be loaded."));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadSecurity();
-  }, []);
 
   useEffect(() => {
     if (section !== "roles") return;
