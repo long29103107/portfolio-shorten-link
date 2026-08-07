@@ -3482,6 +3482,26 @@ public sealed class ShortLinkEndpointsTests
         Assert.NotNull(provider.GetRequiredService<ISecuritySessionService>());
     }
 
+    [Fact]
+    public void AddShortenLink_RedirectOnlySkipsSecurityOrchestration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShortenLink:Database:SqliteConnectionString"] = "Data Source=redirect-only-test.db"
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddShortenLink(configuration, options => options.RedirectOnly = true);
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Null(provider.GetService<IShortenLinkAuthorizationService>());
+        Assert.Null(provider.GetService<IShortenLinkUserSessionService>());
+        Assert.Null(provider.GetService<ISecuritySessionService>());
+    }
+
     private sealed class ConsumerRequestContext : ICurrentRequestContext
     {
         public Task EnsureAuthorizedAsync(string permission, CancellationToken cancellationToken = default) => Task.CompletedTask;

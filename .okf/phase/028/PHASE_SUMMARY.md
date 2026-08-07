@@ -1,12 +1,12 @@
 ---
 phase: 028
 title: Backend Boundary Refactor and Optimization
-status: active
+status: complete
 created_at: 2026-08-03
 updated_at: 2026-08-06
-current_task: 028_011
+current_task: none
 task_count: 12
-done_count: 10
+done_count: 12
 depends_on:
   - 027
 ---
@@ -65,17 +65,18 @@ Out:
 | 028_008 | Isolate schema and persistence compatibility boundaries | Refactor | done | 2026-08-06 |
 | 028_009 | Refactor audit and event-delivery ownership boundaries | Refactor | done | 2026-08-06 |
 | 028_010 | Split hosting, package, and session responsibilities | Architecture | done | 2026-08-06 |
-| 028_011 | Extract stable contracts only when reuse is proven | Architecture | planned | |
-| 028_012 | Audit and document the security package boundary | Architecture | planned | |
+| 028_011 | Extract stable contracts only when reuse is proven | Architecture | done | 2026-08-06 |
+| 028_012 | Audit and document the security package boundary | Architecture | done | 2026-08-06 |
 
 ## Current Task
 
-`028_011` is the next planned stable-contract boundary task. The hosting,
-package, and session responsibility refactor in `028_010`, the audit and
-event-delivery ownership refactor in `028_009`, and the schema/persistence
-compatibility refactor in `028_008` are complete; the options and structured-
-logging convention refactor in `028_007` and the diagnostics seam audit in
-`028_005` remain complete without adding new telemetry or monitoring behavior.
+Phase 028 is complete. The security package-boundary audit in `028_012`, the
+stable-contract boundary decision in `028_011`, the hosting/package/session
+refactor in `028_010`, the audit/event-delivery refactor in `028_009`, and the
+schema/persistence compatibility refactor in `028_008` are complete; the
+options and structured-logging convention refactor in `028_007` and the
+diagnostics seam audit in `028_005` remain complete without adding new
+telemetry or monitoring behavior.
 
 ## Task Notes
 
@@ -814,7 +815,31 @@ Contract ownership is explicit before the final security-boundary audit.
 
 #### Done Notes
 
-Planned; not started.
+Done on 2026-08-06.
+
+Completed the evidence-based contract boundary audit and deferred extraction:
+
+- Confirmed that `ShortenLink.Core.Contracts` already belongs to the packable
+  Core library and includes domain/security/service dependencies, so a second
+  contracts package would duplicate rather than simplify ownership.
+- Confirmed that `ShortenLink.Application.Contracts` contains use-case
+  response envelopes and domain-to-response mappers coupled to Core,
+  Auditing, and security types; the web client consumes JSON and is not a
+  second .NET package consumer.
+- Kept endpoint binding and serialization ownership in Hosting/API, preserving
+  all existing JSON shapes, pagination fields, routes, and public types.
+- Recorded the decision and concrete extraction criteria in
+  `.okf/decisions/028-011-contract-boundary.md`. No speculative package or
+  dependency-cycle risk was introduced.
+
+Verification:
+
+- Existing Core package pack succeeded:
+  `ShortenLink.Core.1.0.0.nupkg` created.
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal
+  --disable-build-servers` passed with 0 warnings and 0 errors.
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+  passed: 231/231 tests.
 
 ### 028_012 - Audit and document the security package boundary
 
@@ -861,7 +886,32 @@ without requiring another broad security rewrite.
 
 #### Done Notes
 
-Planned; not started.
+Done on 2026-08-06.
+
+Completed the security boundary audit without speculative package extraction:
+
+- Classified Core security entities/catalogs, Application security use cases
+  and abstractions, Infrastructure EF repositories/entities, Hosting
+  ASP.NET session/authorization adapters, and API route composition.
+- Recorded the acyclic dependency graph, redirect-only audit, extraction
+  blockers, and concrete reopen criteria in
+  `.okf/decisions/028-012-security-boundary.md`.
+- Moved `ISecuritySessionService` adapter registration into the existing full
+  security branch so redirect-only and external-persistence hosts do not carry
+  an unusable admin/session dependency; consumer `TryAdd*` overrides remain
+  intact.
+- Added a redirect-only registration characterization test. Authentication,
+  authorization, redirect, ownership, sharing, route, and JSON behavior were
+  not changed.
+
+Verification:
+
+- Focused security/authorization/redirect API tests passed: 26/26.
+- `dotnet build ShortenLink.slnx --no-restore --verbosity minimal
+  --disable-build-servers` passed with 0 warnings and 0 errors.
+- `dotnet test ShortenLink.slnx --no-build --no-restore --verbosity minimal`
+  passed: 232/232 tests.
+- Package/consumer smoke was not run because no package was extracted.
 
 ## Compaction Provenance
 
@@ -874,6 +924,6 @@ Source before compaction: `.okf/phase/030/PHASE_SUMMARY.md`.
 
 ## Next Task Proposal
 
-Next: implement `028_011`, the stable contracts boundary audit. Extract a
-package only when at least two concrete consumers or an external-host contract
-justify it; otherwise document the deferral.
+Phase 028 is complete; no additional 028 task is pre-created. Reopen the
+security boundary only when a second independent consumer and an acyclic,
+behavior-characterized seam justify extraction.

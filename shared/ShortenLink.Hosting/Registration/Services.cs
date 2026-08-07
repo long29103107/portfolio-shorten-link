@@ -130,7 +130,6 @@ public static partial class Services
         services.TryAddSingleton<IShortCodeGenerator, Base62ShortCodeGenerator>();
         services.TryAddSingleton<IShortLinkImportValidator, ShortLinkImportValidator>();
         services.TryAddSingleton<IShortLinkExpirationEvaluator, ShortLinkExpirationEvaluator>();
-        services.TryAddScoped<ISecuritySessionService, SecuritySessionServiceAdapter>();
         if (!hostOptions.UseExternalPersistence)
         {
             services.TryAddScoped<IShortLinkRepository, EfCoreShortLinkRepository>();
@@ -154,6 +153,7 @@ public static partial class Services
             services.TryAddScoped<IShortenLinkUserApiKeyRepository, EfCoreShortenLinkUserApiKeyRepository>();
             services.TryAddScoped<IShortenLinkAuthorizationService, AuthorizationService>();
             services.TryAddScoped<IShortenLinkUserSessionService, UserSessionService>();
+            services.TryAddScoped<ISecuritySessionService, SecuritySessionServiceAdapter>();
         }
         services.TryAddScoped<IShortLinkService>(serviceProvider =>
         {
