@@ -1,4 +1,4 @@
-import type { RateLimitActivity, RateLimitPolicyActivity } from "./types";
+import type { RateLimitActivity, RateLimitPolicyActivity } from "../types";
 
 export type RateLimitPolicyView = {
   label: string;

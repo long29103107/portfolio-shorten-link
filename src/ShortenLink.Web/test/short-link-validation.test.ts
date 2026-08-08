@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   mapShortLinkApiFieldErrors,
   validateShortLinkForm
-} from "../src/features/short-links/validation";
+} from "../src/features/short-links/domain/validation";
 
 const now = new Date("2026-07-21T00:00:00.000Z");
 

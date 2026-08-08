@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildRateLimitPolicyViews } from "../src/features/short-links/rateLimitPresentation";
+import { buildRateLimitPolicyViews } from "../src/features/short-links/domain/rateLimitPresentation";
 import type { RateLimitActivity } from "../src/features/short-links/types";
 
 describe("rate-limit visibility", () => {

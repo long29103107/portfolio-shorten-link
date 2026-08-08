@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { discoverPermissionGroups, discoverSecurityRoles, discoverSecurityUsers, getVisiblePages, paginateItems } from "../src/features/short-links/securityDiscovery";
+import { discoverPermissionGroups, discoverSecurityRoles, discoverSecurityUsers, getVisiblePages, paginateItems } from "../src/features/short-links/domain/securityDiscovery";
 import type { SecurityRole, SecurityUser } from "../src/features/short-links/types";
 
 const users: SecurityUser[] = [

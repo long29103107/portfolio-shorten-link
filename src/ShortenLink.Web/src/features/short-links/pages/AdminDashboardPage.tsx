@@ -1,8 +1,8 @@
-import type { DashboardSource } from "../adminDashboard";
-import type { DashboardSnapshot } from "../adminDashboard";
+import type { DashboardSource } from "../domain/adminDashboard";
+import type { DashboardSnapshot } from "../domain/adminDashboard";
 import { DASHBOARD_DEFAULTS } from "../constants/defaults";
 import { formatDateTime } from "../types";
-import { buildRateLimitPolicyViews } from "../rateLimitPresentation";
+import { buildRateLimitPolicyViews } from "../domain/rateLimitPresentation";
 import { useAdminDashboardData } from "../hooks/useAdminDashboardData";
 import { RefreshButton } from "../../../shared/components/RefreshButton";
 import { Badge } from "../../../shared/components/ui/badge";

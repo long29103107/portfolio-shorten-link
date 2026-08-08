@@ -120,7 +120,7 @@ function normalizeFieldErrors(
   );
 }
 
-function isAbortError(error: unknown) {
+export function isAbortError(error: unknown) {
   return typeof error === "object"
     && error !== null
     && "name" in error

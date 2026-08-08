@@ -1,4 +1,4 @@
-import type { ShortLinkAdminItem } from "./types";
+import type { ShortLinkAdminItem } from "../types";
 
 export const shortLinkCsvHeaders = [
   "Code",

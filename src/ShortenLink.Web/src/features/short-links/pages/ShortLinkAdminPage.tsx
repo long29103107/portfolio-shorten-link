@@ -5,14 +5,12 @@ import {
   createShortLink,
   deactivateShortLink,
   deleteShortLink,
-  getShortLinkAnalytics,
-  listShortLinks,
   updateShortLink
 } from "../api/shortLinksApi";
 import { getAdminPermissionState } from "../api/adminSecurity";
-import type { ShortLinkAdminItem, ShortLinkAnalytics, ShortLinkDiscoveryQuery } from "../types";
+import type { ShortLinkAdminItem, ShortLinkDiscoveryQuery } from "../types";
 import { formatDateTime, toFriendlyErrorMessage } from "../types";
-import { getExpiryPresentation } from "../expiryPresentation";
+import { getExpiryPresentation } from "../domain/expiryPresentation";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Button } from "../../../shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card";
@@ -21,9 +19,7 @@ import { EmptyState } from "../../../shared/components/EmptyState";
 import { TableSkeleton } from "../../../shared/components/TableSkeleton";
 import { showToast } from "../../../shared/toast";
 import {
-  createRecoveryNotice,
-  shouldPreserveMutationContext,
-  type RecoveryNotice
+  shouldPreserveMutationContext
 } from "../../../shared/api/recovery";
 import { RowActionsMenu } from "../../../shared/components/RowActionsMenu";
 import { Input } from "../../../shared/components/ui/input";
@@ -33,7 +29,6 @@ import { Pagination } from "../../../shared/components/Pagination";
 import { ExpiryQuickPicks } from "../components/ExpiryQuickPicks";
 import { ShortLinkShareDialog } from "../components/ShortLinkShareDialog";
 import { ShortLinkQrDialog } from "../components/ShortLinkQrDialog";
-import { downloadShortLinksCsv } from "../export";
 import {
   defaultShortLinkDiscoveryQuery,
   createShortLinkDiscoveryChange,
@@ -45,8 +40,10 @@ import {
   mapShortLinkApiFieldErrors,
   validateShortLinkForm,
   type ShortLinkFieldErrors
-} from "../validation";
+} from "../domain/validation";
 import { useShortLinkDiscovery } from "../hooks/useShortLinkDiscovery";
+import { useShortLinkAnalyticsData } from "../hooks/useShortLinkAnalyticsData";
+import { useShortLinkExport } from "../hooks/useShortLinkExport";
 
 type ShortLinkAdminPageProps = {
   onDirtyChange?: (isDirty: boolean) => void;
@@ -76,15 +73,8 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(() => new Set());
-  const [analyticsCode, setAnalyticsCode] = useState<string | null>(null);
   const [sharingLink, setSharingLink] = useState<ShortLinkAdminItem | null>(null);
   const [qrLink, setQrLink] = useState<ShortLinkAdminItem | null>(null);
-  const [analyticsData, setAnalyticsData] = useState<ShortLinkAnalytics | null>(null);
-  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-  const [isAnalyticsRetryable, setIsAnalyticsRetryable] = useState(false);
-  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportFailure, setExportFailure] = useState<RecoveryNotice | null>(null);
   const copyFeedbackTimeoutRef = useRef<number | null>(null);
   const adminPermissions = getAdminPermissionState();
   const {
@@ -102,6 +92,23 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
     discoveryQuery,
     setDiscoveryQuery
   } = useShortLinkDiscovery();
+  const {
+    isExporting,
+    exportFailure,
+    handleExport,
+    cancelExport,
+    clearExportFailure
+  } = useShortLinkExport(discoveryQuery);
+  const {
+    analyticsCode,
+    analyticsData,
+    analyticsError,
+    isAnalyticsRetryable,
+    isAnalyticsLoading,
+    openAnalytics,
+    closeAnalytics,
+    retryAnalytics
+  } = useShortLinkAnalyticsData();
 
   const selectedLinks = links.filter((link) => selectedCodes.has(link.code));
   const selectedCount = selectedCodes.size;
@@ -535,43 +542,17 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
     });
   };
 
-  const loadAnalytics = async (code: string) => {
-    setAnalyticsData(null);
-    setAnalyticsError(null);
-    setIsAnalyticsRetryable(false);
-    setIsAnalyticsLoading(true);
-
-    try {
-      const analytics = await getShortLinkAnalytics(code);
-      setAnalyticsData(analytics);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setAnalyticsError(toFriendlyErrorMessage(error.errorCode, error.message));
-        setIsAnalyticsRetryable(error.retryable);
-      } else {
-        setAnalyticsError("Analytics could not be loaded.");
-      }
-    } finally {
-      setIsAnalyticsLoading(false);
-    }
-  };
-
   const openAnalyticsPanel = (link: ShortLinkAdminItem) => {
     if (!adminPermissions.canReadAnalytics) {
       return;
     }
 
-    setAnalyticsCode(link.code);
+    openAnalytics(link.code);
     setOpenMenuCode(null);
-    void loadAnalytics(link.code);
   };
 
   const closeAnalyticsPanel = () => {
-    setAnalyticsCode(null);
-    setAnalyticsData(null);
-    setAnalyticsError(null);
-    setIsAnalyticsRetryable(false);
-    setIsAnalyticsLoading(false);
+    closeAnalytics();
   };
 
   const requestBulkDelete = () => {
@@ -610,44 +591,12 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
   };
 
   const handleDiscoveryChange = (nextQuery: ShortLinkDiscoveryQuery) => {
+    if (isExporting) {
+      cancelExport();
+    }
     const change = createShortLinkDiscoveryChange(nextQuery);
     setPageNumber(change.pageNumber);
     setDiscoveryQuery(change.query);
-  };
-
-  const handleExport = async () => {
-    if (isExporting) {
-      return;
-    }
-
-    setIsExporting(true);
-    setExportFailure(null);
-
-    try {
-      const firstPage = await listShortLinks(200, 1, discoveryQuery);
-      const allLinks = [...firstPage.items];
-      const totalPages = Math.max(firstPage.totalPages ?? 1, 1);
-
-      for (let page = 2; page <= totalPages; page += 1) {
-        const nextPage = await listShortLinks(200, page, discoveryQuery);
-        const knownCodes = new Set(allLinks.map((link) => link.code));
-        allLinks.push(...nextPage.items.filter((link) => !knownCodes.has(link.code)));
-      }
-
-      downloadShortLinksCsv(allLinks);
-      showToast({
-        title: "Short links exported",
-        message: `${allLinks.length} link${allLinks.length === 1 ? "" : "s"} downloaded`,
-        variant: "success"
-      });
-    } catch (error) {
-      const message = error instanceof ApiError
-        ? toFriendlyErrorMessage(error.errorCode, error.message)
-        : "The short-link export could not be created.";
-      setExportFailure(createRecoveryNotice(error, message));
-    } finally {
-      setIsExporting(false);
-    }
   };
 
   const hasRowActions = (link: ShortLinkAdminItem) =>
@@ -762,7 +711,7 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
           {exportFailure.retryable ? (
             <Button variant="secondary" onClick={() => void handleExport()}>Retry export</Button>
           ) : (
-            <Button variant="ghost" onClick={() => setExportFailure(null)}>Dismiss</Button>
+            <Button variant="ghost" onClick={clearExportFailure}>Dismiss</Button>
           )}
         </div>
       ) : null}
@@ -1050,7 +999,7 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
                 title="Analytics unavailable"
                 description={analyticsError}
                 action={isAnalyticsRetryable
-                  ? <Button variant="secondary" onClick={() => void loadAnalytics(analyticsCode)}>Retry</Button>
+                  ? <Button variant="secondary" onClick={retryAnalytics}>Retry</Button>
                   : undefined}
               />
             ) : null}

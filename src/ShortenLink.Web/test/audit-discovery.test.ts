@@ -5,7 +5,7 @@ import {
   mergeAuditLogEvents,
   toAuditFilterIso,
   validateAuditTimeRange
-} from "../src/features/short-links/auditDiscovery";
+} from "../src/features/short-links/domain/auditDiscovery";
 import type { AuditLogEvent } from "../src/features/short-links/types";
 import { createRecoveryNotice } from "../src/shared/api/recovery";
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mapCustomRoleApiFieldErrors, validateCustomRoleForm } from "../src/features/short-links/securityValidation";
+import { mapCustomRoleApiFieldErrors, validateCustomRoleForm } from "../src/features/short-links/domain/securityValidation";
 
 describe("security role validation", () => {
   test("maps required custom-role values to exact controls", () => {

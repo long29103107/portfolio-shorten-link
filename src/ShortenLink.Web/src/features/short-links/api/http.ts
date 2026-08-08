@@ -3,6 +3,7 @@ import { showToast } from "../../../shared/toast";
 import {
   classifyFetchFailure,
   classifyHttpFailure,
+  isAbortError,
   type ApiFailure
 } from "../../../shared/api/apiFailure";
 import { clearStoredSession, getAdminApiKeyHeader, getStoredRefreshToken, storeSession } from "./adminSecurity";
@@ -50,6 +51,10 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: FetchJsonOpt
       }
     });
   } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
     const failure = classifyFetchFailure(error);
     showFailureToast(failure);
     throw new ApiError(failure);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createShortLinkQrDataUrl, getShortLinkQrPayload } from "../src/features/short-links/qr";
+import { createShortLinkQrDataUrl, getShortLinkQrPayload } from "../src/features/short-links/domain/qr";
 
 describe("short-link QR presentation", () => {
   test("encodes only the authorized public short URL", () => {

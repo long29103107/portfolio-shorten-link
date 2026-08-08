@@ -1,5 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
-import { createRecoveryNotice, type RecoveryNotice } from "../../../shared/api/recovery";
+import { type FormEvent, useState } from "react";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Button } from "../../../shared/components/ui/button";
@@ -14,16 +13,15 @@ import { DiscoverySelect } from "../../../shared/components/DiscoverySelect";
 import {
   emptyAuditLogFilters,
   formatAuditLabel,
-  mergeAuditLogEvents,
   toAuditFilterIso,
   validateAuditTimeRange
-} from "../auditDiscovery";
-import { listAuditLogActions, listAuditLogEvents } from "../api/shortLinksApi";
+} from "../domain/auditDiscovery";
 import {
   formatDateTime,
   type AuditLogEvent,
   type AuditLogFilters
 } from "../types";
+import { useAuditLogData } from "../hooks/useAuditLogData";
 
 type AuditFilterDraft = {
   action: string;
@@ -44,49 +42,17 @@ const emptyDraft: AuditFilterDraft = {
 export function AuditLogPage() {
   const [draft, setDraft] = useState<AuditFilterDraft>(emptyDraft);
   const [filters, setFilters] = useState<AuditLogFilters>(emptyAuditLogFilters);
-  const [events, setEvents] = useState<AuditLogEvent[]>([]);
-  const [actions, setActions] = useState<string[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [failure, setFailure] = useState<RecoveryNotice | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [reloadVersion, setReloadVersion] = useState(0);
-
-  useEffect(() => {
-    void listAuditLogActions()
-      .then((response) => setActions(response.items))
-      .catch(() => setActions([]));
-  }, []);
-
-  useEffect(() => {
-    let isCurrent = true;
-    setIsLoading(true);
-    setFailure(null);
-    setEvents([]);
-    setNextCursor(null);
-
-    void listAuditLogEvents({ limit: 50, filters })
-      .then((page) => {
-        if (!isCurrent) return;
-        setEvents(page.items);
-        setNextCursor(page.nextCursor);
-      })
-      .catch((error) => {
-        if (!isCurrent) return;
-        setFailure(createRecoveryNotice(
-          error,
-          error instanceof Error ? error.message : "Audit events could not be loaded."
-        ));
-      })
-      .finally(() => {
-        if (isCurrent) setIsLoading(false);
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [filters, reloadVersion]);
+  const {
+    actions,
+    events,
+    nextCursor,
+    failure,
+    isLoading,
+    isLoadingOlder,
+    loadOlder,
+    retry
+  } = useAuditLogData(filters);
 
   const applyFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -107,37 +73,6 @@ export function AuditLogPage() {
     setDraft(emptyDraft);
     setRangeError(null);
     setFilters({ ...emptyAuditLogFilters });
-  };
-
-  const loadOlder = async () => {
-    if (!nextCursor || isLoadingOlder) return;
-
-    setIsLoadingOlder(true);
-    setFailure(null);
-    try {
-      const page = await listAuditLogEvents({
-        limit: 50,
-        cursor: nextCursor,
-        filters
-      });
-      setEvents((current) => mergeAuditLogEvents(current, page.items));
-      setNextCursor(page.nextCursor);
-    } catch (error) {
-      setFailure(createRecoveryNotice(
-        error,
-        error instanceof Error ? error.message : "Older audit events could not be loaded."
-      ));
-    } finally {
-      setIsLoadingOlder(false);
-    }
-  };
-
-  const retry = () => {
-    if (events.length > 0 && nextCursor) {
-      void loadOlder();
-      return;
-    }
-    setReloadVersion((version) => version + 1);
   };
 
   return (

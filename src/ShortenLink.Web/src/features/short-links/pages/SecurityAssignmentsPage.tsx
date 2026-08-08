@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ApiError } from "../api/http";
 import {
   disableSecurityAssignment,
-  listSecurityAssignments,
   upsertSecurityAssignment
 } from "../api/shortLinksApi";
 import { getAdminPermissionState } from "../api/adminSecurity";
 import type { SecurityAssignment } from "../types";
 import { formatDateTime, toFriendlyErrorMessage } from "../types";
+import { useSecurityAssignmentsData } from "../hooks/useSecurityAssignmentsData";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Button } from "../../../shared/components/ui/button";
 import { RefreshButton } from "../../../shared/components/RefreshButton";
@@ -45,9 +45,15 @@ const permissionOptions = [
 
 export function SecurityAssignmentsPage() {
   const adminPermissions = getAdminPermissionState();
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    assignments,
+    setAssignments,
+    isLoading,
+    readError,
+    clearReadError,
+    loadAssignments
+  } = useSecurityAssignmentsData(adminPermissions.canManageSecurityAssignments);
   const [isSaving, setIsSaving] = useState(false);
-  const [assignments, setAssignments] = useState<SecurityAssignment[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editingHash, setEditingHash] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<SecurityAssignmentFieldErrors>({});
@@ -72,31 +78,10 @@ export function SecurityAssignmentsPage() {
     setFieldErrors({});
   };
 
-  const loadAssignments = async () => {
-    if (!adminPermissions.canManageSecurityAssignments) {
-      return;
-    }
-
-    setIsLoading(true);
+  const refreshAssignments = async () => {
     setErrorMessage(null);
-
-    try {
-      const result = await listSecurityAssignments();
-      setAssignments(result.items);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setErrorMessage(toFriendlyErrorMessage(error.errorCode, error.message));
-      } else {
-        setErrorMessage("Security assignments could not be loaded.");
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    await loadAssignments();
   };
-
-  useEffect(() => {
-    void loadAssignments();
-  }, []);
 
   const startEdit = (assignment: SecurityAssignment) => {
     setEditingHash(assignment.credentialKeyHash);
@@ -148,6 +133,7 @@ export function SecurityAssignmentsPage() {
 
     setIsSaving(true);
     setErrorMessage(null);
+    clearReadError();
     setFieldErrors({});
 
     try {
@@ -186,6 +172,7 @@ export function SecurityAssignmentsPage() {
 
   const disableAssignment = async (assignment: SecurityAssignment) => {
     setErrorMessage(null);
+    clearReadError();
 
     try {
       const disabled = await disableSecurityAssignment(assignment.credentialKeyHash);
@@ -212,6 +199,8 @@ export function SecurityAssignmentsPage() {
       }
     }
   };
+
+  const feedbackMessage = errorMessage ?? readError;
 
   const requestDisable = (assignment: SecurityAssignment) => {
     setConfirmAction({
@@ -255,12 +244,12 @@ export function SecurityAssignmentsPage() {
             <CardTitle>Manage user, role, and permission assignments.</CardTitle>
           </div>
         </div>
-        <RefreshButton isRefreshing={isLoading} label="Refresh security assignments" onRefresh={loadAssignments} />
+        <RefreshButton isRefreshing={isLoading} label="Refresh security assignments" onRefresh={refreshAssignments} />
       </CardHeader>
 
       <CardContent>
-        {errorMessage ? (
-          <p className="feedback feedback-error">{errorMessage}</p>
+        {feedbackMessage ? (
+          <p className="feedback feedback-error">{feedbackMessage}</p>
         ) : null}
 
         <div className="security-dialog-grid">

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "../api/http";
-import { deactivateShortLink, getShortLinkDetails } from "../api/shortLinksApi";
-import type { ShortLinkDetails } from "../types";
+import { deactivateShortLink } from "../api/shortLinksApi";
 import { formatDateTime, toFriendlyErrorMessage } from "../types";
-import { getExpiryPresentation } from "../expiryPresentation";
+import { getExpiryPresentation } from "../domain/expiryPresentation";
+import { useShortLinkDetailData } from "../hooks/useShortLinkDetailData";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Button } from "../../../shared/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../shared/components/ui/card";
@@ -14,45 +14,12 @@ type ShortLinkDetailPageProps = {
 };
 
 export function ShortLinkDetailPage({ code, onBackHome }: ShortLinkDetailPageProps) {
-  const [details, setDetails] = useState<ShortLinkDetails | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const { details, setDetails, readError, isLoading } = useShortLinkDetailData(code);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadDetails() {
-      setIsLoading(true);
-      setErrorMessage(null);
-
-      try {
-        const response = await getShortLinkDetails(code);
-        if (!cancelled) {
-          setDetails(response);
-        }
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        if (error instanceof ApiError) {
-          setErrorMessage(toFriendlyErrorMessage(error.errorCode, error.message));
-        } else {
-          setErrorMessage("We could not load this short link right now.");
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void loadDetails();
-
-    return () => {
-      cancelled = true;
-    };
+    setErrorMessage(null);
   }, [code]);
 
   const handleDeactivate = async () => {
@@ -100,7 +67,7 @@ export function ShortLinkDetailPage({ code, onBackHome }: ShortLinkDetailPagePro
           <CardTitle>{code}</CardTitle>
         </CardHeader>
         <CardContent>
-        <p className="feedback feedback-error">{errorMessage ?? "This short link is missing."}</p>
+        <p className="feedback feedback-error">{readError ?? "This short link is missing."}</p>
         </CardContent>
         <CardFooter>
           <Button onClick={onBackHome}>

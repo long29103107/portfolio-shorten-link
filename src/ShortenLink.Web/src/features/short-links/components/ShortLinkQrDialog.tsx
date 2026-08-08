@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../../../shared/components/ui/button";
 import type { ShortLinkAdminItem } from "../types";
-import { createShortLinkQrDataUrl, downloadShortLinkQr } from "../qr";
+import { createShortLinkQrDataUrl, downloadShortLinkQr } from "../domain/qr";
 
 type ShortLinkQrDialogProps = {
   link: ShortLinkAdminItem | null;

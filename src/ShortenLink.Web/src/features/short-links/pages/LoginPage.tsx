@@ -13,7 +13,7 @@ import {
   mapLoginApiFieldErrors,
   validateLoginForm,
   type LoginFieldErrors
-} from "../identityValidation";
+} from "../domain/identityValidation";
 
 type LoginPageProps = {
   onSignedIn: () => void;

@@ -3,10 +3,10 @@ phase: 031
 title: Frontend Source Optimization
 status: active
 created_at: 2026-08-07
-updated_at: 2026-08-07
+updated_at: 2026-08-08
 current_task: null
-task_count: 8
-done_count: 8
+task_count: 18
+done_count: 18
 depends_on:
   - 030
 ---
@@ -40,26 +40,33 @@ without changing routes, API contracts, or user-facing behavior.
 | 031_006 | Add typed feature API client abstraction | Refactor | done | 2026-08-07 |
 | 031_007 | Centralize frontend contract constants | Refactor | done | 2026-08-07 |
 | 031_008 | Extract AdminDashboardPage data loading boundary | Refactor | done | 2026-08-07 |
+| 031_009 | Extract AuditLogPage data loading boundary | Refactor | done | 2026-08-08 |
+| 031_010 | Add cancellation to security management discovery reads | Refactor | done | 2026-08-08 |
+| 031_011 | Add cancellation to dashboard auxiliary reads | Refactor | done | 2026-08-08 |
+| 031_012 | Add cancellable short-link detail read boundary | Refactor | done | 2026-08-08 |
+| 031_013 | Add cancellation to the admin analytics read | Refactor | done | 2026-08-08 |
+| 031_014 | Add cancellation to the admin export traversal | Refactor | done | 2026-08-08 |
+| 031_015 | Add cancellation to security assignment discovery | Refactor | done | 2026-08-08 |
+| 031_016 | Add automated frontend bundle/performance checks | Performance | done | 2026-08-08 |
+| 031_017 | Correct dashboard recent-link pagination parameters | Correctness | done | 2026-08-08 |
+| 031_018 | Suppress user-facing failure toasts for expected request cancellation | Correctness | done | 2026-08-08 |
 
 ## Current Task
 
-`031_008` is complete, but Phase 031 is not yet complete. The eight tasks now
-provide feature boundaries, lazy route loading, cancellable discovery, a typed
-API client, centralized frontend contracts, and a dashboard data boundary.
-Remaining work is further page decomposition, broader query cancellation
-coverage, and automated bundle/performance checks.
+`031_018` is complete, but Phase 031 is not yet complete. The eighteen tasks
+now provide feature boundaries, lazy route loading, cancellable discovery
+reads, a typed API client, centralized frontend contracts, focused data
+boundaries, a repeatable bundle/performance budget check, a verified dashboard
+pagination contract, and silent expected cancellation. Remaining work includes
+stale imperative discovery reads and page ownership.
 
 ## Next Task Proposal
 
-The previously proposed `031_006` API abstraction and the dashboard data
-boundary are complete. The next proposal is to extract audit discovery state
-and extend query cancellation/performance guards across the remaining pages.
+The next smallest task is to make imperative short-link discovery loads
+stale-response-safe, including pagination, retry, and refresh commands.
 
-The stale line below is retained as historical context and is superseded by
-the proposal above.
-
-Next proposed task: `031_006` — complete page UI decomposition and extend
-query cancellation/performance guards across all discovery pages.
+Proposed next task (not created yet): `031_019` - protect imperative short-link
+discovery loads from stale responses.
 
 ## Task Notes
 
@@ -357,3 +364,580 @@ bun run build
   UI copy.
 - Architecture guard passed, 66 tests passed, and production build completed
   successfully.
+
+### 031_009 - Extract AuditLogPage data loading boundary
+
+#### Step Goal
+
+Move audit action loading, filtered event discovery, cursor pagination, retry
+state, and request cancellation out of `AuditLogPage` while preserving the
+existing audit table, filter form, recovery messaging, and server query
+contracts.
+
+#### Scope
+
+- Add `useAuditLogData` for audit actions, event pages, cursor pagination,
+  recovery state, and reload state.
+- Add optional `AbortSignal` support to audit API reads.
+- Abort obsolete filtered/older-page requests and ignore stale completions.
+- Keep filter draft and time-range validation in the page presentation layer.
+
+#### Acceptance Criteria
+
+- `AuditLogPage` no longer owns audit API orchestration or event loading state.
+- Changing filters, retrying, loading older pages, and unmounting cannot let an
+  obsolete request overwrite current audit state.
+- Audit action discovery and event queries preserve their existing URLs,
+  limits, cursor handling, ordering, and recovery behavior.
+- Architecture guard, frontend tests, and production build remain green.
+
+#### Foundation for Next Step
+
+Audit discovery now has the same focused, cancellable data boundary as short
+link discovery and the admin dashboard. The next task can extend cancellation
+coverage to security management reads without changing page behavior.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/hooks/useAuditLogData.ts`
+- `src/ShortenLink.Web/src/features/short-links/pages/AuditLogPage.tsx`
+- `src/ShortenLink.Web/src/features/short-links/api/shortLinksApi.ts`
+
+#### Verification
+
+```powershell
+bun run check:architecture
+bun test
+bun run build
+```
+
+#### Done Notes
+
+- Added `useAuditLogData` for action discovery, filtered event loading,
+  cursor-based older pages, retry behavior, and stale-request protection.
+- Added optional abort signals to audit action/event API reads.
+- Preserved the audit filter form, query serialization, merge behavior, and
+  recovery copy while reducing `AuditLogPage` orchestration.
+- Frontend architecture guard passed, 66 tests passed, and production build
+  completed successfully with the audit page remaining a lazy route chunk.
+
+### 031_010 - Add cancellation to security management discovery reads
+
+#### Step Goal
+
+Make security users and roles discovery cancellable and stale-safe while
+preserving permission gating, refresh/retry behavior, mutation state, and the
+existing API contracts.
+
+#### Scope
+
+- Add optional `AbortSignal` support to security users and roles list API
+  functions.
+- Abort an obsolete security read when refresh starts, permissions change, or
+  the page unmounts.
+- Ignore stale success and failure completions so old reads cannot overwrite
+  current security data or recovery state.
+- Keep security mutations and page-level permission checks unchanged.
+
+#### Acceptance Criteria
+
+- `useSecurityManagementData` passes one request signal to both users and roles
+  reads.
+- A refresh or permission transition cancels the previous read generation and
+  only the current generation can update users, roles, loading, or failure
+  state.
+- Existing permission gating, mutation handlers, recovery copy, and API URLs
+  remain compatible.
+- Architecture guard, frontend tests, and production build remain green.
+
+#### Foundation for Next Step
+
+Security management discovery now has a consistent cancellable read boundary
+alongside short-link and audit discovery. The next task can extend the same
+signal propagation to the dashboard's auxiliary identity and rate-limit reads.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/hooks/useSecurityManagementData.ts`
+- `src/ShortenLink.Web/src/features/short-links/api/shortLinksApi.ts`
+
+#### Verification
+
+```powershell
+bun run check:architecture
+bun test
+bun run build
+```
+
+#### Done Notes
+
+- Added abort-signal support to `listSecurityRoles` and `listSecurityUsers`.
+- Added controller cleanup, request-version protection, and stale completion
+  guards to `useSecurityManagementData`.
+- Preserved permission gating, refresh/retry behavior, mutation state, API
+  paths, and recovery messaging.
+- Frontend architecture guard passed, 66 tests passed, and production build
+  completed successfully.
+
+### 031_011 - Add cancellation to dashboard auxiliary reads
+
+#### Step Goal
+
+Pass the dashboard request generation's `AbortSignal` through identity,
+role, and rate-limit reads so refresh, route changes, and unmount cannot let
+obsolete auxiliary results overwrite the current dashboard snapshot or
+rate-limit state.
+
+#### Scope
+
+- Add optional `AbortSignal` support to the rate-limit activity API read.
+- Reuse the existing dashboard controller for users, roles, and rate-limit
+  reads.
+- Ignore aborted dashboard generations before composing snapshot or activity
+  state.
+- Preserve degraded-source behavior, metrics, health badges, and refresh UI.
+
+#### Acceptance Criteria
+
+- All six dashboard reads receive the same request signal.
+- Obsolete refresh generations cannot update dashboard snapshot,
+  rate-limit activity, error, or loading state.
+- Existing dashboard API paths, degraded-source messaging, and refresh behavior
+  remain compatible.
+- Architecture guard, frontend tests, and production build remain green.
+
+#### Foundation for Next Step
+
+Dashboard discovery now has one cancellable generation across short-link,
+identity, role, and rate-limit sources. The next task can focus on a remaining
+page-level read boundary, starting with short-link detail loading.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/hooks/useAdminDashboardData.ts`
+- `src/ShortenLink.Web/src/features/short-links/api/shortLinksApi.ts`
+
+#### Verification
+
+```powershell
+bun run check:architecture
+bun test
+bun run build
+```
+
+#### Done Notes
+
+- Added optional abort-signal support to `getRateLimitActivity`.
+- Passed the dashboard controller signal to users, roles, and rate-limit
+  reads, with an explicit aborted-generation guard before state composition.
+- Preserved dashboard metrics, degraded-source behavior, rate-limit messaging,
+  refresh behavior, and API paths.
+- Frontend architecture guard passed, 66 tests passed, and production build
+  completed successfully.
+
+### 031_012 - Add cancellable short-link detail read boundary
+
+#### Step Goal
+
+Move short-link detail discovery out of `ShortLinkDetailPage` into a focused
+read hook with request cancellation and stale-response protection while
+preserving detail rendering, recovery copy, and page-local deactivation state.
+
+#### Scope
+
+- Add `useShortLinkDetailData` for detail loading, read error, and detail state.
+- Add optional `AbortSignal` support to the short-link detail API read.
+- Abort obsolete detail reads when `code` changes or the page unmounts.
+- Keep deactivation mutation, mutation error, and navigation behavior in the
+  page.
+
+#### Acceptance Criteria
+
+- `ShortLinkDetailPage` no longer owns detail read orchestration or loading
+  state.
+- A stale detail response or read failure cannot overwrite the current code's
+  detail state.
+- Existing detail API paths, error mapping, loading UI, deactivate behavior,
+  and navigation remain compatible.
+- Architecture guard, frontend tests, and production build remain green.
+
+#### Foundation for Next Step
+
+Short-link detail discovery now has the same focused, cancellable read boundary
+as the other feature discovery paths. The next task can extend cancellation to
+the admin page's analytics read without changing mutation behavior.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/hooks/useShortLinkDetailData.ts`
+- `src/ShortenLink.Web/src/features/short-links/pages/ShortLinkDetailPage.tsx`
+- `src/ShortenLink.Web/src/features/short-links/api/shortLinksApi.ts`
+
+#### Verification
+
+```powershell
+bun run check:architecture
+bun test
+bun run build
+```
+
+#### Done Notes
+
+- Added `useShortLinkDetailData` with abort cleanup, request-version guards,
+  loading state, and friendly read error mapping.
+- Added optional abort-signal support to `getShortLinkDetails`.
+- Preserved page-local deactivation mutation/error behavior and detail UI.
+- Frontend architecture guard passed, 66 tests passed, and production build
+  completed successfully with the detail page remaining a lazy route chunk.
+
+### 031_013 - Add cancellation to the admin analytics read
+
+#### Step Goal
+
+Move analytics panel read state and lifecycle out of `ShortLinkAdminPage` into
+a focused hook with cancellation and stale-response protection while
+preserving analytics rendering, retry behavior, and page-local mutations.
+
+#### Scope
+
+- Add `useShortLinkAnalyticsData` for analytics panel code, data, loading,
+  errors, retry state, open/close, and retry actions.
+- Add optional `AbortSignal` support to the short-link analytics API read.
+- Abort obsolete analytics requests when another link opens, the panel closes,
+  or the admin page unmounts.
+- Keep permission checks, analytics presentation, and short-link mutations in
+  the page.
+
+#### Acceptance Criteria
+
+- `ShortLinkAdminPage` no longer owns analytics request orchestration or read
+  state.
+- Opening another link, retrying, closing the panel, and unmounting cannot let
+  an obsolete analytics response update the current panel.
+- Existing analytics URL, error mapping, retry behavior, and rendered metrics
+  remain compatible.
+- Architecture guard, frontend tests, and production build remain green.
+
+#### Foundation for Next Step
+
+Admin analytics now has the same focused, cancellable read boundary as detail,
+audit, security, and dashboard discovery. The next task can extend signal
+coverage to the admin export traversal.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/hooks/useShortLinkAnalyticsData.ts`
+- `src/ShortenLink.Web/src/features/short-links/pages/ShortLinkAdminPage.tsx`
+- `src/ShortenLink.Web/src/features/short-links/api/shortLinksApi.ts`
+
+#### Verification
+
+```powershell
+bun run check:architecture
+bun test
+bun run build
+```
+
+#### Done Notes
+
+- Added `useShortLinkAnalyticsData` with open/close/retry lifecycle,
+  `AbortController` cleanup, request-version guards, and existing error
+  mapping.
+- Added optional abort-signal support to `getShortLinkAnalytics`.
+- Removed analytics request state/orchestration from `ShortLinkAdminPage` while
+  preserving permission checks, panel UI, retry behavior, and mutations.
+- Frontend architecture guard passed, 66 tests passed, and production build
+  completed successfully with the admin page remaining a lazy route chunk.
+
+### 031_014 - Add cancellation to the admin export traversal
+
+#### Step Goal
+
+Move admin CSV export traversal into a focused hook with one cancellable
+request generation across all list pages while preserving duplicate filtering,
+CSV output, recovery behavior, and discovery criteria.
+
+#### Scope
+
+- Add `useShortLinkExport` for export loading, failure, retry, dismiss, and
+  cancellation state.
+- Pass an `AbortSignal` to every paginated `listShortLinks` export request.
+- Cancel an export when discovery criteria change or the admin page unmounts.
+- Keep CSV serialization/download and success messaging compatible.
+
+#### Acceptance Criteria
+
+- `ShortLinkAdminPage` no longer owns export traversal or export recovery state.
+- Every export page request shares one signal and obsolete traversal cannot
+  download a CSV or publish a recovery error.
+- Existing page ordering, duplicate-code filtering, CSV fields, retry/dismiss
+  UI, and success message remain compatible.
+- Architecture guard, frontend tests, and production build remain green.
+
+#### Foundation for Next Step
+
+Admin export now has a focused cancellable traversal boundary alongside the
+admin analytics and discovery reads. The next task can extend cancellation to
+security assignment discovery.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/hooks/useShortLinkExport.ts`
+- `src/ShortenLink.Web/src/features/short-links/pages/ShortLinkAdminPage.tsx`
+
+#### Verification
+
+```powershell
+bun run check:architecture
+bun test
+bun run build
+```
+
+#### Done Notes
+
+- Added `useShortLinkExport` with paginated signal propagation, cancellation
+  on criteria changes/unmount, request-version guards, and recovery state.
+- Removed export traversal and export state from `ShortLinkAdminPage` while
+  preserving CSV serialization, duplicate filtering, and UI behavior.
+- Frontend architecture guard passed, 66 tests passed, and production build
+  completed successfully with the admin page remaining a lazy route chunk.
+
+### 031_015 - Add cancellation to security assignment discovery
+
+#### Step Goal
+
+Give security assignment discovery the same cancellable, stale-response-safe
+read boundary as the other frontend discovery surfaces without changing the
+assignment management workflow.
+
+#### Scope
+
+- Add optional `AbortSignal` support to the security assignment list API call.
+- Extract assignment discovery loading, error, and cancellation lifecycle into
+  `useSecurityAssignmentsData`.
+- Keep save, disable, edit, confirmation, and local list update behavior in the
+  security assignments page.
+
+#### Acceptance Criteria
+
+- Refreshing or unmounting the security assignments page aborts the active list
+  request.
+- An obsolete assignment response or read error cannot overwrite the current
+  request state.
+- Existing permission gating, retry/refresh UI, mutation behavior, and friendly
+  error messages remain compatible.
+- Architecture guard, frontend tests, and production build remain green.
+
+#### Foundation for Next Step
+
+All known frontend discovery reads now have focused cancellation boundaries.
+The next task can make the phase's measured loading target repeatable with
+automated bundle and performance checks.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/api/shortLinksApi.ts`
+- `src/ShortenLink.Web/src/features/short-links/hooks/useSecurityAssignmentsData.ts`
+- `src/ShortenLink.Web/src/features/short-links/pages/SecurityAssignmentsPage.tsx`
+
+#### Verification
+
+```powershell
+bun run check:architecture
+bun test
+bun run build
+```
+
+#### Done Notes
+
+- Added optional abort-signal propagation to `listSecurityAssignments`.
+- Added `useSecurityAssignmentsData` with active-request cancellation, request
+  generation guards, unmount cleanup, and existing friendly read-error mapping.
+- Removed discovery state and orchestration from `SecurityAssignmentsPage` while
+  keeping mutations, confirmation flow, refresh UI, and local list updates
+  compatible.
+- Follow-up organization grouped pure feature modules under
+  `features/short-links/domain/`, kept the shared feature contracts in
+  `types.ts`, and updated production/test imports without changing behavior.
+- Frontend architecture guard passed, 66 tests passed, and production build
+  completed successfully.
+
+### 031_016 - Add automated frontend bundle/performance checks
+
+#### Step Goal
+
+Make the phase's measured route-loading target repeatable by checking the
+production entry asset, stylesheet, total JavaScript, largest lazy chunk, and
+required lazy route chunks against explicit budgets after a production build.
+
+#### Scope
+
+- Add a dependency-free Node/Bun script that reads the generated Vite `dist`
+  output (`index.html` plus assets) and reports asset sizes.
+- Fail deterministically when an entry, total, lazy-chunk, or required-route
+  budget is exceeded or when a required lazy route chunk is missing.
+- Add a package script that builds first and then runs the performance check.
+- Keep budgets based on the current measured bundle and do not introduce a
+  runtime performance library or speculative code changes.
+
+#### Acceptance Criteria
+
+- `npm run check:performance`/`bun run check:performance` produces a
+  production build before checking the output.
+- The check validates entry JavaScript, entry CSS, total JavaScript, largest
+  lazy chunk, and the five lazy route chunks currently emitted by Vite.
+- The check exits non-zero with an actionable message when a budget or route
+  chunk requirement fails.
+- Existing architecture check, frontend tests, and production build remain
+  green.
+
+#### Foundation for Next Step
+
+Frontend bundle and route-splitting regressions are now caught by one repeatable
+command. The next task can address page ownership or async correctness with a
+stable performance guard in place.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/scripts/check-performance.mjs`
+- `src/ShortenLink.Web/package.json`
+- `.okf/phase/031/PHASE_SUMMARY.md`
+
+#### Verification
+
+```powershell
+cd .\src\ShortenLink.Web
+bun run check:architecture
+bun test
+bun run check:performance
+```
+
+#### Done Notes
+
+- Added `scripts/check-performance.mjs` to inspect the generated Vite output,
+  enforce explicit entry/total/lazy-chunk budgets, and require all five lazy
+  route chunks.
+- Added `check:performance` to build first and then run the asset budget check.
+- Verified architecture boundaries, 66 Bun tests, the production build, and
+  the performance budget successfully.
+
+### 031_017 - Correct dashboard recent-link pagination parameters
+
+#### Step Goal
+
+Ensure dashboard short-link summary reads request the intended result size on
+the first page, while preserving status filters, descending creation order,
+degraded-source behavior, and the existing API contract.
+
+#### Scope
+
+- Correct the dashboard status-list helper's `listShortLinks` argument order.
+- Keep dashboard metrics, recent activity composition, cancellation, and
+  refresh behavior unchanged.
+- Add a regression test that verifies the dashboard query uses the requested
+  limit and page one.
+
+#### Acceptance Criteria
+
+- The dashboard recent-link read sends `limit=RECENT_LINK_LIMIT` and `page=1`.
+- Active and inactive summary reads send `limit=LINK_LIMIT` and `page=1`.
+- Status filters and descending creation sort remain unchanged.
+- The regression test fails for the old reversed argument order and passes for
+  the corrected behavior.
+- Architecture check, frontend tests, production build, and performance budget
+  remain green.
+
+#### Foundation for Next Step
+
+Dashboard summary reads now have a verified pagination contract. The next task
+can safely address page ownership or another concrete async correctness gap
+without carrying forward this incorrect request shape.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/domain/adminDashboard.ts`
+- `src/ShortenLink.Web/src/features/short-links/hooks/useAdminDashboardData.ts`
+- `src/ShortenLink.Web/test/admin-dashboard.test.ts`
+- `.okf/phase/031/PHASE_SUMMARY.md`
+
+#### Verification
+
+```powershell
+cd .\src\ShortenLink.Web
+bun run check:architecture
+bun test
+bun run check:performance
+```
+
+#### Done Notes
+
+- Added `buildDashboardLinkDiscovery` so dashboard summary reads carry an
+  explicit requested limit and page one.
+- Corrected the dashboard hook to call `listShortLinks(limit, 1, ...)`,
+  preserving status filters, descending creation sort, and request signals.
+- Added a regression test that verifies the typed request and resulting API URL
+  use `limit=6&page=1` for recent links.
+- Architecture boundaries passed, 67 Bun tests passed, production build
+  completed, and the performance budget passed.
+
+### 031_018 - Suppress user-facing failure toasts for expected request cancellation
+
+#### Step Goal
+
+Keep expected `AbortError` cancellations silent at the shared HTTP transport
+boundary so navigation, criteria changes, refreshes, and unmount cleanup do not
+appear to users as timeout or network failures.
+
+#### Scope
+
+- Detect expected abort errors before fetch-failure classification and toast
+  emission.
+- Rethrow the original abort error so existing signal-aware hooks can ignore it
+  and preserve their cancellation lifecycle.
+- Keep real network failures, HTTP timeouts, retryability, auth redirects, and
+  existing failure classification unchanged.
+- Add a transport regression test that observes no toast event for an aborted
+  request.
+
+#### Acceptance Criteria
+
+- An aborted `fetchJson` request does not call `showToast` and does not produce
+  an `ApiError` timeout toast.
+- The original abort error remains observable to the caller for signal-aware
+  cleanup logic.
+- Non-abort fetch failures continue to classify and emit their existing
+  retryable network failure behavior.
+- Architecture check, frontend tests, production build, and performance budget
+  remain green.
+
+#### Foundation for Next Step
+
+Cancellation no longer pollutes user-facing recovery UI. The next task can
+address another concrete async race or begin decomposing page ownership with a
+clean transport-level cancellation contract.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/shared/api/apiFailure.ts`
+- `src/ShortenLink.Web/src/features/short-links/api/http.ts`
+- `src/ShortenLink.Web/test/http-cancellation.test.ts`
+- `.okf/phase/031/PHASE_SUMMARY.md`
+
+#### Verification
+
+```powershell
+cd .\src\ShortenLink.Web
+bun run check:architecture
+bun test
+bun run check:performance
+```
+
+#### Done Notes
+
+- Exported the shared `isAbortError` predicate and made `fetchJson` rethrow
+  expected abort errors before failure classification/toast emission.
+- Preserved existing timeout/network classification for non-abort failures and
+  kept abort errors observable to signal-aware hooks.
+- Added a transport regression test proving an aborted request emits no toast.
+- Architecture boundaries passed, 68 Bun tests passed, production build
+  completed, and the performance budget passed.

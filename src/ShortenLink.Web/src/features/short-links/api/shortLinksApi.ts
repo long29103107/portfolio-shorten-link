@@ -1,6 +1,6 @@
 import { apiClient } from "./apiClient";
 import { appendQueryExpression } from "../../../shared/queryExpression";
-import { buildShortLinkFilterExpression, buildShortLinkSortExpression } from "../queryExpression";
+import { buildShortLinkFilterExpression, buildShortLinkSortExpression } from "../domain/queryExpression";
 import type {
   AuditLogPage,
   AuditLogActions,
@@ -39,7 +39,7 @@ import type {
   ShortLinkSharingMode,
   UpdateShortLinkRequest
 } from "../types";
-import { buildAuditLogUrl } from "../auditDiscovery";
+import { buildAuditLogUrl } from "../domain/auditDiscovery";
 import { SHORT_LINK_API_ROUTES } from "../constants/apiRoutes";
 import { SHORT_LINK_DISCOVERY_DEFAULTS } from "../constants/defaults";
 
@@ -56,16 +56,28 @@ export async function getCurrentSecurityUser(): Promise<SecurityCurrentUser> {
   return apiClient.get<SecurityCurrentUser>(SHORT_LINK_API_ROUTES.CURRENT_USER);
 }
 
-export async function listAuditLogEvents(query: AuditLogQuery = {}): Promise<AuditLogPage> {
-  return apiClient.get<AuditLogPage>(buildAuditLogUrl(query));
+export async function listAuditLogEvents(
+  query: AuditLogQuery = {},
+  signal?: AbortSignal
+): Promise<AuditLogPage> {
+  return apiClient.get<AuditLogPage>(
+    buildAuditLogUrl(query),
+    signal ? { signal } : undefined
+  );
 }
 
-export async function listAuditLogActions(): Promise<AuditLogActions> {
-  return apiClient.get<AuditLogActions>(SHORT_LINK_API_ROUTES.AUDIT_LOG_ACTIONS);
+export async function listAuditLogActions(signal?: AbortSignal): Promise<AuditLogActions> {
+  return apiClient.get<AuditLogActions>(
+    SHORT_LINK_API_ROUTES.AUDIT_LOG_ACTIONS,
+    signal ? { signal } : undefined
+  );
 }
 
-export async function getRateLimitActivity(): Promise<RateLimitActivity> {
-  return apiClient.get<RateLimitActivity>(SHORT_LINK_API_ROUTES.RATE_LIMITS);
+export async function getRateLimitActivity(signal?: AbortSignal): Promise<RateLimitActivity> {
+  return apiClient.get<RateLimitActivity>(
+    SHORT_LINK_API_ROUTES.RATE_LIMITS,
+    signal ? { signal } : undefined
+  );
 }
 
 export async function createShortLink(
@@ -74,12 +86,18 @@ export async function createShortLink(
   return apiClient.post<CreatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINKS, request);
 }
 
-export async function getShortLinkDetails(code: string): Promise<ShortLinkDetails> {
-  return apiClient.get<ShortLinkDetails>(SHORT_LINK_API_ROUTES.SHORT_LINK(code));
+export async function getShortLinkDetails(code: string, signal?: AbortSignal): Promise<ShortLinkDetails> {
+  return apiClient.get<ShortLinkDetails>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK(code),
+    signal ? { signal } : undefined
+  );
 }
 
-export async function getShortLinkAnalytics(code: string): Promise<ShortLinkAnalytics> {
-  return apiClient.get<ShortLinkAnalytics>(SHORT_LINK_API_ROUTES.SHORT_LINK_ANALYTICS(code));
+export async function getShortLinkAnalytics(code: string, signal?: AbortSignal): Promise<ShortLinkAnalytics> {
+  return apiClient.get<ShortLinkAnalytics>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK_ANALYTICS(code),
+    signal ? { signal } : undefined
+  );
 }
 
 export async function listShortLinks(
@@ -143,8 +161,11 @@ export async function deleteShortLink(code: string): Promise<DeletedShortLink> {
   return apiClient.delete<DeletedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK(code));
 }
 
-export async function listSecurityAssignments(): Promise<SecurityAssignmentsList> {
-  return apiClient.get<SecurityAssignmentsList>(SHORT_LINK_API_ROUTES.SECURITY_ASSIGNMENTS);
+export async function listSecurityAssignments(signal?: AbortSignal): Promise<SecurityAssignmentsList> {
+  return apiClient.get<SecurityAssignmentsList>(
+    SHORT_LINK_API_ROUTES.SECURITY_ASSIGNMENTS,
+    signal ? { signal } : undefined
+  );
 }
 
 export async function upsertSecurityAssignment(
@@ -161,8 +182,11 @@ export async function disableSecurityAssignment(
   );
 }
 
-export async function listSecurityRoles(): Promise<SecurityRolesList> {
-  return apiClient.get<SecurityRolesList>(SHORT_LINK_API_ROUTES.SECURITY_ROLES);
+export async function listSecurityRoles(signal?: AbortSignal): Promise<SecurityRolesList> {
+  return apiClient.get<SecurityRolesList>(
+    SHORT_LINK_API_ROUTES.SECURITY_ROLES,
+    signal ? { signal } : undefined
+  );
 }
 
 export async function upsertCustomSecurityRole(
@@ -220,8 +244,11 @@ export async function replaceSecurityRolePermissionOverrides(
   );
 }
 
-export async function listSecurityUsers(): Promise<SecurityUsersList> {
-  return apiClient.get<SecurityUsersList>(SHORT_LINK_API_ROUTES.SECURITY_USERS);
+export async function listSecurityUsers(signal?: AbortSignal): Promise<SecurityUsersList> {
+  return apiClient.get<SecurityUsersList>(
+    SHORT_LINK_API_ROUTES.SECURITY_USERS,
+    signal ? { signal } : undefined
+  );
 }
 
 export async function upsertSecurityUser(request: SecurityUserUpsertRequest): Promise<SecurityUser> {

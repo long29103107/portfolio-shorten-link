@@ -1,4 +1,4 @@
-import type { SecurityRole, SecurityUser } from "./types";
+import type { SecurityRole, SecurityUser } from "../types";
 
 export type SecurityUserStatusFilter = "all" | "enabled" | "disabled";
 export type SecurityUserSortField = "email" | "displayName" | "createdAt";

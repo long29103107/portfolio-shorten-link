@@ -14,7 +14,7 @@ import {
   mapShortLinkApiFieldErrors,
   validateShortLinkForm,
   type ShortLinkFieldErrors
-} from "../validation";
+} from "../domain/validation";
 
 type CreateShortLinkFormProps = {
   onCreated: (createdLink: CreatedShortLink) => void;

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getRateLimitActivity, listSecurityRoles, listSecurityUsers, listShortLinks } from "../api/shortLinksApi";
 import {
+  buildDashboardLinkDiscovery,
   composeDashboardSnapshot,
   type DashboardSnapshot,
   type DashboardSource
-} from "../adminDashboard";
+} from "../domain/adminDashboard";
 import type { RateLimitActivity, ShortLinkStatusFilter } from "../types";
 import { DASHBOARD_DEFAULTS } from "../constants/defaults";
 
@@ -13,12 +14,8 @@ function listLinksByStatus(
   limit = DASHBOARD_DEFAULTS.LINK_LIMIT,
   signal?: AbortSignal
 ) {
-  return listShortLinks(1, limit, {
-    search: "",
-    status,
-    sortBy: "created",
-    sortDirection: "desc"
-  }, signal);
+  const request = buildDashboardLinkDiscovery(status, limit);
+  return listShortLinks(request.limit, request.page, request.discovery, signal);
 }
 
 export function useAdminDashboardData() {
@@ -40,12 +37,12 @@ export function useAdminDashboardData() {
       listLinksByStatus("all", DASHBOARD_DEFAULTS.RECENT_LINK_LIMIT, controller.signal),
       listLinksByStatus("active", DASHBOARD_DEFAULTS.LINK_LIMIT, controller.signal),
       listLinksByStatus("inactive", DASHBOARD_DEFAULTS.LINK_LIMIT, controller.signal),
-      listSecurityUsers(),
-      listSecurityRoles(),
-      getRateLimitActivity()
+      listSecurityUsers(controller.signal),
+      listSecurityRoles(controller.signal),
+      getRateLimitActivity(controller.signal)
     ]);
 
-    if (version !== requestVersion.current) {
+    if (controller.signal.aborted || version !== requestVersion.current) {
       return;
     }
 

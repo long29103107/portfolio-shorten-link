@@ -8,7 +8,7 @@ import {
   validatePasswordReset,
   validateLoginForm,
   validateManagedUserForm
-} from "../src/features/short-links/identityValidation";
+} from "../src/features/short-links/domain/identityValidation";
 
 describe("identity form validation", () => {
   test("maps required login values to exact controls", () => {

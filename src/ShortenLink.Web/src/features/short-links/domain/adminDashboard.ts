@@ -1,4 +1,9 @@
-import type { SecurityUser, ShortLinkAdminItem } from "./types";
+import type {
+  SecurityUser,
+  ShortLinkAdminItem,
+  ShortLinkDiscoveryQuery,
+  ShortLinkStatusFilter
+} from "../types";
 
 export type DashboardSource = "shortLinks" | "users" | "roles";
 export type DashboardSourceState = "healthy" | "failed";
@@ -21,6 +26,28 @@ export type DashboardActivity = {
   detail: string;
   occurredAtUtc: string;
 };
+
+export type DashboardLinkDiscovery = {
+  limit: number;
+  page: number;
+  discovery: ShortLinkDiscoveryQuery;
+};
+
+export function buildDashboardLinkDiscovery(
+  status: ShortLinkStatusFilter,
+  limit: number
+): DashboardLinkDiscovery {
+  return {
+    limit,
+    page: 1,
+    discovery: {
+      search: "",
+      status,
+      sortBy: "created",
+      sortDirection: "desc"
+    }
+  };
+}
 
 type DashboardSnapshotInput = {
   totalLinks?: number;

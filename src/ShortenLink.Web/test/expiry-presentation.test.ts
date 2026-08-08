@@ -6,8 +6,8 @@ import {
   formatExpiryDateTime,
   getExpiryPresentation,
   toDateTimeLocalValue
-} from "../src/features/short-links/expiryPresentation";
-import { validateShortLinkForm } from "../src/features/short-links/validation";
+} from "../src/features/short-links/domain/expiryPresentation";
+import { validateShortLinkForm } from "../src/features/short-links/domain/validation";
 
 const referenceTime = new Date("2026-07-30T00:00:00.000Z");
 

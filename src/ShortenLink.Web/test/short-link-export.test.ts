@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { serializeShortLinksCsv } from "../src/features/short-links/export";
+import { serializeShortLinksCsv } from "../src/features/short-links/domain/export";
 import type { ShortLinkAdminItem } from "../src/features/short-links/types";
 
 describe("short-link CSV export", () => {

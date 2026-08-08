@@ -19,12 +19,12 @@ import {
   validateManagedUserForm,
   validatePasswordReset,
   type ManagedUserFieldErrors
-} from "../identityValidation";
+} from "../domain/identityValidation";
 import {
   mapCustomRoleApiFieldErrors,
   validateCustomRoleForm,
   type CustomRoleFieldErrors
-} from "../securityValidation";
+} from "../domain/securityValidation";
 import {
   defaultSecurityUserDiscovery,
   discoverPermissionGroups,
@@ -32,7 +32,7 @@ import {
   discoverSecurityUsers,
   paginateItems,
   type SecurityUserDiscovery
-} from "../securityDiscovery";
+} from "../domain/securityDiscovery";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Button } from "../../../shared/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../shared/components/ui/card";
@@ -49,7 +49,7 @@ import { FormDialog } from "../../../shared/components/FormDialog";
 import { RefreshButton } from "../../../shared/components/RefreshButton";
 import { RowActionsMenu } from "../../../shared/components/RowActionsMenu";
 import { Pagination } from "../../../shared/components/Pagination";
-import { getPermissionDescription } from "../permissionCatalog";
+import { getPermissionDescription } from "../domain/permissionCatalog";
 import { useDebouncedCallback } from "../../../shared/hooks/useDebouncedCallback";
 import { useSecurityManagementData } from "../hooks/useSecurityManagementData";
 

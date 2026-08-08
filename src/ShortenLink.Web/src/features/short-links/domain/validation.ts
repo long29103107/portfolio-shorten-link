@@ -1,4 +1,4 @@
-import type { ShortLinkFormInput } from "./types";
+import type { ShortLinkFormInput } from "../types";
 
 export type ShortLinkFieldErrors = Partial<Record<keyof ShortLinkFormInput, string>>;
 

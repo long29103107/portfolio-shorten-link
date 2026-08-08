@@ -1,7 +1,7 @@
 import {
   createExpiryPresetValue,
   EXPIRY_PRESETS
-} from "../expiryPresentation";
+} from "../domain/expiryPresentation";
 
 type ExpiryQuickPicksProps = {
   onChange: (expiredAtLocal: string) => void;

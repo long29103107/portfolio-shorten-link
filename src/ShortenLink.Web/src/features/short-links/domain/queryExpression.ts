@@ -1,5 +1,5 @@
-import { filter, type FilterExpression, type SortExpression } from "../../shared/queryExpression";
-import type { ShortLinkDiscoveryQuery } from "./types";
+import { filter, type FilterExpression, type SortExpression } from "../../../shared/queryExpression";
+import type { ShortLinkDiscoveryQuery } from "../types";
 
 export type ShortLinkQueryField = "Code" | "OriginalUrl" | "CreatedAt" | "ExpiresAt" | "IsActive";
 

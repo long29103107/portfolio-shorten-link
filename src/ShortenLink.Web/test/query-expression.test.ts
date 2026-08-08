@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { filter, serializeFilter, serializeSort } from "../src/shared/queryExpression";
-import { buildShortLinkFilterExpression, toggleShortLinkSort } from "../src/features/short-links/queryExpression";
+import { buildShortLinkFilterExpression, toggleShortLinkSort } from "../src/features/short-links/domain/queryExpression";
 
 describe("query expression", () => {
   test("serializes nested filter groups", () => {
