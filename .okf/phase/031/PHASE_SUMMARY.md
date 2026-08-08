@@ -5,8 +5,8 @@ status: active
 created_at: 2026-08-07
 updated_at: 2026-08-08
 current_task: null
-task_count: 20
-done_count: 20
+task_count: 21
+done_count: 21
 depends_on:
   - 030
 ---
@@ -52,22 +52,24 @@ without changing routes, API contracts, or user-facing behavior.
 | 031_018 | Suppress user-facing failure toasts for expected request cancellation | Correctness | done | 2026-08-08 |
 | 031_019 | Protect imperative short-link discovery loads from stale responses | Correctness | done | 2026-08-08 |
 | 031_020 | Protect short-link share dialog reads from stale responses | Correctness | done | 2026-08-08 |
+| 031_021 | Decompose short-link admin mutation and dialog responsibilities | Refactor | done | 2026-08-08 |
 
 ## Current Task
 
-`031_020` is complete, but Phase 031 is not yet complete. The twenty tasks now
-provide feature boundaries, lazy route loading, cancellable discovery reads, a
-typed API client, centralized frontend contracts, focused data boundaries, a
+`031_021` is complete, but Phase 031 is not yet complete. The twenty-one tasks
+now provide feature boundaries, lazy route loading, cancellable discovery reads,
+a typed API client, centralized frontend contracts, focused data boundaries, a
 repeatable bundle/performance budget check, a verified dashboard pagination
-contract, silent expected cancellation, and stale-safe short-link/share
-discovery. Remaining work is primarily page ownership decomposition.
+contract, silent expected cancellation, stale-safe short-link/share discovery,
+and focused short-link mutation/dialog boundaries. Remaining work is primarily
+page ownership decomposition in the security feature.
 
 ## Next Task Proposal
 
 The next smallest task is to extract mutation and dialog orchestration from
-`ShortLinkAdminPage` while keeping its route behavior unchanged.
+`SecurityManagementPage` while keeping its route behavior unchanged.
 
-Proposed next task (not created yet): `031_021` - decompose short-link admin
+Proposed next task (not created yet): `031_022` - decompose security management
 mutation and dialog responsibilities.
 
 ## Task Notes
@@ -1071,4 +1073,58 @@ bun run check:performance
 - Preserved share mutation, confirmation, API route, and rendered behavior.
 - Added signal-propagation and current-generation regression tests.
 - Architecture boundaries passed, 71 Bun tests passed, production build
+  completed, and the performance budget passed.
+
+### 031_021 - Decompose short-link admin mutation and dialog responsibilities
+
+#### Step Goal
+
+Move short-link admin mutation orchestration and analytics dialog rendering out
+of `ShortLinkAdminPage` while preserving routes, permissions, API contracts, and
+the existing create/edit/status/delete/share/analytics workflow.
+
+#### Scope
+
+- Extract create, edit, status, delete, bulk mutation, editor state, and
+  mutation recovery handling into `useShortLinkMutations`.
+- Extract analytics dialog presentation into `ShortLinkAnalyticsDialog` while
+  keeping share and QR dialogs as their existing focused components.
+- Keep page-level confirmation, table, discovery, export, and dialog opening
+  orchestration compatible.
+
+#### Acceptance Criteria
+
+- `ShortLinkAdminPage` no longer owns mutation implementations or analytics
+  dialog markup.
+- Existing permissions, field validation, retry context, toast copy, list
+  updates, and analytics close behavior remain compatible.
+- Architecture check, frontend tests, production build, and performance budget
+  remain green.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/hooks/useShortLinkMutations.ts`
+- `src/ShortenLink.Web/src/features/short-links/components/ShortLinkAnalyticsDialog.tsx`
+- `src/ShortenLink.Web/src/features/short-links/pages/ShortLinkAdminPage.tsx`
+- `src/ShortenLink.Web/test/short-link-mutations.test.ts`
+- `.okf/phase/031/PHASE_SUMMARY.md`
+
+#### Verification
+
+```powershell
+cd .\src\ShortenLink.Web
+bun run check:architecture
+bun test
+bun run check:performance
+```
+
+#### Done Notes
+
+- Added `useShortLinkMutations` as the single owner for short-link editor state,
+  create/edit/status/delete/bulk mutation handlers, permission checks, API
+  field mapping, and retry-preserving mutation context.
+- Added `ShortLinkAnalyticsDialog` and reduced the page to passing analytics
+  data and lifecycle callbacks; share and QR dialogs remain separate.
+- Added pure mutation payload and expiry-editor regression coverage.
+- Architecture boundaries passed, 73 Bun tests passed, production build
   completed, and the performance budget passed.
