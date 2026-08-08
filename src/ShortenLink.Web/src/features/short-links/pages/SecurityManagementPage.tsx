@@ -1,30 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import {
-  deleteCustomSecurityRole,
-  disableSecurityUser,
-  replaceSecurityRolePermissionOverrides,
-  upsertCustomSecurityRole,
-  upsertSecurityUser
-} from "../api/shortLinksApi";
 import { getAdminPermissionState, getStoredCurrentUser, shortLinkPermissions } from "../api/adminSecurity";
-import { ApiError } from "../api/http";
-import type { SecurityRole, SecuritySection, SecurityUser } from "../types";
-import { formatDateTime, toFriendlyErrorMessage } from "../types";
-import {
-  hasFieldErrors,
-  mapManagedUserApiFieldErrors,
-  mapPasswordResetApiFieldErrors,
-  mapRoleAssignmentApiFieldErrors,
-  validateManagedUserForm,
-  validatePasswordReset,
-  type ManagedUserFieldErrors
-} from "../domain/identityValidation";
-import {
-  mapCustomRoleApiFieldErrors,
-  validateCustomRoleForm,
-  type CustomRoleFieldErrors
-} from "../domain/securityValidation";
+import type { SecurityRole, SecuritySection } from "../types";
+import { formatDateTime } from "../types";
+import type { CustomRoleFieldErrors } from "../domain/securityValidation";
 import {
   defaultSecurityUserDiscovery,
   discoverPermissionGroups,
@@ -35,23 +14,21 @@ import {
 } from "../domain/securityDiscovery";
 import { Badge } from "../../../shared/components/ui/badge";
 import { Button } from "../../../shared/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../shared/components/ui/card";
+import { Card, CardContent } from "../../../shared/components/ui/card";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { Input } from "../../../shared/components/ui/input";
-import { Label } from "../../../shared/components/ui/label";
 import { DataTable } from "../../../shared/components/DataTable";
-import { showToast } from "../../../shared/toast";
-import { createRecoveryNotice, type RecoveryNotice } from "../../../shared/api/recovery";
-import { FormField } from "../../../shared/components/FormField";
+import type { RecoveryNotice } from "../../../shared/api/recovery";
 import { DiscoverySelect } from "../../../shared/components/DiscoverySelect";
 import { ConfirmDialog } from "../../../shared/components/ConfirmDialog";
-import { FormDialog } from "../../../shared/components/FormDialog";
 import { RefreshButton } from "../../../shared/components/RefreshButton";
 import { RowActionsMenu } from "../../../shared/components/RowActionsMenu";
 import { Pagination } from "../../../shared/components/Pagination";
 import { getPermissionDescription } from "../domain/permissionCatalog";
 import { useDebouncedCallback } from "../../../shared/hooks/useDebouncedCallback";
 import { useSecurityManagementData } from "../hooks/useSecurityManagementData";
+import { toRoleForm, useSecurityMutations, type RoleFormState } from "../hooks/useSecurityMutations";
+import { SecurityManagementDialogs } from "../components/SecurityManagementDialogs";
 
 const permissionOptions = Object.values(shortLinkPermissions);
 const permissionGroups = [
@@ -60,67 +37,13 @@ const permissionGroups = [
   { id: "security", name: "Security", permissions: permissionOptions.filter((permission) => permission.startsWith("security.")) }
 ];
 
-type RoleFormState = {
-  id: string;
-  name: string;
-  permissions: string[];
-  defaultPermissions: string[];
-  permissionOverrides: Record<string, boolean>;
-  isEnabled: boolean;
-};
-
-const emptyRoleForm: RoleFormState = {
-  id: "",
-  name: "",
-  permissions: [],
-  defaultPermissions: [],
-  permissionOverrides: {},
-  isEnabled: true
-};
-
-function toRoleForm(role: SecurityRole): RoleFormState {
-  return {
-    id: role.id,
-    name: role.name,
-    permissions: role.permissions,
-    defaultPermissions: role.defaultPermissions,
-    permissionOverrides: Object.fromEntries(role.permissionOverrides.map((item) => [item.permission, item.isAllowed])),
-    isEnabled: role.isEnabled
-  };
-}
-
 export function SecurityManagementPage({ section, onDirtyChange }: { section: SecuritySection; onDirtyChange?: (isDirty: boolean) => void }) {
   const adminPermissions = getAdminPermissionState();
   const currentUser = getStoredCurrentUser();
-  const [actionFailure, setActionFailure] = useState<RecoveryNotice | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [userDialogMode, setUserDialogMode] = useState<"edit" | "password" | "roles" | null>(null);
-  const [userPendingDelete, setUserPendingDelete] = useState<SecurityUser | null>(null);
-  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(() => new Set());
-  const [isBulkDisablingUsers, setIsBulkDisablingUsers] = useState(false);
-  const [isBulkDisableConfirmationOpen, setIsBulkDisableConfirmationOpen] = useState(false);
-  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [userDiscovery, setUserDiscovery] = useState<SecurityUserDiscovery>(defaultSecurityUserDiscovery);
   const [userSearch, setUserSearch] = useState(defaultSecurityUserDiscovery.search);
   const [userPage, setUserPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState(10);
-  const [createUserForm, setCreateUserForm] = useState({ email: "", displayName: "", password: "" });
-  const [createUserErrors, setCreateUserErrors] = useState<ManagedUserFieldErrors>({});
-  const [resetPassword, setResetPassword] = useState("");
-  const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
-  const [profileEmail, setProfileEmail] = useState("");
-  const [profileDisplayName, setProfileDisplayName] = useState("");
-  const [profileError, setProfileError] = useState<string | undefined>();
-  const [resetPasswordError, setResetPasswordError] = useState<string | undefined>();
-  const [assignedRoleIds, setAssignedRoleIds] = useState<string[]>([]);
-  const [roleAssignmentError, setRoleAssignmentError] = useState<string | undefined>();
-  const [roleForm, setRoleForm] = useState<RoleFormState>(emptyRoleForm);
-  const [roleFieldErrors, setRoleFieldErrors] = useState<CustomRoleFieldErrors>({});
-  const [rolePendingDelete, setRolePendingDelete] = useState<SecurityRole | null>(null);
-  const [roleDialogMode, setRoleDialogMode] = useState<"create" | "edit" | null>(null);
-  const [isSavingRole, setIsSavingRole] = useState(false);
-  const [roleFormBeforeDialog, setRoleFormBeforeDialog] = useState<typeof roleForm | null>(null);
-  const [hasRoleDraftChanges, setHasRoleDraftChanges] = useState(false);
   const {
     isLoading,
     readFailure,
@@ -132,11 +55,73 @@ export function SecurityManagementPage({ section, onDirtyChange }: { section: Se
     setCustomRoles,
     loadSecurity
   } = useSecurityManagementData(adminPermissions.canManageSecurityAssignments);
+  const {
+    actionFailure,
+    setActionFailure,
+    selectedUser,
+    userDialogMode,
+    setUserDialogMode,
+    userPendingDelete,
+    setUserPendingDelete,
+    selectedUserIds,
+    setSelectedUserIds,
+    isBulkDisablingUsers,
+    isBulkDisableConfirmationOpen,
+    setIsBulkDisableConfirmationOpen,
+    isCreateUserOpen,
+    setIsCreateUserOpen,
+    createUserForm,
+    setCreateUserForm,
+    createUserErrors,
+    setCreateUserErrors,
+    resetPassword,
+    setResetPassword,
+    resetPasswordConfirm,
+    setResetPasswordConfirm,
+    profileEmail,
+    setProfileEmail,
+    profileDisplayName,
+    setProfileDisplayName,
+    profileError,
+    setProfileError,
+    resetPasswordError,
+    setResetPasswordError,
+    assignedRoleIds,
+    setAssignedRoleIds,
+    roleAssignmentError,
+    setRoleAssignmentError,
+    roleForm,
+    setRoleForm,
+    roleFieldErrors,
+    setRoleFieldErrors,
+    roleDialogMode,
+    isSavingRole,
+    setHasRoleDraftChanges,
+    hasUnsavedSecurityChanges,
+    selectedEnabledUsers,
+    createUser,
+    openUserDialog,
+    closeCreateUserDialog,
+    submitUserDialog,
+    confirmUserDelete,
+    confirmBulkDisableUsers,
+    saveRolePermissionOverrides,
+    openCreateRoleDialog,
+    openEditRoleDialog,
+    closeRoleDialog,
+    submitRoleDialog,
+    requestRoleDelete,
+    confirmRoleDelete
+  } = useSecurityMutations({
+    section,
+    users,
+    setUsers,
+    systemRoles,
+    setSystemRoles,
+    customRoles,
+    setCustomRoles
+  });
 
-  const selectedUser = useMemo(
-    () => users.find((user) => user.id === selectedUserId) ?? null,
-    [selectedUserId, users]
-  );
   const roleOptions = useMemo(
     () => [...systemRoles, ...customRoles].filter((role) => role.isEnabled),
     [customRoles, systemRoles]
@@ -156,16 +141,6 @@ export function SecurityManagementPage({ section, onDirtyChange }: { section: Se
     (search: string) => updateUserDiscovery({ search: search.trim() }),
     400
   );
-  const hasUserDialogChanges = isCreateUserOpen
-    ? Boolean(createUserForm.email || createUserForm.displayName || createUserForm.password)
-    : userDialogMode === "edit" && selectedUser
-      ? profileEmail !== selectedUser.username || profileDisplayName !== selectedUser.displayName
-      : userDialogMode === "password"
-        ? Boolean(resetPassword || resetPasswordConfirm)
-        : userDialogMode === "roles" && selectedUser
-          ? [...assignedRoleIds].sort().join("|") !== [...selectedUser.roleIds].sort().join("|")
-          : false;
-  const hasUnsavedSecurityChanges = hasRoleDraftChanges || hasUserDialogChanges;
 
   useEffect(() => {
     onDirtyChange?.(hasUnsavedSecurityChanges);
@@ -177,333 +152,6 @@ export function SecurityManagementPage({ section, onDirtyChange }: { section: Se
     debouncedUserSearch.cancel();
     setUserSearch(userDiscovery.search);
   }, [userDiscovery.search]);
-
-  useEffect(() => {
-    if (section !== "roles") return;
-    const roles = [...systemRoles, ...customRoles];
-    if (roles.length === 0) {
-      if (roleForm.id) setRoleForm(emptyRoleForm);
-      return;
-    }
-    if (!roles.some((role) => role.id === roleForm.id)) {
-      setRoleForm(toRoleForm(roles[0]));
-      setRoleFieldErrors({});
-    }
-  }, [section, systemRoles, customRoles, roleForm.id]);
-
-  useEffect(() => {
-    if (section === "roles") {
-      setIsCreateUserOpen(false);
-      setUserDialogMode(null);
-      setUserPendingDelete(null);
-      setCreateUserForm({ email: "", displayName: "", password: "" });
-      setCreateUserErrors({});
-      setResetPassword("");
-      setResetPasswordConfirm("");
-      setHasRoleDraftChanges(false);
-      return;
-    }
-
-    const persistedRole = [...systemRoles, ...customRoles].find((role) => role.id === roleForm.id);
-    setRoleForm(persistedRole ? toRoleForm(persistedRole) : emptyRoleForm);
-    setRoleFieldErrors({});
-    setHasRoleDraftChanges(false);
-  }, [section]);
-
-  const createUser = async () => {
-    const errors = validateManagedUserForm(createUserForm);
-    if (hasFieldErrors(errors)) {
-      setCreateUserErrors(errors);
-      setActionFailure(null);
-      return;
-    }
-
-    setCreateUserErrors({});
-    setActionFailure(null);
-    try {
-      const user = await upsertSecurityUser({
-        id: createInternalUserId(),
-        username: createUserForm.email.trim(),
-        displayName: createUserForm.displayName.trim(),
-        password: null,
-        roleIds: ["User"],
-        isEnabled: true
-      });
-      setUsers((current) => upsertBy(current, user, "id"));
-      setCreateUserForm({ email: "", displayName: "", password: "" });
-      setIsCreateUserOpen(false);
-      selectUser(user);
-      showToast({ title: "User registered", message: user.username, variant: "success" });
-    } catch (error) {
-      const fieldErrors = error instanceof ApiError ? mapManagedUserApiFieldErrors(error.fieldErrors) : {};
-      setCreateUserErrors(fieldErrors);
-      setActionFailure(hasFieldErrors(fieldErrors) ? null : toRecoveryNotice(error, "User could not be registered."));
-    }
-  };
-
-  const selectUser = (user: SecurityUser) => {
-    setSelectedUserId(user.id);
-    setAssignedRoleIds(user.roleIds);
-    setProfileEmail(user.username);
-    setProfileDisplayName(user.displayName);
-    setProfileError(undefined);
-    setResetPassword("");
-    setResetPasswordConfirm("");
-    setResetPasswordError(undefined);
-    setRoleAssignmentError(undefined);
-    setActionFailure(null);
-  };
-
-  const openUserDialog = (user: SecurityUser, mode: "edit" | "password" | "roles") => {
-    selectUser(user);
-    setUserDialogMode(mode);
-  };
-
-  const updateSelectedUserProfile = async () => {
-    if (!selectedUser) return;
-    if (!profileEmail.trim() || !profileDisplayName.trim()) {
-      setProfileError("Enter email and display name.");
-      return;
-    }
-    setProfileError(undefined);
-    try {
-      const updated = await upsertSecurityUser({ ...selectedUser, username: profileEmail.trim(), displayName: profileDisplayName.trim(), password: null });
-      setUsers((current) => upsertBy(current, updated, "id"));
-      setUserDialogMode(null);
-      showToast({ title: "User updated", message: updated.username, variant: "success" });
-    } catch (error) {
-      setActionFailure(toRecoveryNotice(error, "User could not be updated."));
-    }
-  };
-
-  const resetSelectedUserPassword = async () => {
-    if (!selectedUser) return;
-    const errors = validatePasswordReset(resetPassword);
-    if (errors.password) {
-      setResetPasswordError(errors.password);
-      return;
-    }
-    if (resetPassword !== resetPasswordConfirm) {
-      setResetPasswordError("Passwords do not match.");
-      return;
-    }
-
-    setResetPasswordError(undefined);
-    setActionFailure(null);
-    try {
-      const updated = await upsertSecurityUser({
-        id: selectedUser.id,
-        username: selectedUser.username,
-        displayName: selectedUser.displayName,
-        password: resetPassword,
-        roleIds: selectedUser.roleIds,
-        isEnabled: selectedUser.isEnabled
-      });
-      setUsers((current) => upsertBy(current, updated, "id"));
-      setResetPassword("");
-      setResetPasswordConfirm("");
-      setUserDialogMode(null);
-      showToast({ title: "Password reset", message: selectedUser.username, variant: "success" });
-    } catch (error) {
-      const fieldErrors = error instanceof ApiError ? mapPasswordResetApiFieldErrors(error.fieldErrors) : {};
-      setResetPasswordError(fieldErrors.password);
-      setActionFailure(fieldErrors.password ? null : toRecoveryNotice(error, "Password could not be reset."));
-    }
-  };
-
-  const saveSelectedUserRoles = async () => {
-    if (!selectedUser) return;
-    setRoleAssignmentError(undefined);
-    setActionFailure(null);
-    try {
-      const updated = await upsertSecurityUser({
-        id: selectedUser.id,
-        username: selectedUser.username,
-        displayName: selectedUser.displayName,
-        password: null,
-        roleIds: assignedRoleIds,
-        isEnabled: selectedUser.isEnabled
-      });
-      setUsers((current) => upsertBy(current, updated, "id"));
-      setUserDialogMode(null);
-      showToast({ title: "Roles assigned", message: selectedUser.username, variant: "success" });
-    } catch (error) {
-      const fieldErrors = error instanceof ApiError ? mapRoleAssignmentApiFieldErrors(error.fieldErrors) : {};
-      setRoleAssignmentError(fieldErrors.roleIds);
-      setActionFailure(fieldErrors.roleIds ? null : toRecoveryNotice(error, "Roles could not be assigned."));
-    }
-  };
-
-  const saveRole = async () => {
-    const errors = validateCustomRoleForm(roleForm);
-    if (hasFieldErrors(errors)) {
-      setRoleFieldErrors(errors);
-      setActionFailure(null);
-      return false;
-    }
-
-    setRoleFieldErrors({});
-    setActionFailure(null);
-    setIsSavingRole(true);
-    try {
-      const role = await upsertCustomSecurityRole({
-        id: roleForm.id.trim(),
-        name: roleForm.name.trim(),
-        permissions: roleForm.defaultPermissions,
-        isEnabled: roleForm.isEnabled
-      });
-      setCustomRoles((current) => upsertBy(current, role, "id"));
-      setRoleForm(toRoleForm(role));
-      showToast({ title: "Role saved", message: role.name, variant: "success" });
-      return true;
-    } catch (error) {
-      const fieldErrors = error instanceof ApiError ? mapCustomRoleApiFieldErrors(error.fieldErrors) : {};
-      setRoleFieldErrors(fieldErrors);
-      setActionFailure(hasFieldErrors(fieldErrors) ? null : toRecoveryNotice(error, "Role could not be saved."));
-      return false;
-    } finally {
-      setIsSavingRole(false);
-    }
-  };
-
-  const closeCreateUserDialog = () => {
-    setCreateUserForm({ email: "", displayName: "", password: "" });
-    setCreateUserErrors({});
-    setIsCreateUserOpen(false);
-  };
-
-  const deactivateUser = async (user: SecurityUser) => {
-    try {
-      const result = await disableSecurityUser(user.id);
-      setUsers((current) => current.map((item) => item.id === result.id ? { ...item, isEnabled: false } : item));
-      showToast({ title: "User disabled", message: user.username, variant: "success" });
-    } catch (error) {
-      setActionFailure(toRecoveryNotice(error, "User could not be disabled."));
-    }
-  };
-
-  const submitUserDialog = () => {
-    if (userDialogMode === "edit") void updateSelectedUserProfile();
-    if (userDialogMode === "password") void resetSelectedUserPassword();
-    if (userDialogMode === "roles") void saveSelectedUserRoles();
-  };
-
-  const confirmUserDelete = async () => {
-    if (!userPendingDelete) return;
-    await deactivateUser(userPendingDelete);
-    setUserPendingDelete(null);
-  };
-
-  const selectedEnabledUsers = users.filter((user) => selectedUserIds.has(user.id) && user.isEnabled);
-
-  const confirmBulkDisableUsers = async () => {
-    if (selectedEnabledUsers.length === 0) return;
-    setIsBulkDisablingUsers(true);
-    setActionFailure(null);
-    try {
-      const results = await Promise.all(selectedEnabledUsers.map((user) => disableSecurityUser(user.id)));
-      const disabledIds = new Set(results.map((result) => result.id));
-      setUsers((current) => current.map((user) => disabledIds.has(user.id) ? { ...user, isEnabled: false } : user));
-      setSelectedUserIds(new Set());
-      setIsBulkDisableConfirmationOpen(false);
-      showToast({ title: "Users disabled", message: `${results.length} user${results.length === 1 ? "" : "s"} disabled.`, variant: "success" });
-    } catch (error) {
-      setActionFailure(toRecoveryNotice(error, "Selected users could not be disabled."));
-    } finally {
-      setIsBulkDisablingUsers(false);
-    }
-  };
-
-  const saveRolePermissionOverrides = async (drafts: RoleFormState[]) => {
-    if (drafts.length === 0) return false;
-    setActionFailure(null);
-    setIsSavingRole(true);
-    try {
-      const savedRoles = await Promise.all(drafts.map((draft) =>
-        replaceSecurityRolePermissionOverrides(draft.id, {
-          overrides: Object.entries(draft.permissionOverrides).map(([permission, isAllowed]) => ({ permission, isAllowed }))
-        })
-      ));
-      savedRoles.forEach((role) => {
-        if (!role.isSystem) setCustomRoles((current) => upsertBy(current, role, "id"));
-        else setSystemRoles((current) => upsertBy(current, role, "id"));
-      });
-      const selectedSavedRole = savedRoles.find((role) => role.id === roleForm.id);
-      if (selectedSavedRole) setRoleForm(toRoleForm(selectedSavedRole));
-      showToast({ title: "Permission changes saved", message: `${savedRoles.length} role${savedRoles.length === 1 ? "" : "s"} updated.`, variant: "success" });
-      return true;
-    } catch (error) {
-      setActionFailure(toRecoveryNotice(error, "Permission overrides could not be saved."));
-      return false;
-    } finally {
-      setIsSavingRole(false);
-    }
-  };
-
-  const openCreateRoleDialog = () => {
-    setRoleFormBeforeDialog(roleForm);
-    setRoleForm(emptyRoleForm);
-    setRoleFieldErrors({});
-    setActionFailure(null);
-    setRoleDialogMode("create");
-  };
-
-  const openEditRoleDialog = (role: SecurityRole) => {
-    if (role.isSystem) return;
-    setRoleFormBeforeDialog(roleForm);
-    setRoleForm(toRoleForm(role));
-    setRoleFieldErrors({});
-    setActionFailure(null);
-    setRoleDialogMode("edit");
-  };
-
-  const closeRoleDialog = () => {
-    setRoleDialogMode(null);
-    if (roleFormBeforeDialog) setRoleForm(roleFormBeforeDialog);
-    setRoleFormBeforeDialog(null);
-    setRoleFieldErrors({});
-  };
-
-  const submitRoleDialog = async () => {
-    if (await saveRole()) {
-      setRoleDialogMode(null);
-      setRoleFormBeforeDialog(null);
-    }
-  };
-
-  const requestRoleDelete = (role: SecurityRole) => {
-    const assignedUserCount = users.filter((user) =>
-      user.roleIds.some((roleId) => roleId.toLowerCase() === role.id.toLowerCase())
-    ).length;
-    if (assignedUserCount > 0) {
-      setActionFailure({
-        message: `${role.name} is assigned to ${assignedUserCount} user(s). Remove or replace this role on those users before deleting it.`,
-        retryable: false
-      });
-      return;
-    }
-
-    setActionFailure(null);
-    setRolePendingDelete(role);
-  };
-
-  const confirmRoleDelete = async () => {
-    if (!rolePendingDelete) return;
-    const role = rolePendingDelete;
-    setRolePendingDelete(null);
-    setActionFailure(null);
-    try {
-      const result = await deleteCustomSecurityRole(role.id);
-      setCustomRoles((current) => current.filter((item) => item.id !== result.id));
-      if (roleForm.id === result.id) {
-        setRoleForm(emptyRoleForm);
-        setRoleFieldErrors({});
-      }
-      showToast({ title: "Role deleted", message: role.name, variant: "success" });
-    } catch (error) {
-      setActionFailure(toRecoveryNotice(error, "Role could not be deleted."));
-    }
-  };
 
   if (!currentUser) {
     return <EmptyState title="Sign in required" description="Sign in to manage users and roles." />;
@@ -631,101 +279,45 @@ export function SecurityManagementPage({ section, onDirtyChange }: { section: Se
         ) : null}
 
         </CardContent>
-        <FormDialog
-          open={isCreateUserOpen}
-          title="Create managed user"
-          description="Create the identity first, then set its password and assign roles from the user actions menu."
-          submitLabel="Create"
-          onSubmit={() => void createUser()}
-          onCancel={closeCreateUserDialog}
-        >
-          <div className="form-dialog-grid">
-            <IdentityField id="new-user-email" label="Email" type="email" autoComplete="email" value={createUserForm.email} error={createUserErrors.email} onChange={(email) => {
-              setCreateUserForm((current) => ({ ...current, email }));
-              setCreateUserErrors((current) => ({ ...current, email: undefined }));
-            }} />
-            <IdentityField id="new-user-display-name" label="Display name" value={createUserForm.displayName} error={createUserErrors.displayName} onChange={(displayName) => {
-              setCreateUserForm((current) => ({ ...current, displayName }));
-              setCreateUserErrors((current) => ({ ...current, displayName: undefined }));
-            }} />
-          </div>
-        </FormDialog>
-        <ConfirmDialog
-          open={isBulkDisableConfirmationOpen}
-          title="Disable selected users?"
-          description={`This disables sign-in for ${selectedEnabledUsers.length} selected user${selectedEnabledUsers.length === 1 ? "" : "s"} while preserving audit history.`}
-          confirmLabel="Disable selected"
-          variant="destructive"
-          onConfirm={() => void confirmBulkDisableUsers()}
-          onCancel={() => setIsBulkDisableConfirmationOpen(false)}
+        <SecurityManagementDialogs
+          isCreateUserOpen={isCreateUserOpen}
+          createUserForm={createUserForm}
+          setCreateUserForm={setCreateUserForm}
+          createUserErrors={createUserErrors}
+          setCreateUserErrors={setCreateUserErrors}
+          createUser={createUser}
+          closeCreateUserDialog={closeCreateUserDialog}
+          isBulkDisableConfirmationOpen={isBulkDisableConfirmationOpen}
+          selectedEnabledUserCount={selectedEnabledUsers.length}
+          setIsBulkDisableConfirmationOpen={setIsBulkDisableConfirmationOpen}
+          confirmBulkDisableUsers={confirmBulkDisableUsers}
+          userPendingDelete={userPendingDelete}
+          setUserPendingDelete={setUserPendingDelete}
+          confirmUserDelete={confirmUserDelete}
+          userDialogMode={userDialogMode}
+          setUserDialogMode={setUserDialogMode}
+          selectedUser={selectedUser}
+          submitUserDialog={submitUserDialog}
+          profileEmail={profileEmail}
+          setProfileEmail={setProfileEmail}
+          profileDisplayName={profileDisplayName}
+          setProfileDisplayName={setProfileDisplayName}
+          profileError={profileError}
+          setProfileError={setProfileError}
+          resetPassword={resetPassword}
+          setResetPassword={setResetPassword}
+          resetPasswordConfirm={resetPasswordConfirm}
+          setResetPasswordConfirm={setResetPasswordConfirm}
+          resetPasswordError={resetPasswordError}
+          setResetPasswordError={setResetPasswordError}
+          roleOptions={roleOptions}
+          assignedRoleIds={assignedRoleIds}
+          setAssignedRoleIds={setAssignedRoleIds}
+          roleAssignmentError={roleAssignmentError}
+          setRoleAssignmentError={setRoleAssignmentError}
         />
-        <ConfirmDialog
-          open={userPendingDelete !== null}
-          title={`Delete ${userPendingDelete?.displayName ?? "user"}?`}
-          description="This disables sign-in for the user while preserving their audit history."
-          confirmLabel="Delete user"
-          variant="destructive"
-          onConfirm={() => void confirmUserDelete()}
-          onCancel={() => setUserPendingDelete(null)}
-        />
-        <FormDialog
-          open={userDialogMode !== null}
-          title={userDialogMode === "edit" ? "Edit user" : userDialogMode === "password" ? "Set password" : "Assign roles"}
-          description={selectedUser ? `${selectedUser.displayName} · ${selectedUser.username}` : undefined}
-          submitLabel={userDialogMode === "edit" ? "Save changes" : userDialogMode === "password" ? "Set new password" : "Save roles"}
-          onSubmit={submitUserDialog}
-          onCancel={() => setUserDialogMode(null)}
-        >
-          {userDialogMode === "edit" ? (
-            <div className="form-dialog-grid">
-              <IdentityField id="update-user-email" label="Email" type="email" value={profileEmail} disabled onChange={(value) => { setProfileEmail(value); setProfileError(undefined); }} />
-              <IdentityField id="update-user-display" label="Display name" value={profileDisplayName} error={profileError} onChange={(value) => { setProfileDisplayName(value); setProfileError(undefined); }} />
-            </div>
-          ) : null}
-          {userDialogMode === "password" ? (
-            <div className="form-dialog-grid">
-              <IdentityField id="reset-user-password" label="New password" type="password" autoComplete="new-password" value={resetPassword} onChange={(password) => {
-                setResetPassword(password);
-                setResetPasswordError(undefined);
-              }} />
-              <IdentityField id="confirm-reset-user-password" label="Confirm new password" type="password" autoComplete="new-password" value={resetPasswordConfirm} error={resetPasswordError} onChange={(password) => {
-                setResetPasswordConfirm(password);
-                setResetPasswordError(undefined);
-              }} />
-            </div>
-          ) : null}
-          {userDialogMode === "roles" ? (
-            <RoleChoiceGroup roles={roleOptions} selected={assignedRoleIds} error={roleAssignmentError} onToggle={(roleId) => {
-              setAssignedRoleIds((current) => current.includes(roleId) ? current.filter((id) => id !== roleId) : [...current, roleId]);
-              setRoleAssignmentError(undefined);
-            }} />
-          ) : null}
-        </FormDialog>
       </Card>
     </>
-  );
-}
-
-function IdentityField({ id, label, value, error, type = "text", autoComplete, disabled, onChange }: {
-  id: string;
-  label: string;
-  value: string;
-  error?: string;
-  type?: "text" | "email" | "password";
-  autoComplete?: string;
-  disabled?: boolean;
-  onChange: (value: string) => void;
-}) {
-  return <FormField id={id} label={label} value={value} error={error} type={type} autoComplete={autoComplete} disabled={disabled} onChange={onChange} />;
-}
-
-function RoleChoiceGroup({ roles, selected, error, onToggle }: { roles: SecurityRole[]; selected: string[]; error?: string; onToggle: (roleId: string) => void }) {
-  return (
-    <fieldset className="security-choice-group security-permission-grid" aria-invalid={error ? "true" : undefined}>
-      <legend>Roles</legend>
-      {roles.map((role) => <label className="security-choice" key={role.id}><input type="checkbox" checked={selected.includes(role.id)} onChange={() => onToggle(role.id)} /><span>{role.name}</span></label>)}
-      {error ? <span className="field-error">{error}</span> : null}
-    </fieldset>
   );
 }
 
@@ -946,17 +538,4 @@ function SecurityItem({ title, enabled, badge, children }: { title: string; enab
       {children}
     </div>
   );
-}
-
-function upsertBy<T extends Record<K, string>, K extends keyof T>(items: T[], nextItem: T, key: K): T[] {
-  return [...items.filter((item) => item[key] !== nextItem[key]), nextItem].sort((left, right) => String(left[key]).localeCompare(String(right[key])));
-}
-
-function createInternalUserId(): string {
-  return `user-${crypto.randomUUID()}`;
-}
-
-function toRecoveryNotice(error: unknown, fallbackMessage: string) {
-  const message = error instanceof ApiError ? toFriendlyErrorMessage(error.errorCode, error.message) : fallbackMessage;
-  return createRecoveryNotice(error, message);
 }

@@ -5,8 +5,8 @@ status: active
 created_at: 2026-08-07
 updated_at: 2026-08-08
 current_task: null
-task_count: 21
-done_count: 21
+task_count: 22
+done_count: 22
 depends_on:
   - 030
 ---
@@ -53,24 +53,25 @@ without changing routes, API contracts, or user-facing behavior.
 | 031_019 | Protect imperative short-link discovery loads from stale responses | Correctness | done | 2026-08-08 |
 | 031_020 | Protect short-link share dialog reads from stale responses | Correctness | done | 2026-08-08 |
 | 031_021 | Decompose short-link admin mutation and dialog responsibilities | Refactor | done | 2026-08-08 |
+| 031_022 | Decompose security management mutation and dialog responsibilities | Refactor | done | 2026-08-08 |
 
 ## Current Task
 
-`031_021` is complete, but Phase 031 is not yet complete. The twenty-one tasks
+`031_022` is complete, but Phase 031 is not yet complete. The twenty-two tasks
 now provide feature boundaries, lazy route loading, cancellable discovery reads,
 a typed API client, centralized frontend contracts, focused data boundaries, a
 repeatable bundle/performance budget check, a verified dashboard pagination
 contract, silent expected cancellation, stale-safe short-link/share discovery,
-and focused short-link mutation/dialog boundaries. Remaining work is primarily
-page ownership decomposition in the security feature.
+focused short-link mutation/dialog boundaries, and focused security mutation and
+dialog boundaries. Remaining work is the role-permission workspace presentation.
 
 ## Next Task Proposal
 
-The next smallest task is to extract mutation and dialog orchestration from
-`SecurityManagementPage` while keeping its route behavior unchanged.
+The next smallest task is to extract the role-permission workspace presentation
+from `SecurityManagementPage` while keeping staged permission behavior unchanged.
 
-Proposed next task (not created yet): `031_022` - decompose security management
-mutation and dialog responsibilities.
+Proposed next task (not created yet): `031_023` - extract security role-permission
+workspace presentation.
 
 ## Task Notes
 
@@ -1127,4 +1128,62 @@ bun run check:performance
   data and lifecycle callbacks; share and QR dialogs remain separate.
 - Added pure mutation payload and expiry-editor regression coverage.
 - Architecture boundaries passed, 73 Bun tests passed, production build
+  completed, and the performance budget passed.
+
+### 031_022 - Decompose security management mutation and dialog responsibilities
+
+#### Step Goal
+
+Move security management mutation orchestration and user/role dialog rendering
+out of `SecurityManagementPage` while preserving routes, permissions, API
+contracts, and the existing users and roles workflows.
+
+#### Scope
+
+- Extract user and custom-role mutation state, validation, recovery, and
+  success handling into a focused security mutation hook.
+- Extract create-user, user-action, and custom-role dialog presentation into a
+  focused security dialog component.
+- Keep discovery, table filtering, role-permission workspace behavior, and page
+  access checks compatible.
+
+#### Acceptance Criteria
+
+- `SecurityManagementPage` no longer owns security mutation implementations or
+  inline user/role dialog markup.
+- Existing field validation, retry context, permission assignment, disable
+  confirmation, role deletion guard, toast copy, and dirty-form behavior remain
+  compatible.
+- Architecture check, frontend tests, production build, and performance budget
+  remain green.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/hooks/useSecurityMutations.ts`
+- `src/ShortenLink.Web/src/features/short-links/components/SecurityManagementDialogs.tsx`
+- `src/ShortenLink.Web/src/features/short-links/pages/SecurityManagementPage.tsx`
+- `src/ShortenLink.Web/test/security-mutations.test.ts`
+- `.okf/phase/031/PHASE_SUMMARY.md`
+
+#### Verification
+
+```powershell
+cd .\src\ShortenLink.Web
+bun run check:architecture
+bun test
+bun run check:performance
+```
+
+#### Done Notes
+
+- Added `useSecurityMutations` as the single owner for managed-user and custom-role
+  mutation state, validation, recovery notices, permission override persistence,
+  disable/delete confirmations, and dirty-form state.
+- Added `SecurityManagementDialogs` for create-user, user action, disable, and
+  delete dialog presentation; the page now passes state and callbacks instead of
+  owning the dialog markup.
+- Preserved discovery, access checks, role-permission staging, API contracts,
+  toast copy, and dirty-form callbacks.
+- Added role form and permission override boundary regression tests.
+- Architecture boundaries passed, 75 Bun tests passed, production build
   completed, and the performance budget passed.
