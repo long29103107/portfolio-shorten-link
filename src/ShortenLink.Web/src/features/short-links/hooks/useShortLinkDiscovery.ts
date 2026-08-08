@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../api/http";
 import { listShortLinks } from "../api/shortLinksApi";
+import { isCurrentRequestGeneration } from "../domain/requestLifecycle";
 import type { ShortLinkAdminItem, ShortLinkDiscoveryQuery } from "../types";
 import { toFriendlyErrorMessage } from "../types";
 import { createRecoveryNotice, type RecoveryNotice } from "../../../shared/api/recovery";
@@ -21,20 +22,29 @@ export function useShortLinkDiscovery() {
   const [discoveryQuery, setDiscoveryQuery] = useState<ShortLinkDiscoveryQuery>(
     defaultShortLinkDiscoveryQuery
   );
+  const requestVersion = useRef(0);
+  const activeController = useRef<AbortController | null>(null);
 
-  const loadLinks = useCallback(async (nextPageNumber = 1, signal?: AbortSignal) => {
+  const loadLinks = useCallback(async (nextPageNumber = 1) => {
+    activeController.current?.abort();
+    const controller = new AbortController();
+    activeController.current = controller;
+    const version = ++requestVersion.current;
     setIsLoading(true);
     setListFailure(null);
 
     try {
-      const result = await listShortLinks(pageSize, nextPageNumber, discoveryQuery, signal);
+      const result = await listShortLinks(pageSize, nextPageNumber, discoveryQuery, controller.signal);
+      if (!isCurrentRequestGeneration(version, requestVersion.current, controller.signal)) {
+        return null;
+      }
       setLinks(result.items);
       setTotalCount(result.totalCount ?? result.items.length);
       setTotalPages(result.totalPages ?? 1);
       setPageNumber(result.page ?? nextPageNumber);
       return result;
     } catch (error) {
-      if (signal?.aborted) return null;
+      if (!isCurrentRequestGeneration(version, requestVersion.current, controller.signal)) return null;
       const message = error instanceof ApiError
         ? toFriendlyErrorMessage(error.errorCode, error.message)
         : "We could not load links right now.";
@@ -44,14 +54,22 @@ export function useShortLinkDiscovery() {
       });
       return null;
     } finally {
-      if (!signal?.aborted) setIsLoading(false);
+      if (isCurrentRequestGeneration(version, requestVersion.current, controller.signal)) {
+        setIsLoading(false);
+        if (activeController.current === controller) {
+          activeController.current = null;
+        }
+      }
     }
   }, [discoveryQuery, pageSize]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void loadLinks(1, controller.signal);
-    return () => controller.abort();
+    void loadLinks(1);
+    return () => {
+      requestVersion.current += 1;
+      activeController.current?.abort();
+      activeController.current = null;
+    };
   }, [loadLinks]);
 
   return {

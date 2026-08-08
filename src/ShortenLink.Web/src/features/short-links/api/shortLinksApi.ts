@@ -201,9 +201,13 @@ export async function deleteCustomSecurityRole(id: string): Promise<SecurityRole
   );
 }
 
-export async function listShortLinkShares(code: string): Promise<ShortLinkSharesList> {
+export async function listShortLinkShares(
+  code: string,
+  signal?: AbortSignal
+): Promise<ShortLinkSharesList> {
   return apiClient.get<ShortLinkSharesList>(
-    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARES(code)
+    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARES(code),
+    signal ? { signal } : undefined
   );
 }
 

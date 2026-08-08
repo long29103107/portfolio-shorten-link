@@ -5,6 +5,7 @@ import {
   defaultShortLinkDiscoveryQuery,
   hasShortLinkDiscoveryCriteria
 } from "../src/features/short-links/components/ShortLinkDiscoveryToolbar";
+import { isCurrentRequestGeneration } from "../src/features/short-links/domain/requestLifecycle";
 
 describe("admin discovery", () => {
   test("serializes supported list discovery parameters", () => {
@@ -59,5 +60,15 @@ describe("admin discovery", () => {
       pageNumber: 1
     });
     expect(hasShortLinkDiscoveryCriteria(nextQuery)).toBe(true);
+  });
+
+  test("accepts only the current non-aborted discovery request generation", () => {
+    const controller = new AbortController();
+
+    expect(isCurrentRequestGeneration(2, 2, controller.signal)).toBe(true);
+    expect(isCurrentRequestGeneration(1, 2, controller.signal)).toBe(false);
+
+    controller.abort();
+    expect(isCurrentRequestGeneration(2, 2, controller.signal)).toBe(false);
   });
 });

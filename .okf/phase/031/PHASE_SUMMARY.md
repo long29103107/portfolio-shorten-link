@@ -5,8 +5,8 @@ status: active
 created_at: 2026-08-07
 updated_at: 2026-08-08
 current_task: null
-task_count: 18
-done_count: 18
+task_count: 20
+done_count: 20
 depends_on:
   - 030
 ---
@@ -50,23 +50,25 @@ without changing routes, API contracts, or user-facing behavior.
 | 031_016 | Add automated frontend bundle/performance checks | Performance | done | 2026-08-08 |
 | 031_017 | Correct dashboard recent-link pagination parameters | Correctness | done | 2026-08-08 |
 | 031_018 | Suppress user-facing failure toasts for expected request cancellation | Correctness | done | 2026-08-08 |
+| 031_019 | Protect imperative short-link discovery loads from stale responses | Correctness | done | 2026-08-08 |
+| 031_020 | Protect short-link share dialog reads from stale responses | Correctness | done | 2026-08-08 |
 
 ## Current Task
 
-`031_018` is complete, but Phase 031 is not yet complete. The eighteen tasks
-now provide feature boundaries, lazy route loading, cancellable discovery
-reads, a typed API client, centralized frontend contracts, focused data
-boundaries, a repeatable bundle/performance budget check, a verified dashboard
-pagination contract, and silent expected cancellation. Remaining work includes
-stale imperative discovery reads and page ownership.
+`031_020` is complete, but Phase 031 is not yet complete. The twenty tasks now
+provide feature boundaries, lazy route loading, cancellable discovery reads, a
+typed API client, centralized frontend contracts, focused data boundaries, a
+repeatable bundle/performance budget check, a verified dashboard pagination
+contract, silent expected cancellation, and stale-safe short-link/share
+discovery. Remaining work is primarily page ownership decomposition.
 
 ## Next Task Proposal
 
-The next smallest task is to make imperative short-link discovery loads
-stale-response-safe, including pagination, retry, and refresh commands.
+The next smallest task is to extract mutation and dialog orchestration from
+`ShortLinkAdminPage` while keeping its route behavior unchanged.
 
-Proposed next task (not created yet): `031_019` - protect imperative short-link
-discovery loads from stale responses.
+Proposed next task (not created yet): `031_021` - decompose short-link admin
+mutation and dialog responsibilities.
 
 ## Task Notes
 
@@ -940,4 +942,133 @@ bun run check:performance
   kept abort errors observable to signal-aware hooks.
 - Added a transport regression test proving an aborted request emits no toast.
 - Architecture boundaries passed, 68 Bun tests passed, production build
+  completed, and the performance budget passed.
+
+### 031_019 - Protect imperative short-link discovery loads from stale responses
+
+#### Step Goal
+
+Make every short-link discovery command stale-response-safe, including
+pagination, retry, refresh, criteria changes, and unmount cleanup, while
+preserving the existing list API, recovery UI, and query behavior.
+
+#### Scope
+
+- Move active `AbortController` and request-generation ownership into
+  `useShortLinkDiscovery`.
+- Abort the previous generation whenever `loadLinks` starts a new request.
+- Ignore stale success, failure, and loading completions before they update
+  links, pagination, recovery, or loading state.
+- Keep the public hook command simple so page callers do not pass lifecycle
+  signals manually.
+- Add a regression test for current, aborted, and stale request generations.
+
+#### Acceptance Criteria
+
+- Initial discovery, pagination, retry, refresh, criteria changes, and unmount
+  all cancel or invalidate obsolete requests.
+- A stale response cannot overwrite links, totals, page number, failure state,
+  or loading state from a newer request.
+- Existing retry page, pagination bounds, discovery query, API URL, and user
+  facing recovery behavior remain compatible.
+- Architecture check, frontend tests, production build, and performance budget
+  remain green.
+
+#### Foundation for Next Step
+
+Short-link discovery now has one lifecycle owner for both Effect and imperative
+loads. The next task can address another concrete async race or proceed to
+page-level ownership decomposition without exposing request cancellation to
+page callers.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/domain/requestLifecycle.ts`
+- `src/ShortenLink.Web/src/features/short-links/hooks/useShortLinkDiscovery.ts`
+- `src/ShortenLink.Web/test/admin-discovery.test.ts`
+- `.okf/phase/031/PHASE_SUMMARY.md`
+
+#### Verification
+
+```powershell
+cd .\src\ShortenLink.Web
+bun run check:architecture
+bun test
+bun run check:performance
+```
+
+#### Done Notes
+
+- Added `isCurrentRequestGeneration` as the pure request-generation guard for
+  short-link discovery.
+- Moved active controller and generation ownership into
+  `useShortLinkDiscovery`; every imperative load now aborts the previous one and
+  ignores stale success, failure, and loading completions.
+- Removed signal lifecycle arguments from page callers while preserving list
+  query, pagination, retry, refresh, recovery, and cancellation behavior.
+- Architecture boundaries passed, 69 Bun tests passed, production build
+  completed, and the performance budget passed.
+
+### 031_020 - Protect short-link share dialog reads from stale responses
+
+#### Step Goal
+
+Make share-dialog access discovery cancellation- and stale-response-safe when
+switching links, closing the dialog, or unmounting, without changing share
+mutations or the rendered sharing workflow.
+
+#### Scope
+
+- Add optional `AbortSignal` support to `listShortLinkShares`.
+- Abort the previous share read during link changes, close, and unmount
+  cleanup.
+- Guard success, failure, and loading completion with the current request
+  generation so an API implementation that resolves after abort cannot update
+  another link's dialog state.
+- Keep sharing-mode updates, add/remove mutations, confirmation flow, and error
+  copy unchanged.
+
+#### Acceptance Criteria
+
+- Share access reads receive an abort signal and are cancelled on dialog
+  cleanup.
+- A stale share response or failure cannot replace the current link's shares,
+  mode, error, or loading state.
+- Expected cancellation does not show a failure state or false toast.
+- Existing share API paths, mutation behavior, and rendered workflow remain
+  compatible.
+- Architecture check, frontend tests, production build, and performance budget
+  remain green.
+
+#### Foundation for Next Step
+
+Share-dialog discovery now follows the same cancellable stale-safe read contract
+as the main short-link list. The next task can address another async boundary
+or proceed to page ownership decomposition.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/api/shortLinksApi.ts`
+- `src/ShortenLink.Web/src/features/short-links/components/ShortLinkShareDialog.tsx`
+- `src/ShortenLink.Web/test/share-discovery.test.ts`
+- `.okf/phase/031/PHASE_SUMMARY.md`
+
+#### Verification
+
+```powershell
+cd .\src\ShortenLink.Web
+bun run check:architecture
+bun test
+bun run check:performance
+```
+
+#### Done Notes
+
+- Added optional `AbortSignal` propagation to `listShortLinkShares`.
+- Added share-dialog request generation and cleanup guards so switching links,
+  closing, or unmounting cannot publish stale shares, mode, error, or loading
+  state.
+- Preserved share mutation, confirmation, API route, and rendered behavior.
+- Added signal-propagation and current-generation regression tests.
+- Architecture boundaries passed, 71 Bun tests passed, production build
   completed, and the performance budget passed.

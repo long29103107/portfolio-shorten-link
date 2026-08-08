@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   deleteShortLinkShare,
   listShortLinkShares,
@@ -6,6 +6,7 @@ import {
   upsertShortLinkShare
 } from "../api/shortLinksApi";
 import { ApiError } from "../api/http";
+import { isCurrentRequestGeneration } from "../domain/requestLifecycle";
 import { HTTP_STATUS } from "../../../shared/constants/http";
 import type { ShortLinkAdminItem, ShortLinkShare, ShortLinkSharingMode } from "../types";
 import { ConfirmDialog } from "../../../shared/components/ConfirmDialog";
@@ -27,20 +28,38 @@ export function ShortLinkShareDialog({ link, onClose }: ShortLinkShareDialogProp
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<ShortLinkShare | null>(null);
+  const requestVersion = useRef(0);
 
   useEffect(() => {
-    if (!link) return;
+    const controller = new AbortController();
+    const version = ++requestVersion.current;
+
+    if (!link) {
+      setIsLoading(false);
+      return () => controller.abort();
+    }
+
     setIsLoading(true);
     setError(null);
     setSharingMode("AllowList");
     setShares([]);
-    void listShortLinkShares(link.code)
+    void listShortLinkShares(link.code, controller.signal)
       .then((result) => {
+        if (!isCurrentRequestGeneration(version, requestVersion.current, controller.signal)) return;
         setSharingMode(result.mode);
         setShares(result.items);
       })
-      .catch((caught) => setError(getShareError(caught, "Sharing information could not be loaded.")))
-      .finally(() => setIsLoading(false));
+      .catch((caught) => {
+        if (!isCurrentRequestGeneration(version, requestVersion.current, controller.signal)) return;
+        setError(getShareError(caught, "Sharing information could not be loaded."));
+      })
+      .finally(() => {
+        if (isCurrentRequestGeneration(version, requestVersion.current, controller.signal)) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => controller.abort();
   }, [link]);
 
   if (!link) return null;
