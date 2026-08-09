@@ -10,7 +10,9 @@ public sealed record ShortLinkListQuery(
     DateTimeOffset Now,
     ShortLinkAccessScope? AccessScope = null,
     DateTimeOffset? BeforeCreatedAt = null,
-    string? BeforeCode = null);
+    string? BeforeCode = null,
+    string? Folder = null,
+    string? Tag = null);
 
 public sealed record ShortLinkAccessScope(
     string? UserId,

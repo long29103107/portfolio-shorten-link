@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using ShortenLink.Core;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Security;
 
@@ -14,6 +15,8 @@ internal sealed record ShortLinkPersistenceReadModel(
     int? MaxClicks,
     int ClickCount,
     string? PasswordHash,
+    string? Folder,
+    string Tags,
     bool IsActive,
     string? CreatedByUserId,
     string? CreatedByDisplayName,
@@ -32,6 +35,8 @@ internal sealed record ShortLinkPersistenceReadModel(
             entity.MaxClicks,
             entity.ClickCount,
             entity.PasswordHash,
+            entity.Folder,
+            entity.Tags,
             entity.IsActive,
             entity.CreatedByUserId,
             entity.CreatedByDisplayName,
@@ -55,7 +60,9 @@ internal sealed record ShortLinkPersistenceReadModel(
             activeFrom: ActiveFrom,
             maxClicks: MaxClicks,
             clickCount: ClickCount,
-            passwordHash: PasswordHash);
+            passwordHash: PasswordHash,
+            folder: Folder,
+            tags: ShortLinkOrganization.ParseTags(Tags));
 }
 
 internal sealed record ShortLinkClickPersistenceReadModel(
@@ -65,7 +72,12 @@ internal sealed record ShortLinkClickPersistenceReadModel(
     DateTimeOffset ClickedAtUtc,
     string? RemoteIpAddress,
     string? UserAgent,
-    string? Referrer)
+    string? Referrer,
+    string? Device,
+    string? Browser,
+    string? OperatingSystem,
+    string? CountryCode,
+    string? VisitorKeyHash)
 {
     public static Expression<Func<ShortLinkClickPersistenceEntity, ShortLinkClickPersistenceReadModel>>
         Projection { get; } = entity => new(
@@ -75,10 +87,27 @@ internal sealed record ShortLinkClickPersistenceReadModel(
             entity.ClickedAtUtc,
             entity.RemoteIpAddress,
             entity.UserAgent,
-            entity.Referrer);
+            entity.Referrer,
+            entity.Device,
+            entity.Browser,
+            entity.OperatingSystem,
+            entity.CountryCode,
+            entity.VisitorKeyHash);
 
     public ShortLinkClick ToDomain() =>
-        new(ShortCode, ClickedAtUtc, RemoteIpAddress, UserAgent, Referrer, Id, TenantId);
+        new(
+            ShortCode,
+            ClickedAtUtc,
+            RemoteIpAddress,
+            UserAgent,
+            Referrer,
+            Id,
+            TenantId,
+            Device,
+            Browser,
+            OperatingSystem,
+            CountryCode,
+            VisitorKeyHash);
 }
 
 internal sealed record AuditEventPersistenceReadModel(

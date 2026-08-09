@@ -18,6 +18,7 @@ using ShortenLink.Api;
 using ShortenLink.Application.Abstractions;
 using ShortenLink.Application.Contracts.Responses;
 using ShortenLink.Hosting;
+using ShortenLink.Core.Analytics;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence.Entities;
 using ShortenLink.Core.Services;
@@ -454,6 +455,79 @@ public sealed class ShortLinkEndpointsTests
     }
 
     [Fact]
+    public async Task ShortLinkOrganization_NormalizesMetadataAndSupportsCreateUpdateAndFilters()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var createResponse = await client.PostAsJsonAsync("/api/short-links", new
+        {
+            originalUrl = "https://example.com/organized",
+            expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+            folder = " Campaign ",
+            tags = new[] { "Launch", " launch ", "Email" }
+        });
+        var created = await createResponse.Content.ReadFromJsonAsync<ShortLinkCreatedResponse>();
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        Assert.NotNull(created);
+        Assert.Equal("campaign", created.Folder);
+        Assert.Equal(new[] { "launch", "email" }, created.Tags);
+
+        using var updateResponse = await client.PutAsJsonAsync($"/api/short-links/{created.Code}", new
+        {
+            originalUrl = "https://example.com/organized-updated",
+            expiredAtUtc = new DateTimeOffset(2026, 7, 21, 0, 0, 0, TimeSpan.Zero),
+            folder = " Social ",
+            tags = new[] { "Launch", "Social" }
+        });
+        var updated = await updateResponse.Content.ReadFromJsonAsync<ShortLinkAdminListItemResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        Assert.NotNull(updated);
+        Assert.Equal("social", updated.Folder);
+        Assert.Equal(new[] { "launch", "social" }, updated.Tags);
+
+        using var detailResponse = await client.GetAsync($"/api/short-links/{created.Code}");
+        var details = await detailResponse.Content.ReadFromJsonAsync<ShortLinkDetailsResponse>();
+        Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+        Assert.Equal("social", details?.Folder);
+        Assert.Equal(new[] { "launch", "social" }, details?.Tags);
+
+        using var folderListResponse = await client.GetAsync("/api/short-links?limit=10&folder=SOCIAL");
+        var folderList = await folderListResponse.Content.ReadFromJsonAsync<ShortLinkAdminListResponse>();
+        using var tagListResponse = await client.GetAsync("/api/short-links?limit=10&tag=LAUNCH");
+        var tagList = await tagListResponse.Content.ReadFromJsonAsync<ShortLinkAdminListResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, folderListResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, tagListResponse.StatusCode);
+        Assert.Contains(folderList?.Items ?? [], item => item.Code == created.Code);
+        Assert.Contains(tagList?.Items ?? [], item => item.Code == created.Code);
+    }
+
+    [Fact]
+    public async Task PostCreate_ReturnsBadRequestForInvalidOrganizationMetadata()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/short-links", new
+        {
+            originalUrl = "https://example.com/invalid-organization",
+            expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+            folder = new string('x', 129)
+        });
+        var payload = await response.Content.ReadFromJsonAsync<ShortLinkErrorResponse>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(ShortLinkErrorCodes.InvalidFolder, payload?.ErrorCode);
+        Assert.Contains("folder", payload?.FieldErrors?.Keys ?? []);
+    }
+
+    [Fact]
     public async Task PostCreate_ScheduledLinkIsExposedAndCannotRedirectBeforeActivation()
     {
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
@@ -532,6 +606,53 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal("https://example.com/password-protected", correctResponse.Headers.Location?.AbsoluteUri);
         Assert.Equal(HttpStatusCode.Gone, exhaustedResponse.StatusCode);
         Assert.Equal(ShortLinkErrorCodes.ClickLimitReached, exhaustedPayload?.ErrorCode);
+    }
+
+    [Fact]
+    public async Task PasswordProtectedLink_BrowserCanUnlockWithFormBeforeRedirect()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var created = await CreateShortLinkAsync(
+            client,
+            "https://example.com/browser-password-prompt",
+            password: "browser-secret");
+
+        using var browserRequest = new HttpRequestMessage(HttpMethod.Get, $"/{created.Code}");
+        browserRequest.Headers.TryAddWithoutValidation("Accept", "text/html");
+        using var promptResponse = await client.SendAsync(browserRequest);
+        var promptHtml = await promptResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, promptResponse.StatusCode);
+        Assert.Equal("text/html", promptResponse.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("Enter password to continue", promptHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"password\"", promptHtml, StringComparison.Ordinal);
+        Assert.Contains($"<code>{created.Code}</code>", promptHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("browser-secret", promptHtml, StringComparison.Ordinal);
+
+        using var wrongResponse = await client.PostAsync(
+            $"/{created.Code}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["password"] = "wrong-password"
+            }));
+        var wrongHtml = await wrongResponse.Content.ReadAsStringAsync();
+
+        using var correctResponse = await client.PostAsync(
+            $"/{created.Code}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["password"] = "browser-secret"
+            }));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongResponse.StatusCode);
+        Assert.Contains("That password is not correct", wrongHtml, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Redirect, correctResponse.StatusCode);
+        Assert.Equal("https://example.com/browser-password-prompt", correctResponse.Headers.Location?.AbsoluteUri);
     }
 
     [Fact]
@@ -2348,6 +2469,56 @@ public sealed class ShortLinkEndpointsTests
     }
 
     [Fact]
+    public async Task GetAnalytics_ReturnsAdvancedDimensionsAndUniqueClicks()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+        var created = await CreateShortLinkAsync(client, "https://example.com/advanced-analytics");
+        var baseTime = new DateTimeOffset(2026, 7, 15, 13, 0, 0, TimeSpan.Zero);
+        const string chromeUserAgent =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36";
+        const string firefoxUserAgent =
+            "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0";
+
+        await factory.SeedClickAsync(
+            created.Code,
+            baseTime,
+            "127.0.0.1",
+            chromeUserAgent,
+            "https://example.com/campaign",
+            "us");
+        await factory.SeedClickAsync(
+            created.Code,
+            baseTime.AddMinutes(1),
+            "127.0.0.1",
+            chromeUserAgent,
+            "https://example.com/campaign",
+            "us");
+        await factory.SeedClickAsync(
+            created.Code,
+            baseTime.AddMinutes(2),
+            "127.0.0.2",
+            firefoxUserAgent,
+            null,
+            "de");
+
+        using var response = await client.GetAsync($"/api/short-links/{created.Code}/analytics");
+        var payload = await response.Content.ReadFromJsonAsync<ShortLinkAnalyticsResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(payload);
+        Assert.Equal(3, payload.ClickCount);
+        Assert.Equal(2, payload.UniqueClickCount);
+        Assert.Equal(3, payload.Devices!.Single(item => item.Name == "Desktop").Count);
+        Assert.Equal(2, payload.Browsers!.Single(item => item.Name == "Chrome").Count);
+        Assert.Equal(2, payload.OperatingSystems!.Single(item => item.Name == "Windows").Count);
+        Assert.Equal(2, payload.Referrers!.Single(item => item.Name == "https://example.com/campaign").Count);
+        Assert.Equal(2, payload.Countries!.Single(item => item.Name == "US").Count);
+        Assert.DoesNotContain(payload.RecentClicks, click => click.VisitorKeyHash is not null);
+        Assert.Contains(payload.RecentClicks, click => click.Device == "Desktop");
+    }
+
+    [Fact]
     public async Task GetAnalytics_ReturnsEmptyAnalyticsForLinkWithoutClicks()
     {
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
@@ -3344,19 +3515,22 @@ public sealed class ShortLinkEndpointsTests
             DateTimeOffset clickedAtUtc,
             string? remoteIpAddress,
             string? userAgent,
-            string? referrer)
+            string? referrer,
+            string? countryCode = null)
         {
             using var scope = Services.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ShortLinkDbContext>();
             await dbContext.Database.EnsureCreatedAsync();
 
             var repository = new EfCoreShortLinkClickRepository(dbContext);
+            var metadata = ShortLinkClickMetadata.FromRequest(remoteIpAddress, userAgent, countryCode);
             await repository.AddAsync(new ShortLinkClick(
                 shortCode,
                 clickedAtUtc,
                 remoteIpAddress,
                 userAgent,
-                referrer));
+                referrer,
+                metadata: metadata));
         }
 
         public async Task SeedShortLinkAsync(
@@ -3574,7 +3748,9 @@ public sealed class ShortLinkEndpointsTests
         DateTimeOffset? ExpiredAtUtc = null,
         int? MaxClicks = null,
         int ClickCount = 0,
-        bool IsPasswordProtected = false);
+        bool IsPasswordProtected = false,
+        string? Folder = null,
+        IReadOnlyList<string>? Tags = null);
 
     private sealed record ShortLinkDetailsResponse(
         string Code,
@@ -3584,19 +3760,37 @@ public sealed class ShortLinkEndpointsTests
         bool IsActive,
         DateTimeOffset? ActiveFromUtc = null,
         int? MaxClicks = null,
-        int ClickCount = 0);
+        int ClickCount = 0,
+        bool IsPasswordProtected = false,
+        string? Folder = null,
+        IReadOnlyList<string>? Tags = null);
 
     private sealed record ShortLinkAnalyticsResponse(
         string Code,
         long ClickCount,
         DateTimeOffset? LastClickedAtUtc,
-        IReadOnlyList<ShortLinkClickActivityResponse> RecentClicks);
+        IReadOnlyList<ShortLinkClickActivityResponse> RecentClicks,
+        long? UniqueClickCount = null,
+        IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? Devices = null,
+        IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? Browsers = null,
+        IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? OperatingSystems = null,
+        IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? Referrers = null,
+        IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? Countries = null);
 
     private sealed record ShortLinkClickActivityResponse(
         DateTimeOffset ClickedAtUtc,
         string? RemoteIpAddress,
         string? UserAgent,
-        string? Referrer);
+        string? Referrer,
+        string? Device = null,
+        string? Browser = null,
+        string? OperatingSystem = null,
+        string? CountryCode = null,
+        string? VisitorKeyHash = null);
+
+    private sealed record ShortLinkAnalyticsDimensionResponse(
+        string Name,
+        long Count);
 
     private sealed record SecurityAssignmentsListResponse(
         IReadOnlyList<SecurityAssignmentResponse> Items);
@@ -3693,7 +3887,9 @@ public sealed class ShortLinkEndpointsTests
         DateTimeOffset? ActiveFromUtc = null,
         int? MaxClicks = null,
         int ClickCount = 0,
-        bool IsPasswordProtected = false);
+        bool IsPasswordProtected = false,
+        string? Folder = null,
+        IReadOnlyList<string>? Tags = null);
 
     private sealed record ShortLinkAdminListResponse(
         IReadOnlyList<ShortLinkAdminListItemResponse> Items,

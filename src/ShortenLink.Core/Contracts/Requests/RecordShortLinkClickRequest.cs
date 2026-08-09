@@ -6,4 +6,9 @@ public sealed record RecordShortLinkClickRequest(
     string? RemoteIpAddress,
     string? UserAgent,
     string? Referrer,
-    string? TenantId = null);
+    string? TenantId = null,
+    string? Device = null,
+    string? Browser = null,
+    string? OperatingSystem = null,
+    string? CountryCode = null,
+    string? VisitorKeyHash = null);

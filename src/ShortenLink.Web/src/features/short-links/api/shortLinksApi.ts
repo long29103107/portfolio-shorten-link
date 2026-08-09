@@ -129,6 +129,14 @@ export function buildShortLinkQueryParams(
       filter: buildShortLinkFilterExpression(discovery),
       sort: buildShortLinkSortExpression(discovery)
     });
+    const folder = discovery.folder?.trim() ?? "";
+    const tag = discovery.tag?.trim() ?? "";
+    if (folder) {
+      params.set("folder", folder);
+    }
+    if (tag) {
+      params.set("tag", tag);
+    }
   }
 
   return params;

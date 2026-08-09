@@ -92,6 +92,22 @@ internal sealed class ShortenLinkExceptionEndpointFilter : IEndpointFilter
             };
         }
 
+        if (errorCode == ShortLinkErrorCodes.InvalidFolder)
+        {
+            return new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["folder"] = [message]
+            };
+        }
+
+        if (errorCode == ShortLinkErrorCodes.InvalidTags)
+        {
+            return new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["tags"] = [message]
+            };
+        }
+
         var field = errorCode switch
         {
             ShortLinkErrorCodes.InvalidUrl => "originalUrl",

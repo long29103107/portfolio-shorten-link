@@ -1,6 +1,8 @@
+using ShortenLink.Core;
 using ShortenLink.Core.Security;
 using ShortenLink.Core.Querying;
 using ShortenLink.Core.Contracts.Requests;
+using ShortenLink.Core.Services;
 using ShortenLink.Mediator;
 using System.Text.RegularExpressions;
 
@@ -55,12 +57,16 @@ internal sealed class ListShortLinksQueryHandler(
     {
         var parameters = request.Params;
         ValidateFilter(parameters.Fe);
+        var folder = NormalizeFolderFilter(parameters.Folder);
+        var tag = NormalizeTagFilter(parameters.Tag);
         var user = await accessGuard.GetAuthorizedUserAsync(
             ShortenLinkPermissionCatalog.ShortLinksRead, cancellationToken);
         var scope = await accessGuard.CreateScopeAsync(user, cancellationToken);
         var limit = Math.Clamp(parameters.Limit ?? 100, 1, 500);
         var hasListQuery = parameters.Page is not null
             || !string.IsNullOrWhiteSpace(parameters.Fe)
+            || folder is not null
+            || tag is not null
             || !string.IsNullOrWhiteSpace(parameters.Sort);
 
         var parsedSort = ShortLinkListQueryParameterParser.ParseSort(parameters.Sort);
@@ -85,7 +91,9 @@ internal sealed class ListShortLinksQueryHandler(
                 cursorCreatedAt!.Value,
                 cursorCode,
                 scope,
-                cancellationToken);
+                cancellationToken,
+                folder,
+                tag);
             var cursorItems = cursorPage.Items.Take(limit).ToList();
             var filteredNextCursor = cursorPage.Items.Count > limit && cursorItems.Count > 0
                 ? ShortLinkFeatureSupport.EncodeCursor(
@@ -107,7 +115,9 @@ internal sealed class ListShortLinksQueryHandler(
                 sortBy,
                 direction,
                 scope,
-                cancellationToken);
+                cancellationToken,
+                folder,
+                tag);
             return new ShortLinkAdminListResponse(
                 result.Items.Select(link => Map(link, request.BaseUrl, scope)).ToList(),
                 null,
@@ -178,6 +188,41 @@ internal sealed class ListShortLinksQueryHandler(
                 ErrorCodes.InvalidFilter,
                 exception.Message);
         }
+    }
+
+    private static string? NormalizeFolderFilter(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var normalized = ShortLinkOrganization.NormalizeFolder(value);
+        if (normalized is null || normalized.Length > ShortLinkOrganization.MaxFolderLength)
+        {
+            throw new RequestValidationException(
+                ShortLinkErrorCodes.InvalidFolder,
+                $"Folder must be at most {ShortLinkOrganization.MaxFolderLength} characters.");
+        }
+
+        return normalized;
+    }
+
+    private static string? NormalizeTagFilter(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        if (!ShortLinkOrganization.TryNormalize(
+                null,
+                new[] { value },
+                out _,
+                out var tags,
+                out var errorCode,
+                out var errorMessage))
+        {
+            throw new RequestValidationException(errorCode!, errorMessage!);
+        }
+
+        return tags.Single();
     }
 
     private sealed class ShortLinkFilterFields

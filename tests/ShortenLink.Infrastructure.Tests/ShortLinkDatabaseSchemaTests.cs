@@ -52,6 +52,8 @@ public sealed class ShortLinkDatabaseSchemaTests
             await ShortLinkDatabaseSchema.EnsureScheduledActivationSchemaAsync(dbContext);
             await ShortLinkDatabaseSchema.EnsureClickLimitSchemaAsync(dbContext);
             await ShortLinkDatabaseSchema.EnsurePasswordProtectionSchemaAsync(dbContext);
+            await ShortLinkDatabaseSchema.EnsureAdvancedAnalyticsSchemaAsync(dbContext);
+            await ShortLinkDatabaseSchema.EnsureOrganizationSchemaAsync(dbContext);
             await ShortLinkDatabaseSchema.EnsureUtcTimestampSchemaAsync(dbContext);
         }
 
@@ -64,6 +66,19 @@ public sealed class ShortLinkDatabaseSchemaTests
             "short_link_expiration_checkpoints");
         Assert.Contains("IX_short_link_audit_events_OccurredAt_Id", indexes);
         Assert.Contains("IX_short_link_expiration_checkpoints_TenantId", checkpointIndexes);
+
+        var clickColumns = await ReadColumnNamesAsync(connection, "short_link_clicks");
+        Assert.Contains("Device", clickColumns);
+        Assert.Contains("Browser", clickColumns);
+        Assert.Contains("OperatingSystem", clickColumns);
+        Assert.Contains("CountryCode", clickColumns);
+        Assert.Contains("VisitorKeyHash", clickColumns);
+
+        var shortLinkColumns = await ReadColumnNamesAsync(connection, "short_links");
+        Assert.Contains("Folder", shortLinkColumns);
+        Assert.Contains("Tags", shortLinkColumns);
+        var shortLinkIndexes = await ReadIndexNamesAsync(connection, "short_links");
+        Assert.Contains("IX_short_links_Folder", shortLinkIndexes);
     }
 
     private static async Task<HashSet<string>> ReadIndexNamesAsync(
@@ -78,6 +93,22 @@ public sealed class ShortLinkDatabaseSchemaTests
         while (await reader.ReadAsync())
         {
             names.Add(reader.GetString(0));
+        }
+
+        return names;
+    }
+
+    private static async Task<HashSet<string>> ReadColumnNamesAsync(
+        SqliteConnection connection,
+        string tableName)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info(\"{tableName}\")";
+        await using var reader = await command.ExecuteReaderAsync();
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        while (await reader.ReadAsync())
+        {
+            names.Add(reader.GetString(1));
         }
 
         return names;

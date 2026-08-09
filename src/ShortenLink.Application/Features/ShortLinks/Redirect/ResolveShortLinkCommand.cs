@@ -1,6 +1,7 @@
 using ShortenLink.Mediator;
 using ShortenLink.Application.Abstractions;
 using ShortenLink.Core.Abstractions;
+using ShortenLink.Core.Analytics;
 using ShortenLink.Core.Services;
 using CoreResolveShortLinkResponse = ShortenLink.Core.Contracts.Responses.ResolveShortLinkResponse;
 
@@ -13,7 +14,8 @@ public sealed record ResolveShortLinkCommand(
     string? Referrer,
     bool EnableFallback,
     string? FallbackPath,
-    string? Password = null) : IRequest<ResolveShortLinkResponse>;
+    string? Password = null,
+    string? CountryCode = null) : IRequest<ResolveShortLinkResponse>;
 
 public sealed record ResolveShortLinkResponse(string Location);
 
@@ -38,6 +40,10 @@ internal sealed class ResolveShortLinkCommandHandler(
                     "The configured resolve provider does not support tenant partitions.");
         if (result.Succeeded && result.ShortLink is not null)
         {
+            var metadata = ShortLinkClickMetadata.FromRequest(
+                request.RemoteIpAddress,
+                request.UserAgent,
+                request.CountryCode);
             await clickRecorder.RecordAsync(
                 new RecordShortLinkClickRequest(
                     result.ShortLink.Code,
@@ -45,7 +51,12 @@ internal sealed class ResolveShortLinkCommandHandler(
                     request.RemoteIpAddress,
                     request.UserAgent,
                     request.Referrer,
-                    result.ShortLink.TenantId),
+                    result.ShortLink.TenantId,
+                    metadata.Device,
+                    metadata.Browser,
+                    metadata.OperatingSystem,
+                    metadata.CountryCode,
+                    metadata.VisitorKeyHash),
                 cancellationToken);
             return new ResolveShortLinkResponse(result.ShortLink.OriginalUrl.AbsoluteUri);
         }

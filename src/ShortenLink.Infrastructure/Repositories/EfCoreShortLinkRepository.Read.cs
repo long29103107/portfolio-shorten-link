@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ShortenLink.Core;
 using ShortenLink.Core.Querying;
 using ShortenLink.Core.Security;
 using ShortenLink.Infrastructure.Persistence;
@@ -234,6 +235,7 @@ public sealed partial class EfCoreShortLinkRepository
             out var cursorAppliedInSql);
 
         var filtered = ApplyAccessScope(statusScoped, query.AccessScope);
+        filtered = ApplyOrganizationFilters(filtered, query);
         filtered = filtered.ApplyFilter(query.FilterExpression, FilterableProperties);
         var totalCount = await filtered.CountAsync(cancellationToken);
         var orderedQuery = ApplySort(filtered, query);
@@ -305,6 +307,24 @@ public sealed partial class EfCoreShortLinkRepository
             : query.Where(record => record.CreatedByUserId == userId
                 || record.SharingMode == ShortLinkSharingMode.Public
                 || sharedCodes.Contains(record.Code));
+    }
+
+    private static IQueryable<ShortLinkPersistenceEntity> ApplyOrganizationFilters(
+        IQueryable<ShortLinkPersistenceEntity> query,
+        ShortLinkListQuery listQuery)
+    {
+        if (!string.IsNullOrWhiteSpace(listQuery.Folder))
+        {
+            query = query.Where(record => record.Folder == listQuery.Folder);
+        }
+
+        if (!string.IsNullOrWhiteSpace(listQuery.Tag))
+        {
+            var serializedTag = ShortLinkOrganization.SerializeSingleTag(listQuery.Tag);
+            query = query.Where(record => record.Tags.Contains(serializedTag));
+        }
+
+        return query;
     }
 
     private static IQueryable<ShortLinkPersistenceEntity> ApplySort(

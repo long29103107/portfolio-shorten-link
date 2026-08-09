@@ -74,7 +74,9 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         ShortLinkListSortBy sortBy,
         ShortLinkSortDirection sortDirection,
         ShortLinkAccessScope accessScope,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? folder = null,
+        string? tag = null)
     {
         accessScope = NormalizeTenantScope(accessScope);
         var now = timeProvider.GetUtcNow();
@@ -83,7 +85,9 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             sortBy,
             sortDirection,
             now,
-            accessScope);
+            accessScope,
+            Folder: folder,
+            Tag: tag);
         return repository.ListPageAsync(
             Math.Max(skip, 0),
             Math.Clamp(limit, 1, 500),
@@ -99,7 +103,9 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         DateTimeOffset beforeCreatedAt,
         string? beforeCode,
         ShortLinkAccessScope accessScope,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? folder = null,
+        string? tag = null)
     {
         accessScope = NormalizeTenantScope(accessScope);
         var now = timeProvider.GetUtcNow();
@@ -110,7 +116,9 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             now,
             accessScope,
             beforeCreatedAt,
-            string.IsNullOrWhiteSpace(beforeCode) ? null : beforeCode.Trim());
+            string.IsNullOrWhiteSpace(beforeCode) ? null : beforeCode.Trim(),
+            folder,
+            tag);
         return repository.ListPageAsync(
             0,
             Math.Clamp(limit, 1, 501),

@@ -1,4 +1,5 @@
 using ShortenLink.Core.Security;
+using ShortenLink.Core;
 
 namespace ShortenLink.Core.Domain;
 
@@ -20,7 +21,9 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         DateTimeOffset? activeFrom = null,
         int? maxClicks = null,
         int clickCount = 0,
-        string? passwordHash = null)
+        string? passwordHash = null,
+        string? folder = null,
+        IEnumerable<string>? tags = null)
         : base(createdAt, technicalId ?? Guid.CreateVersion7())
     {
         ShortCodeValidator.ValidateCodeOrThrow(code);
@@ -62,6 +65,21 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         MaxClicks = maxClicks;
         ClickCount = clickCount;
         PasswordHash = Normalize(passwordHash);
+        if (!ShortLinkOrganization.TryNormalize(
+                folder,
+                tags,
+                out var normalizedFolder,
+                out var normalizedTags,
+                out var organizationErrorCode,
+                out var organizationErrorMessage))
+        {
+            throw new ArgumentException(
+                organizationErrorMessage ?? organizationErrorCode ?? "Short-link organization metadata is invalid.",
+                nameof(folder));
+        }
+
+        Folder = normalizedFolder;
+        Tags = normalizedTags;
     }
 
     public string Code { get; }
@@ -79,6 +97,10 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
     public string? PasswordHash { get; }
 
     public bool IsPasswordProtected => PasswordHash is not null;
+
+    public string? Folder { get; }
+
+    public IReadOnlyList<string> Tags { get; }
 
     public bool IsActive { get; private set; }
 

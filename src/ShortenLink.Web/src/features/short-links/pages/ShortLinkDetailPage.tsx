@@ -130,6 +130,14 @@ export function ShortLinkDetailPage({ code, onBackHome }: ShortLinkDetailPagePro
           <dt>Protection</dt>
           <dd>{details.isPasswordProtected ? "Password protected" : "Public link"}</dd>
         </div>
+        <div>
+          <dt>Folder</dt>
+          <dd>{details.folder ?? "Uncategorized"}</dd>
+        </div>
+        <div>
+          <dt>Tags</dt>
+          <dd>{details.tags.length > 0 ? details.tags.join(", ") : "No tags"}</dd>
+        </div>
       </dl>
 
       {errorMessage ? <p className="feedback feedback-error">{errorMessage}</p> : null}

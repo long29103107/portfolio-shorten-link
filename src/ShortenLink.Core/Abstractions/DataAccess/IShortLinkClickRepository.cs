@@ -1,4 +1,5 @@
 using ShortenLink.Core.Domain;
+using ShortenLink.Core.Contracts.Responses;
 
 namespace ShortenLink.Core.Abstractions;
 
@@ -27,5 +28,20 @@ public interface ITenantAwareShortLinkClickRepository
         string shortCode,
         string tenantId,
         int limit,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAdvancedShortLinkClickRepository
+{
+    Task<ShortLinkClickAnalyticsSummary> GetAnalyticsAsync(
+        string shortCode,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ITenantAwareAdvancedShortLinkClickRepository
+{
+    Task<ShortLinkClickAnalyticsSummary> GetAnalyticsAsync(
+        string shortCode,
+        string tenantId,
         CancellationToken cancellationToken = default);
 }

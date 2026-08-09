@@ -102,6 +102,14 @@ export function RecentLinkPanel({ recentLink }: RecentLinkPanelProps) {
           <dt>Clicks</dt>
           <dd>{recentLink.clickCount} / {recentLink.maxClicks ?? "Unlimited"}</dd>
         </div>
+        <div>
+          <dt>Folder</dt>
+          <dd>{recentLink.folder ?? "Uncategorized"}</dd>
+        </div>
+        <div>
+          <dt>Tags</dt>
+          <dd>{recentLink.tags.length > 0 ? recentLink.tags.join(", ") : "No tags"}</dd>
+        </div>
       </dl>
 
       {copyState === "error" ? (

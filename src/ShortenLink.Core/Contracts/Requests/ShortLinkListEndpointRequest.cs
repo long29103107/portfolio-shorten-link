@@ -11,4 +11,8 @@ public sealed class ShortLinkListEndpointRequest : ListRequest
     public int? Limit { get; set; }
 
     public string? Cursor { get; set; }
+
+    public string? Folder { get; set; }
+
+    public string? Tag { get; set; }
 }

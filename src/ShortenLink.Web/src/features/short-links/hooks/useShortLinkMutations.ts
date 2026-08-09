@@ -15,6 +15,7 @@ import type {
 } from "../types";
 import { toFriendlyErrorMessage } from "../types";
 import { toDateTimeLocalValue as formatDateTimeLocal } from "../domain/expiryPresentation";
+import { formatTagInput, parseTagInput } from "../domain/organization";
 import {
   hasShortLinkFieldErrors,
   mapShortLinkApiFieldErrors,
@@ -42,6 +43,8 @@ const emptyEditForm: ShortLinkFormInput = {
   expiredAtLocal: "",
   maxClicksLocal: "",
   passwordLocal: "",
+  folderLocal: "",
+  tagsLocal: "",
   clearPassword: false
 };
 
@@ -52,6 +55,8 @@ export function buildShortLinkMutationPayload(form: ShortLinkFormInput) {
     activeFromUtc: form.activeFromLocal ? new Date(form.activeFromLocal).toISOString() : null,
     expiredAtUtc: new Date(form.expiredAtLocal).toISOString(),
     maxClicks: form.maxClicksLocal.trim() ? Number(form.maxClicksLocal) : null,
+    folder: (form.folderLocal ?? "").trim() || null,
+    tags: parseTagInput(form.tagsLocal ?? ""),
     ...(password.trim() ? { password } : {}),
     ...(form.clearPassword ? { clearPassword: true } : {})
   };
@@ -89,6 +94,8 @@ export function useShortLinkMutations({
       || editForm.expiredAtLocal !== initialEditForm.expiredAtLocal
       || editForm.maxClicksLocal !== initialEditForm.maxClicksLocal
       || editForm.passwordLocal !== initialEditForm.passwordLocal
+      || editForm.folderLocal !== initialEditForm.folderLocal
+      || editForm.tagsLocal !== initialEditForm.tagsLocal
       || editForm.clearPassword !== initialEditForm.clearPassword);
 
   const handleDeactivate = async (code: string) => {
@@ -156,6 +163,8 @@ export function useShortLinkMutations({
       expiredAtLocal: toEditorExpiryValue(link.expiredAtUtc),
       maxClicksLocal: link.maxClicks === null ? "" : String(link.maxClicks),
       passwordLocal: "",
+      folderLocal: link.folder ?? "",
+      tagsLocal: formatTagInput(link.tags),
       clearPassword: false
     };
     setEditForm(nextForm);
@@ -252,6 +261,8 @@ export function useShortLinkMutations({
       const updated = await updateShortLink(code, {
         ...payload,
         password: payload.password ?? null,
+        folder: editForm.folderLocal.trim(),
+        tags: parseTagInput(editForm.tagsLocal),
         clearPassword: payload.clearPassword ?? false
       });
       setLinks((current) =>

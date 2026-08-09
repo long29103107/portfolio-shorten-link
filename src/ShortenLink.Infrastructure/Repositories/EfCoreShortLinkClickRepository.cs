@@ -1,5 +1,7 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using ShortenLink.Core;
+using ShortenLink.Core.Contracts.Responses;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Persistence.ReadModels;
@@ -9,6 +11,8 @@ namespace ShortenLink.Infrastructure.Repositories;
 public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
     : EfCoreRepository<ShortLinkClickPersistenceEntity>(dbContext), IShortLinkClickRepository
       , ITenantAwareShortLinkClickRepository
+      , IAdvancedShortLinkClickRepository
+      , ITenantAwareAdvancedShortLinkClickRepository
 {
     public async Task AddAsync(
         ShortLinkClick shortLinkClick,
@@ -45,6 +49,17 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
         string tenantId,
         CancellationToken cancellationToken = default) =>
         GetSummaryCoreAsync(shortCode, tenantId, cancellationToken);
+
+    public Task<ShortLinkClickAnalyticsSummary> GetAnalyticsAsync(
+        string shortCode,
+        CancellationToken cancellationToken = default) =>
+        GetAnalyticsCoreAsync(shortCode, null, cancellationToken);
+
+    public Task<ShortLinkClickAnalyticsSummary> GetAnalyticsAsync(
+        string shortCode,
+        string tenantId,
+        CancellationToken cancellationToken = default) =>
+        GetAnalyticsCoreAsync(shortCode, tenantId, cancellationToken);
 
     public async Task<IReadOnlyList<ShortLinkClick>> ListRecentAsync(
         string shortCode,
@@ -91,6 +106,74 @@ public sealed class EfCoreShortLinkClickRepository(ShortLinkDbContext dbContext)
             clickCount,
             lastClickedAtUtc);
     }
+
+    private async Task<ShortLinkClickAnalyticsSummary> GetAnalyticsCoreAsync(
+        string shortCode,
+        string? tenantId,
+        CancellationToken cancellationToken)
+    {
+        ShortCodeValidator.ValidateCodeOrThrow(shortCode);
+        if (tenantId is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+        }
+
+        var query = ReadOnlyEntities.Where(click => click.ShortCode == shortCode);
+        if (tenantId is not null)
+        {
+            query = query.Where(click => click.TenantId == tenantId);
+        }
+
+        var clickCount = await query.LongCountAsync(cancellationToken);
+        var lastClickedAtUtc = clickCount == 0
+            ? null
+            : await query
+                .OrderByDescending(click => click.ClickedAtUtc)
+                .Select(click => (DateTimeOffset?)click.ClickedAtUtc)
+                .FirstAsync(cancellationToken);
+        var uniqueClickCount = await query
+            .Where(click => click.VisitorKeyHash != null)
+            .Select(click => click.VisitorKeyHash!)
+            .Distinct()
+            .LongCountAsync(cancellationToken);
+
+        return new ShortLinkClickAnalyticsSummary(
+            shortCode,
+            clickCount,
+            uniqueClickCount,
+            lastClickedAtUtc,
+            await CountDimensionAsync(query, click => click.Device, cancellationToken),
+            await CountDimensionAsync(query, click => click.Browser, cancellationToken),
+            await CountDimensionAsync(query, click => click.OperatingSystem, cancellationToken),
+            await CountDimensionAsync(query, click => click.Referrer, cancellationToken),
+            await CountDimensionAsync(query, click => click.CountryCode, cancellationToken));
+    }
+
+    private static async Task<IReadOnlyList<ShortLinkClickDimensionSummary>> CountDimensionAsync(
+        IQueryable<ShortLinkClickPersistenceEntity> query,
+        Expression<Func<ShortLinkClickPersistenceEntity, string?>> selector,
+        CancellationToken cancellationToken)
+    {
+        var rows = await query
+            .Select(selector)
+            .Where(value => value != null)
+            .GroupBy(value => value!)
+            .Select(group => new
+            {
+                Name = group.Key,
+                Count = group.LongCount()
+            })
+            .OrderByDescending(item => item.Count)
+            .ThenBy(item => item.Name)
+            .Take(MaxDimensionRows)
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Select(item => new ShortLinkClickDimensionSummary(item.Name, item.Count))
+            .ToList();
+    }
+
+    private const int MaxDimensionRows = 25;
 
     private async Task<IReadOnlyList<ShortLinkClick>> ListRecentCoreAsync(
         string shortCode,

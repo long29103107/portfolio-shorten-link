@@ -9,6 +9,8 @@ public static class ShortLinkErrorCodes
     public const string InvalidMaxClicks = "invalid_max_clicks";
     public const string ClickLimitNotSupported = "click_limit_not_supported";
     public const string InvalidPassword = "invalid_password";
+    public const string InvalidFolder = "invalid_folder";
+    public const string InvalidTags = "invalid_tags";
     public const string PasswordRequired = "password_required";
     public const string InvalidLinkPassword = "invalid_link_password";
     public const string InvalidCode = "invalid_code";

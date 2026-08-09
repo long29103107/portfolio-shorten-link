@@ -9,6 +9,7 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { showToast } from "@/shared/toast";
 import { ExpiryQuickPicks } from "./ExpiryQuickPicks";
+import { parseTagInput } from "../domain/organization";
 import {
   hasShortLinkFieldErrors,
   mapShortLinkApiFieldErrors,
@@ -26,6 +27,8 @@ const initialForm: ShortLinkFormInput = {
   expiredAtLocal: "",
   maxClicksLocal: "",
   passwordLocal: "",
+  folderLocal: "",
+  tagsLocal: "",
   clearPassword: false
 };
 
@@ -57,7 +60,9 @@ export function CreateShortLinkForm({
         activeFromUtc: form.activeFromLocal ? new Date(form.activeFromLocal).toISOString() : null,
         expiredAtUtc: new Date(form.expiredAtLocal).toISOString(),
         maxClicks: form.maxClicksLocal.trim() ? Number(form.maxClicksLocal) : null,
-        password: form.passwordLocal.trim() ? form.passwordLocal : null
+        password: form.passwordLocal.trim() ? form.passwordLocal : null,
+        folder: form.folderLocal.trim() || null,
+        tags: parseTagInput(form.tagsLocal)
       });
 
       onCreated(createdLink);
@@ -197,6 +202,37 @@ export function CreateShortLinkForm({
         ) : null}
         <span className="field-hint">Anyone opening the short link must provide this password.</span>
       </Label>
+
+      <div className="field-grid">
+        <Label className="field">
+          <span className="field-label">Folder <span className="muted">(optional)</span></span>
+          <Input
+            maxLength={128}
+            placeholder="e.g. marketing"
+            value={form.folderLocal}
+            aria-invalid={fieldErrors.folderLocal ? "true" : undefined}
+            aria-describedby={fieldErrors.folderLocal ? "create-folder-error" : undefined}
+            onChange={(event) => setForm((current) => ({ ...current, folderLocal: event.target.value }))}
+          />
+          {fieldErrors.folderLocal ? (
+            <span id="create-folder-error" className="field-error">{fieldErrors.folderLocal}</span>
+          ) : null}
+        </Label>
+        <Label className="field">
+          <span className="field-label">Tags <span className="muted">(optional)</span></span>
+          <Input
+            placeholder="campaign, launch"
+            value={form.tagsLocal}
+            aria-invalid={fieldErrors.tagsLocal ? "true" : undefined}
+            aria-describedby={fieldErrors.tagsLocal ? "create-tags-error" : undefined}
+            onChange={(event) => setForm((current) => ({ ...current, tagsLocal: event.target.value }))}
+          />
+          {fieldErrors.tagsLocal ? (
+            <span id="create-tags-error" className="field-error">{fieldErrors.tagsLocal}</span>
+          ) : null}
+          <span className="field-hint">Separate tags with commas.</span>
+        </Label>
+      </div>
 
       {errorMessage ? <p className="feedback feedback-error">{errorMessage}</p> : null}
       </CardContent>

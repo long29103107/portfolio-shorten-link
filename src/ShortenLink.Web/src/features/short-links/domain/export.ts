@@ -10,6 +10,8 @@ export const shortLinkCsvHeaders = [
   "Click Count",
   "Max Clicks",
   "Password Protected",
+  "Folder",
+  "Tags",
   "Status",
   "Access",
   "Created By"
@@ -26,6 +28,8 @@ export function serializeShortLinksCsv(items: readonly ShortLinkAdminItem[]): st
     String(link.clickCount),
     link.maxClicks === null ? "Unlimited" : String(link.maxClicks),
     link.isPasswordProtected ? "Yes" : "No",
+    link.folder ?? "",
+    link.tags.join(", "),
     link.activeFromUtc && new Date(link.activeFromUtc) > new Date() && link.isActive ? "Scheduled" : link.isActive ? "Active" : "Inactive",
     link.accessLevel ?? "",
     link.createdByDisplayName ?? link.createdByUsername ?? link.createdByUserId ?? ""

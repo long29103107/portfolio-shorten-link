@@ -18,6 +18,8 @@ export type ShortLinkFormInput = {
   expiredAtLocal: string;
   maxClicksLocal: string;
   passwordLocal: string;
+  folderLocal: string;
+  tagsLocal: string;
   clearPassword: boolean;
 };
 
@@ -27,6 +29,8 @@ export type CreateShortLinkRequest = {
   expiredAtUtc: string;
   maxClicks: number | null;
   password: string | null;
+  folder: string | null;
+  tags: string[];
 };
 
 export type UpdateShortLinkRequest = {
@@ -36,6 +40,8 @@ export type UpdateShortLinkRequest = {
   maxClicks: number | null;
   password: string | null;
   clearPassword: boolean;
+  folder?: string | null;
+  tags?: string[] | null;
 };
 
 export type CreatedShortLink = {
@@ -48,6 +54,8 @@ export type CreatedShortLink = {
   maxClicks: number | null;
   clickCount: number;
   isPasswordProtected: boolean;
+  folder: string | null;
+  tags: string[];
 };
 
 export type ShortLinkDetails = {
@@ -60,6 +68,8 @@ export type ShortLinkDetails = {
   maxClicks: number | null;
   clickCount: number;
   isPasswordProtected: boolean;
+  folder: string | null;
+  tags: string[];
 };
 
 export type ShortLinkAdminItem = {
@@ -73,6 +83,8 @@ export type ShortLinkAdminItem = {
   maxClicks: number | null;
   clickCount: number;
   isPasswordProtected: boolean;
+  folder: string | null;
+  tags: string[];
   createdByUserId: string | null;
   createdByDisplayName: string | null;
   createdByUsername: string | null;
@@ -109,6 +121,17 @@ export type ShortLinkAnalytics = {
   clickCount: number;
   lastClickedAtUtc: string | null;
   recentClicks: ShortLinkClickActivity[];
+  uniqueClickCount: number | null;
+  devices: ShortLinkAnalyticsDimension[] | null;
+  browsers: ShortLinkAnalyticsDimension[] | null;
+  operatingSystems: ShortLinkAnalyticsDimension[] | null;
+  referrers: ShortLinkAnalyticsDimension[] | null;
+  countries: ShortLinkAnalyticsDimension[] | null;
+};
+
+export type ShortLinkAnalyticsDimension = {
+  name: string;
+  count: number;
 };
 
 export type ShortLinkClickActivity = {
@@ -116,6 +139,10 @@ export type ShortLinkClickActivity = {
   remoteIpAddress: string | null;
   userAgent: string | null;
   referrer: string | null;
+  device: string | null;
+  browser: string | null;
+  operatingSystem: string | null;
+  countryCode: string | null;
 };
 
 export type AuditLogEvent = {
@@ -219,6 +246,8 @@ export type ShortLinkDiscoveryQuery = {
   status: ShortLinkStatusFilter;
   sortBy: ShortLinkSortField;
   sortDirection: ShortLinkSortDirection;
+  folder: string;
+  tag: string;
 };
 
 export type SecurityCurrentUser = {
@@ -366,6 +395,10 @@ export function toFriendlyErrorMessage(errorCode: string, fallbackMessage: strin
       return "Enter a positive whole-number click limit, or leave it blank for unlimited clicks.";
     case "invalid_password":
       return "Enter a non-empty password of 256 characters or fewer.";
+    case "invalid_folder":
+      return "Folder must be 128 characters or fewer.";
+    case "invalid_tags":
+      return "Use up to 20 tags, with each tag 64 characters or fewer.";
     case "password_required":
       return "This short link requires a password before it can be opened.";
     case "invalid_link_password":

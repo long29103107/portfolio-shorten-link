@@ -24,7 +24,12 @@ internal sealed class ClickWorker(
             request.RemoteIpAddress,
             request.UserAgent,
             request.Referrer,
-            tenantId: request.TenantId);
+            tenantId: request.TenantId,
+            device: request.Device,
+            browser: request.Browser,
+            operatingSystem: request.OperatingSystem,
+            countryCode: request.CountryCode,
+            visitorKeyHash: request.VisitorKeyHash);
 
         await repository.AddAsync(shortLinkClick, cancellationToken);
     }

@@ -72,6 +72,48 @@ internal sealed class PostgresSchemaDialect : IDatabaseSchemaDialect
             "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"PasswordHash\" character varying(512);",
             cancellationToken);
 
+    public async Task EnsureAdvancedAnalyticsSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN IF NOT EXISTS \"Device\" character varying(32);",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN IF NOT EXISTS \"Browser\" character varying(64);",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN IF NOT EXISTS \"OperatingSystem\" character varying(64);",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN IF NOT EXISTS \"CountryCode\" character varying(8);",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN IF NOT EXISTS \"VisitorKeyHash\" character varying(64);",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_short_link_clicks_ShortCode_VisitorKeyHash\" ON \"short_link_clicks\" (\"ShortCode\", \"VisitorKeyHash\");",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_short_link_clicks_TenantId_ShortCode_VisitorKeyHash\" ON \"short_link_clicks\" (\"TenantId\", \"ShortCode\", \"VisitorKeyHash\");",
+            cancellationToken);
+    }
+
+    public async Task EnsureOrganizationSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"Folder\" character varying(128);",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"Tags\" character varying(2048) NOT NULL DEFAULT '';",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_short_links_Folder\" ON \"short_links\" (\"Folder\");",
+            cancellationToken);
+    }
+
     private const string AuditEventsSchema = """
         CREATE TABLE IF NOT EXISTS "short_link_audit_events" (
             "Id" uuid NOT NULL CONSTRAINT "PK_short_link_audit_events" PRIMARY KEY,

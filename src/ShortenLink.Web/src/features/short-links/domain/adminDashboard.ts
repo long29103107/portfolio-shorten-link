@@ -44,7 +44,9 @@ export function buildDashboardLinkDiscovery(
       search: "",
       status,
       sortBy: "created",
-      sortDirection: "desc"
+      sortDirection: "desc",
+      folder: "",
+      tag: ""
     }
   };
 }

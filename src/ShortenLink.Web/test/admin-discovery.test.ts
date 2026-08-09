@@ -46,6 +46,20 @@ describe("admin discovery", () => {
     expect(params.toString()).not.toContain("%2528");
   });
 
+  test("serializes folder and tag filters as explicit API query parameters", () => {
+    const params = buildShortLinkQueryParams(25, 1, {
+      search: "",
+      status: "all",
+      sortBy: "created",
+      sortDirection: "desc",
+      folder: " campaign ",
+      tag: " Launch "
+    });
+
+    expect(params.get("folder")).toBe("campaign");
+    expect(params.get("tag")).toBe("Launch");
+  });
+
   test("omits an empty search while preserving explicit defaults", () => {
     expect(buildShortLinkListUrl(25, 1, defaultShortLinkDiscoveryQuery)).toBe(
       "/api/short-links?limit=25&page=1&sort=-CreatedAt"

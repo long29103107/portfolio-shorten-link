@@ -1,4 +1,4 @@
-import type { ShortLinkAnalytics } from "../types";
+import type { ShortLinkAnalytics, ShortLinkAnalyticsDimension } from "../types";
 import { formatDateTime } from "../types";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Button } from "@/shared/components/ui/button";
@@ -12,6 +12,32 @@ type ShortLinkAnalyticsDialogProps = {
   onClose: () => void;
   onRetry: () => void;
 };
+
+function AnalyticsBreakdown({
+  title,
+  items
+}: {
+  title: string;
+  items: ShortLinkAnalyticsDimension[] | null;
+}) {
+  if (!items || items.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="analytics-breakdown">
+      <h3>{title}</h3>
+      <ul>
+        {items.map((item) => (
+          <li key={`${title}-${item.name}`}>
+            <span>{item.name}</span>
+            <strong>{item.count}</strong>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function ShortLinkAnalyticsDialog({
   code,
@@ -64,9 +90,21 @@ export function ShortLinkAnalyticsDialog({
                 <strong>{data.clickCount}</strong>
               </div>
               <div>
+                <span>Unique visitors</span>
+                <strong>{data.uniqueClickCount ?? "Unavailable"}</strong>
+              </div>
+              <div>
                 <span>Last clicked</span>
                 <strong>{data.lastClickedAtUtc ? formatDateTime(data.lastClickedAtUtc) : "No clicks yet"}</strong>
               </div>
+            </div>
+
+            <div className="analytics-breakdown-grid">
+              <AnalyticsBreakdown title="Devices" items={data.devices} />
+              <AnalyticsBreakdown title="Browsers" items={data.browsers} />
+              <AnalyticsBreakdown title="Operating systems" items={data.operatingSystems} />
+              <AnalyticsBreakdown title="Countries" items={data.countries} />
+              <AnalyticsBreakdown title="Referrers" items={data.referrers} />
             </div>
 
             {data.recentClicks.length === 0 ? (
@@ -86,6 +124,22 @@ export function ShortLinkAnalyticsDialog({
                       <div>
                         <dt>Referrer</dt>
                         <dd>{click.referrer || "Direct or unavailable"}</dd>
+                      </div>
+                      <div>
+                        <dt>Device</dt>
+                        <dd>{click.device || "Unavailable"}</dd>
+                      </div>
+                      <div>
+                        <dt>Browser</dt>
+                        <dd>{click.browser || "Unavailable"}</dd>
+                      </div>
+                      <div>
+                        <dt>Operating system</dt>
+                        <dd>{click.operatingSystem || "Unavailable"}</dd>
+                      </div>
+                      <div>
+                        <dt>Country</dt>
+                        <dd>{click.countryCode || "Unavailable"}</dd>
                       </div>
                       <div>
                         <dt>Remote IP</dt>

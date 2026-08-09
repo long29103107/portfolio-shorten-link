@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using ShortenLink.Auditing;
+using ShortenLink.Core.Contracts.Responses;
 using ShortenLink.Core.Domain;
 using ShortenLink.Core.Security;
 
@@ -14,10 +15,12 @@ public sealed record ShortLinkCreatedResponse(
     DateTimeOffset? ExpiredAtUtc = null,
     int? MaxClicks = null,
     int ClickCount = 0,
-    bool IsPasswordProtected = false)
+    bool IsPasswordProtected = false,
+    string? Folder = null,
+    IReadOnlyList<string>? Tags = null)
 {
     public static ShortLinkCreatedResponse FromDomain(ShortLink shortLink, string shortUrl) =>
-        new(shortLink.Code, shortUrl, shortLink.OriginalUrl.AbsoluteUri, shortLink.CreatedAt, shortLink.ActiveFrom, shortLink.ExpiresAt, shortLink.MaxClicks, shortLink.ClickCount, shortLink.IsPasswordProtected);
+        new(shortLink.Code, shortUrl, shortLink.OriginalUrl.AbsoluteUri, shortLink.CreatedAt, shortLink.ActiveFrom, shortLink.ExpiresAt, shortLink.MaxClicks, shortLink.ClickCount, shortLink.IsPasswordProtected, shortLink.Folder, shortLink.Tags);
 }
 
 public sealed record ShortLinkAdminListItemResponse(
@@ -34,7 +37,9 @@ public sealed record ShortLinkAdminListItemResponse(
     DateTimeOffset? ActiveFromUtc = null,
     int? MaxClicks = null,
     int ClickCount = 0,
-    bool IsPasswordProtected = false)
+    bool IsPasswordProtected = false,
+    string? Folder = null,
+    IReadOnlyList<string>? Tags = null)
 {
     public static ShortLinkAdminListItemResponse FromDomain(
         ShortLink shortLink,
@@ -54,7 +59,9 @@ public sealed record ShortLinkAdminListItemResponse(
             shortLink.ActiveFrom,
             shortLink.MaxClicks,
             shortLink.ClickCount,
-            shortLink.IsPasswordProtected);
+            shortLink.IsPasswordProtected,
+            shortLink.Folder,
+            shortLink.Tags);
 }
 
 public sealed record ShortLinkAdminListResponse(
@@ -98,7 +105,9 @@ public sealed record ShortLinkDetailsResponse(
     DateTimeOffset? ActiveFromUtc = null,
     int? MaxClicks = null,
     int ClickCount = 0,
-    bool IsPasswordProtected = false)
+    bool IsPasswordProtected = false,
+    string? Folder = null,
+    IReadOnlyList<string>? Tags = null)
 {
     public static ShortLinkDetailsResponse FromDomain(ShortLink shortLink) =>
         new(
@@ -110,35 +119,80 @@ public sealed record ShortLinkDetailsResponse(
             shortLink.ActiveFrom,
             shortLink.MaxClicks,
             shortLink.ClickCount,
-            shortLink.IsPasswordProtected);
+            shortLink.IsPasswordProtected,
+            shortLink.Folder,
+            shortLink.Tags);
 }
 
 public sealed record ShortLinkAnalyticsResponse(
     string Code,
     long ClickCount,
     DateTimeOffset? LastClickedAtUtc,
-    IReadOnlyList<ShortLinkClickActivityResponse> RecentClicks)
+    IReadOnlyList<ShortLinkClickActivityResponse> RecentClicks,
+    long? UniqueClickCount = null,
+    IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? Devices = null,
+    IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? Browsers = null,
+    IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? OperatingSystems = null,
+    IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? Referrers = null,
+    IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? Countries = null)
 {
     public static ShortLinkAnalyticsResponse FromClicks(
         string code,
         ShortLinkClickSummaryResponse summary,
         IReadOnlyList<ShortLinkClickEntity> recentClicks) =>
+        FromClicks(code, summary, recentClicks, null);
+
+    public static ShortLinkAnalyticsResponse FromClicks(
+        string code,
+        ShortLinkClickSummaryResponse summary,
+        IReadOnlyList<ShortLinkClickEntity> recentClicks,
+        ShortLinkClickAnalyticsSummary? advancedSummary) =>
         new(
             code,
             summary.ClickCount,
             summary.LastClickedAtUtc,
-            recentClicks.Select(ShortLinkClickActivityResponse.FromDomain).ToList());
+            recentClicks.Select(ShortLinkClickActivityResponse.FromDomain).ToList(),
+            advancedSummary?.UniqueClickCount,
+            ToDimensions(advancedSummary?.Devices),
+            ToDimensions(advancedSummary?.Browsers),
+            ToDimensions(advancedSummary?.OperatingSystems),
+            ToDimensions(advancedSummary?.Referrers),
+            ToDimensions(advancedSummary?.Countries));
+
+    private static IReadOnlyList<ShortLinkAnalyticsDimensionResponse>? ToDimensions(
+        IReadOnlyList<ShortLinkClickDimensionSummary>? dimensions) =>
+        dimensions?
+            .Select(static dimension => new ShortLinkAnalyticsDimensionResponse(
+                dimension.Name,
+                dimension.Count))
+            .ToList();
 }
 
 public sealed record ShortLinkClickActivityResponse(
     DateTimeOffset ClickedAtUtc,
     string? RemoteIpAddress,
     string? UserAgent,
-    string? Referrer)
+    string? Referrer,
+    string? Device = null,
+    string? Browser = null,
+    string? OperatingSystem = null,
+    string? CountryCode = null)
 {
     public static ShortLinkClickActivityResponse FromDomain(ShortLinkClickEntity click) =>
-        new(click.ClickedAtUtc, click.RemoteIpAddress, click.UserAgent, click.Referrer);
+        new(
+            click.ClickedAtUtc,
+            click.RemoteIpAddress,
+            click.UserAgent,
+            click.Referrer,
+            click.Device,
+            click.Browser,
+            click.OperatingSystem,
+            click.CountryCode);
 }
+
+public sealed record ShortLinkAnalyticsDimensionResponse(
+    string Name,
+    long Count);
 
 public sealed record SecurityLoginResponse(
     string Token,

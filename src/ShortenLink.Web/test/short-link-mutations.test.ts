@@ -17,7 +17,9 @@ test("builds the API payload from normalized editor values", () => {
     originalUrl: "https://example.com/docs",
     activeFromUtc: null,
     expiredAtUtc: new Date(form.expiredAtLocal).toISOString(),
-    maxClicks: 3
+    maxClicks: 3,
+    folder: null,
+    tags: []
   });
 });
 

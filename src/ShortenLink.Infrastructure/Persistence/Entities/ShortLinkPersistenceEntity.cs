@@ -1,3 +1,4 @@
+using ShortenLink.Core;
 using ShortenLink.Core.Security;
 
 namespace ShortenLink.Infrastructure.Persistence.Entities;
@@ -17,6 +18,10 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
     public int ClickCount { get; set; }
 
     public string? PasswordHash { get; set; }
+
+    public string? Folder { get; set; }
+
+    public string Tags { get; set; } = string.Empty;
 
     public bool IsActive { get; set; }
 
@@ -47,6 +52,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             MaxClicks = shortLink.MaxClicks,
             ClickCount = shortLink.ClickCount,
             PasswordHash = shortLink.PasswordHash,
+            Folder = shortLink.Folder,
+            Tags = ShortLinkOrganization.SerializeTags(shortLink.Tags),
             IsActive = shortLink.IsActive,
             CreatedByUserId = shortLink.CreatedByUserId,
             CreatedByDisplayName = shortLink.CreatedByDisplayName,
@@ -74,7 +81,9 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             activeFrom: ActiveFrom,
             maxClicks: MaxClicks,
             clickCount: ClickCount,
-            passwordHash: PasswordHash);
+            passwordHash: PasswordHash,
+            folder: Folder,
+            tags: ShortLinkOrganization.ParseTags(Tags));
 
     public void UpdateFromDomain(ShortLink shortLink)
     {
@@ -87,6 +96,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
         MaxClicks = shortLink.MaxClicks;
         ClickCount = shortLink.ClickCount;
         PasswordHash = shortLink.PasswordHash;
+        Folder = shortLink.Folder;
+        Tags = ShortLinkOrganization.SerializeTags(shortLink.Tags);
         IsActive = shortLink.IsActive;
         CreatedByUserId = shortLink.CreatedByUserId;
         CreatedByDisplayName = shortLink.CreatedByDisplayName;

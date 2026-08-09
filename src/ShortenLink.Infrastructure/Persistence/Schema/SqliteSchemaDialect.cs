@@ -115,6 +115,72 @@ internal sealed class SqliteSchemaDialect : IDatabaseSchemaDialect
             "ALTER TABLE \"short_links\" ADD COLUMN \"PasswordHash\" TEXT NULL;",
             cancellationToken);
 
+    public async Task EnsureAdvancedAnalyticsSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        await EnsureColumnAsync(
+            dbContext,
+            "short_link_clicks",
+            "Device",
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN \"Device\" TEXT NULL;",
+            cancellationToken);
+        await EnsureColumnAsync(
+            dbContext,
+            "short_link_clicks",
+            "Browser",
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN \"Browser\" TEXT NULL;",
+            cancellationToken);
+        await EnsureColumnAsync(
+            dbContext,
+            "short_link_clicks",
+            "OperatingSystem",
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN \"OperatingSystem\" TEXT NULL;",
+            cancellationToken);
+        await EnsureColumnAsync(
+            dbContext,
+            "short_link_clicks",
+            "CountryCode",
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN \"CountryCode\" TEXT NULL;",
+            cancellationToken);
+        await EnsureColumnAsync(
+            dbContext,
+            "short_link_clicks",
+            "VisitorKeyHash",
+            "ALTER TABLE \"short_link_clicks\" ADD COLUMN \"VisitorKeyHash\" TEXT NULL;",
+            cancellationToken);
+        if (await TableExistsAsync(dbContext, "short_link_clicks", cancellationToken))
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "CREATE INDEX IF NOT EXISTS \"IX_short_link_clicks_ShortCode_VisitorKeyHash\" ON \"short_link_clicks\" (\"ShortCode\", \"VisitorKeyHash\");",
+                cancellationToken);
+            await dbContext.Database.ExecuteSqlRawAsync(
+                "CREATE INDEX IF NOT EXISTS \"IX_short_link_clicks_TenantId_ShortCode_VisitorKeyHash\" ON \"short_link_clicks\" (\"TenantId\", \"ShortCode\", \"VisitorKeyHash\");",
+                cancellationToken);
+        }
+    }
+
+    public async Task EnsureOrganizationSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        await EnsureColumnAsync(
+            dbContext,
+            "short_links",
+            "Folder",
+            "ALTER TABLE \"short_links\" ADD COLUMN \"Folder\" TEXT NULL;",
+            cancellationToken);
+        await EnsureColumnAsync(
+            dbContext,
+            "short_links",
+            "Tags",
+            "ALTER TABLE \"short_links\" ADD COLUMN \"Tags\" TEXT NOT NULL DEFAULT '';",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_short_links_Folder\" ON \"short_links\" (\"Folder\");",
+            cancellationToken);
+    }
+
     private static string CreateTimestampNormalizationSql(
         string table,
         string column) =>

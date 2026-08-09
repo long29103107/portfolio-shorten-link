@@ -16,6 +16,8 @@ internal sealed class ShortLinkConfiguration : IEntityTypeConfiguration<ShortLin
         entity.Property(link => link.IsActive).IsRequired();
         entity.Property(link => link.ClickCount).IsRequired().HasDefaultValue(0);
         entity.Property(link => link.PasswordHash).HasMaxLength(512);
+        entity.Property(link => link.Folder).HasMaxLength(128);
+        entity.Property(link => link.Tags).HasMaxLength(2048).IsRequired().HasDefaultValue(string.Empty);
         entity.Property(link => link.CreatedByUserId).HasMaxLength(128);
         entity.Property(link => link.CreatedByDisplayName).HasMaxLength(256);
         entity.Property(link => link.CreatedByUsername).HasMaxLength(256);
@@ -25,6 +27,7 @@ internal sealed class ShortLinkConfiguration : IEntityTypeConfiguration<ShortLin
         entity.HasIndex(link => link.CreatedAt);
         entity.HasIndex(link => link.ExpiresAt);
         entity.HasIndex(link => link.ActiveFrom);
+        entity.HasIndex(link => link.Folder);
         entity.HasIndex(link => link.IsActive);
         entity.HasIndex(link => new { link.TenantId, link.CreatedAt, link.Code })
             .HasDatabaseName("IX_short_links_TenantId_CreatedAt_Code");

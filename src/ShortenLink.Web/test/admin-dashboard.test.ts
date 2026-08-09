@@ -25,7 +25,9 @@ describe("admin dashboard snapshot", () => {
         search: "",
         status: "all",
         sortBy: "created",
-        sortDirection: "desc"
+        sortDirection: "desc",
+        folder: "",
+        tag: ""
       }
     });
     expect(buildShortLinkListUrl(request.limit, request.page, request.discovery)).toBe(

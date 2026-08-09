@@ -39,7 +39,9 @@ public interface IShortLinkService
         ShortLinkListSortBy sortBy,
         ShortLinkSortDirection sortDirection,
         ShortLinkAccessScope accessScope,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? folder = null,
+        string? tag = null);
 
     Task<ShortLinkListPage> ListAccessibleCursorPageAsync(
         int limit,
@@ -49,7 +51,9 @@ public interface IShortLinkService
         DateTimeOffset beforeCreatedAt,
         string? beforeCode,
         ShortLinkAccessScope accessScope,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken = default,
+        string? folder = null,
+        string? tag = null) =>
         ListAccessiblePageAsync(
             0,
             limit,
@@ -57,7 +61,9 @@ public interface IShortLinkService
             sortBy,
             sortDirection,
             accessScope,
-            cancellationToken);
+            cancellationToken,
+            folder,
+            tag);
 
     Task<CreateShortLinkResponse> CreateAsync(
         CreateShortLinkRequest request,

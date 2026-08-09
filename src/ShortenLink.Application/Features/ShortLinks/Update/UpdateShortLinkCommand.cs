@@ -12,7 +12,9 @@ public sealed record UpdateShortLinkCommand(
     DateTimeOffset? ActiveFromUtc = null,
     int? MaxClicks = null,
     string? Password = null,
-    bool ClearPassword = false) : IRequest<ShortLinkAdminListItemResponse>;
+    bool ClearPassword = false,
+    string? Folder = null,
+    IReadOnlyList<string>? Tags = null) : IRequest<ShortLinkAdminListItemResponse>;
 
 internal sealed class UpdateShortLinkCommandHandler(
     IShortLinkService shortLinkService,
@@ -40,7 +42,9 @@ internal sealed class UpdateShortLinkCommandHandler(
                     request.ActiveFromUtc,
                     request.MaxClicks,
                     request.Password,
-                    request.ClearPassword),
+                    request.ClearPassword,
+                    request.Folder,
+                    request.Tags),
                 cancellationToken));
         await auditWriter.RecordAsync(
             user,

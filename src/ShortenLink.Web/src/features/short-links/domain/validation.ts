@@ -1,4 +1,5 @@
 import type { ShortLinkFormInput } from "../types";
+import { parseTagInput } from "./organization";
 
 export type ShortLinkFieldErrors = Partial<Record<keyof ShortLinkFormInput, string>>;
 
@@ -60,6 +61,15 @@ export function validateShortLinkForm(
     errors.passwordLocal = "Enter a non-empty password of 256 characters or fewer.";
   }
 
+  if ((form.folderLocal ?? "").trim().length > 128) {
+    errors.folderLocal = "Folder must be 128 characters or fewer.";
+  }
+
+  const tags = parseTagInput(form.tagsLocal ?? "");
+  if (tags.length > 20 || tags.some((tag) => tag.length > 64)) {
+    errors.tagsLocal = "Use up to 20 tags, with each tag 64 characters or fewer.";
+  }
+
   return errors;
 }
 
@@ -88,9 +98,17 @@ export function mapShortLinkApiFieldErrors(
     errors.passwordLocal = fieldErrors.password;
   }
 
+  if (fieldErrors.folder) {
+    errors.folderLocal = fieldErrors.folder;
+  }
+
+  if (fieldErrors.tags) {
+    errors.tagsLocal = fieldErrors.tags;
+  }
+
   return errors;
 }
 
 export function hasShortLinkFieldErrors(errors: ShortLinkFieldErrors): boolean {
-  return Boolean(errors.originalUrl || errors.activeFromLocal || errors.expiredAtLocal || errors.maxClicksLocal || errors.passwordLocal);
+  return Boolean(errors.originalUrl || errors.activeFromLocal || errors.expiredAtLocal || errors.maxClicksLocal || errors.passwordLocal || errors.folderLocal || errors.tagsLocal);
 }

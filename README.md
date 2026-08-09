@@ -413,6 +413,38 @@ Validation failures preserve the existing `errorCode` and `message` fields and m
 
 Field keys use the JSON request-property casing, such as `originalUrl`, `expiredAtUtc`, `username`, `password`, `displayName`, `roleIds`, and `permissions`. More than one field can be reported when multiple inputs are independently known to be missing or invalid. Authentication, authorization, not-found, conflict, and operational failures omit `fieldErrors` unless a specific submitted field is deterministically responsible. Server validation remains authoritative; clients should use unknown errors as safe form-level fallbacks and must never infer or display submitted secret values from an error response.
 
+### Password-Protected Redirects
+
+Opening a password-protected short URL in a browser now returns a small unlock
+form instead of exposing the JSON `password_required` response. The form posts
+the password to the same short URL; a correct password redirects to the
+destination, while an incorrect password keeps the form open. API and SDK
+clients can continue using `X-Short-Link-Password` (or the existing `password`
+query parameter) for programmatic redirects.
+
+### Folders And Tags
+
+Short links can carry one flat folder label and zero or more reusable tags.
+Folder and tag values are trimmed, normalized case-insensitively, and returned
+by create, update, detail, list, and export contracts. Tags are supplied as a
+JSON array and duplicate values collapse to one normalized tag. Blank metadata
+is valid for existing and newly created links.
+
+```json
+{
+  "originalUrl": "https://example.com/campaign",
+  "expiredAtUtc": "2026-12-31T00:00:00Z",
+  "folder": "marketing",
+  "tags": ["launch", "email"]
+}
+```
+
+Management list calls can filter the authorized result set with
+`GET /api/short-links?folder=marketing` or
+`GET /api/short-links?tag=launch`; existing search, status, sort, pagination,
+and ownership rules remain unchanged. Folder/tag taxonomy CRUD and nested
+folders are intentionally outside this first slice.
+
 ### Admin Security
 
 The only system roles are:
@@ -711,9 +743,10 @@ pages through the provider-neutral recent-link service contract. Results use a
 stable newest-first order. The default limit is 100 and requests are clamped to
 1,000 records.
 
-Each record contains only `code`, `originalUrl`, `createdAtUtc`, `expiredAtUtc`,
-`isActive`, and `accessLevel`. Creator identities, idempotency keys, shares,
-audit details, and other secrets are never exported. Regular users receive only
+Each record contains safe link metadata including `code`, `originalUrl`,
+`createdAtUtc`, `expiredAtUtc`, `isActive`, `accessLevel`, `folder`, and `tags`.
+Creator identities, idempotency keys, shares, audit details, and other secrets
+are never exported. Regular users receive only
 owned or explicitly shared links; administrators retain their existing global
 read scope.
 
@@ -833,7 +866,7 @@ exception type.
 Phase 3 adds an opt-in click analytics path for redirects:
 
 - Leave `ShortenLink:Analytics:Enabled` as `false` to keep redirect behavior unchanged with no click persistence.
-- Set `ShortenLink:Analytics:Enabled` to `true` to capture short code, click timestamp, remote IP, user agent, and referrer for successful redirects.
+- Set `ShortenLink:Analytics:Enabled` to `true` to capture short code, click timestamp, remote IP, user agent, referrer, normalized device/browser/OS metadata, optional country code, and a hash-only visitor key for successful redirects.
 - Leave `ShortenLink:Analytics:UseAsyncWorker` as `true` to enqueue analytics writes through the hosted background worker so redirect responses do not wait for database persistence.
 - `ShortenLink:Analytics:QueueCapacity` controls the bounded in-memory queue used by the async worker.
 
@@ -841,7 +874,21 @@ Admins with `analytics.read` can inspect persisted click activity through:
 
 - `GET /api/short-links/{code}/analytics`
 
-The response includes `clickCount`, `lastClickedAtUtc`, and a `recentClicks` list with clicked timestamp, remote IP address, user agent, and referrer. Links with no clicks return `clickCount: 0`, `lastClickedAtUtc: null`, and an empty recent-click list. When admin security is enabled, missing credentials return `401 unauthorized`, and credentials without `analytics.read` return `403 forbidden`.
+The response includes `clickCount`, nullable `uniqueClickCount`,
+`lastClickedAtUtc`, bounded `devices`, `browsers`, `operatingSystems`,
+`referrers`, and `countries` breakdowns, plus a `recentClicks` list with the
+enriched activity metadata. The visitor key hash is used only for distinct
+counts and is never returned. Unique clicks mean distinct normalized IP + user
+agent fingerprints; clicks without either value cannot be identified as
+unique. Links with no clicks return zero counts, a null last-click timestamp,
+empty breakdowns, and an empty recent-click list. When admin security is
+enabled, missing credentials return `401 unauthorized`, and credentials
+without `analytics.read` return `403 forbidden`.
+
+Country is read from `CF-IPCountry`, with `X-Country-Code` as a compatibility
+fallback. Only use these headers when a trusted reverse proxy strips client
+supplied values and writes the country value; the API does not perform a GeoIP
+lookup.
 
 Example configuration:
 
@@ -860,9 +907,10 @@ Example configuration:
 ## Admin CSV Export
 
 The protected short-link workspace includes an `Export CSV` action beside the
-discovery filters. It reuses the current search, status, and sort criteria,
-fetches all matching pages through `GET /api/short-links`, and downloads a
-stable UTF-8 CSV containing only safe link metadata. Ownership, sharing, and
+discovery filters. It reuses the current search, status, folder, tag, and sort
+criteria, fetches all matching pages through `GET /api/short-links`, and
+downloads a stable UTF-8 CSV containing only safe link metadata, including
+folder and tags. Ownership, sharing, and
 permission scope remain enforced by the API; the browser does not broaden the
 result set.
 

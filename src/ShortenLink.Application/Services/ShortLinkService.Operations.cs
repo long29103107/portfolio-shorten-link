@@ -48,6 +48,19 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 $"Password must be non-empty and at most {ShortLinkPassword.MaxLength} characters.");
         }
 
+        if (!ShortLinkOrganization.TryNormalize(
+                request.Folder,
+                request.Tags,
+                out var normalizedFolder,
+                out var normalizedTags,
+                out var organizationErrorCode,
+                out var organizationErrorMessage))
+        {
+            return CreateShortLinkResponse.Failure(
+                organizationErrorCode!,
+                organizationErrorMessage!);
+        }
+
         var passwordHash = request.Password is null
             ? null
             : ShortenLinkSecurityCredentialHasher.HashPassword(request.Password);
@@ -120,6 +133,8 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 request.ActiveFrom,
                 request.MaxClicks,
                 request.Password,
+                normalizedFolder,
+                normalizedTags,
                 request.CreatedByUserId,
                 tenantId);
             if (replay is not null)
@@ -149,7 +164,9 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 tenantId: tenantId,
                 activeFrom: request.ActiveFrom,
                 maxClicks: request.MaxClicks,
-                passwordHash: passwordHash);
+                passwordHash: passwordHash,
+                folder: normalizedFolder,
+                tags: normalizedTags);
 
             try
             {
@@ -176,6 +193,8 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                     request.ActiveFrom,
                     request.MaxClicks,
                     request.Password,
+                    normalizedFolder,
+                    normalizedTags,
                     request.CreatedByUserId,
                     tenantId);
                 return replay
@@ -197,6 +216,8 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         DateTimeOffset? activeFrom,
         int? maxClicks,
         string? password,
+        string? folder,
+        IReadOnlyList<string> tags,
         string? createdByUserId,
         string? tenantId)
     {
@@ -210,6 +231,8 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             && existing.ActiveFrom == activeFrom
             && existing.MaxClicks == maxClicks
             && PasswordMatches(existing, password)
+            && string.Equals(existing.Folder, folder, StringComparison.Ordinal)
+            && existing.Tags.SequenceEqual(tags, StringComparer.OrdinalIgnoreCase)
             && string.Equals(existing.CreatedByUserId, NormalizeIdentity(createdByUserId), StringComparison.Ordinal)
             && string.Equals(existing.TenantId, tenantId, StringComparison.Ordinal)
             ? CreateShortLinkResponse.Replay(existing)
@@ -295,6 +318,21 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             return ShortLinkDetailsResponse.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
         }
 
+        var folder = request.Folder is null ? existing.Folder : request.Folder;
+        var tags = request.Tags ?? existing.Tags;
+        if (!ShortLinkOrganization.TryNormalize(
+                folder,
+                tags,
+                out var normalizedFolder,
+                out var normalizedTags,
+                out var organizationErrorCode,
+                out var organizationErrorMessage))
+        {
+            return ShortLinkDetailsResponse.Failure(
+                organizationErrorCode!,
+                organizationErrorMessage!);
+        }
+
         if (request.MaxClicks is not null && request.MaxClicks < existing.ClickCount)
         {
             return ShortLinkDetailsResponse.Failure(
@@ -329,7 +367,9 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             activeFrom: request.ActiveFrom,
             maxClicks: request.MaxClicks,
             clickCount: existing.ClickCount,
-            passwordHash: passwordHash);
+            passwordHash: passwordHash,
+            folder: normalizedFolder,
+            tags: normalizedTags);
 
         await repository.UpdateAsync(updated, cancellationToken);
         await RemoveCachedAsync(updated.Code, updated.TenantId, cancellationToken);

@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using ShortenLink.Core.Analytics;
 using ShortenLink.Core.Domain;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Persistence.Entities;
@@ -31,6 +32,55 @@ public sealed class EfCoreShortLinkClickRepositoryTests
         Assert.Equal("127.0.0.1", click.RemoteIpAddress);
         Assert.Equal("integration-test-agent", click.UserAgent);
         Assert.Equal("https://example.com/from", click.Referrer);
+    }
+
+    [Fact]
+    public async Task GetAnalyticsAsync_ReturnsUniqueCountAndDimensionBreakdowns()
+    {
+        await using var database = await SqliteTestDatabase.CreateAsync();
+        var repository = database.CreateRepository();
+        var analyticsRepository = (IAdvancedShortLinkClickRepository)repository;
+        var now = new DateTimeOffset(2026, 7, 12, 8, 30, 0, TimeSpan.Zero);
+        var chrome = ShortLinkClickMetadata.FromRequest(
+            "127.0.0.1",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+            "US");
+        var firefox = ShortLinkClickMetadata.FromRequest(
+            "127.0.0.2",
+            "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
+            "DE");
+
+        await repository.AddAsync(new ShortLinkClick(
+            "advanced1",
+            now,
+            "127.0.0.1",
+            "chrome-agent",
+            "https://example.com/campaign",
+            metadata: chrome));
+        await repository.AddAsync(new ShortLinkClick(
+            "advanced1",
+            now.AddMinutes(1),
+            "127.0.0.1",
+            "chrome-agent",
+            "https://example.com/campaign",
+            metadata: chrome));
+        await repository.AddAsync(new ShortLinkClick(
+            "advanced1",
+            now.AddMinutes(2),
+            "127.0.0.2",
+            "firefox-agent",
+            null,
+            metadata: firefox));
+
+        var summary = await analyticsRepository.GetAnalyticsAsync("advanced1");
+
+        Assert.Equal(3, summary.ClickCount);
+        Assert.Equal(2, summary.UniqueClickCount);
+        Assert.Equal(3, summary.Devices.Single(item => item.Name == "Desktop").Count);
+        Assert.Equal(2, summary.Browsers.Single(item => item.Name == "Chrome").Count);
+        Assert.Equal(2, summary.OperatingSystems.Single(item => item.Name == "Windows").Count);
+        Assert.Equal(2, summary.Referrers.Single(item => item.Name == "https://example.com/campaign").Count);
+        Assert.Equal(2, summary.Countries.Single(item => item.Name == "US").Count);
     }
 
     [Fact]
@@ -105,6 +155,8 @@ public sealed class EfCoreShortLinkClickRepositoryTests
         Assert.Contains("IX_short_link_clicks_ShortCode_ClickedAtUtc", indexes);
         Assert.Contains("IX_short_link_clicks_TenantId_ShortCode", indexes);
         Assert.Contains("IX_short_link_clicks_TenantId_ShortCode_ClickedAtUtc", indexes);
+        Assert.Contains("IX_short_link_clicks_ShortCode_VisitorKeyHash", indexes);
+        Assert.Contains("IX_short_link_clicks_TenantId_ShortCode_VisitorKeyHash", indexes);
     }
 
     [Fact]
@@ -150,6 +202,8 @@ public sealed class EfCoreShortLinkClickRepositoryTests
         Assert.Contains("IX_short_link_clicks_ShortCode_ClickedAtUtc", indexNames);
         Assert.Contains("IX_short_link_clicks_TenantId_ShortCode", indexNames);
         Assert.Contains("IX_short_link_clicks_TenantId_ShortCode_ClickedAtUtc", indexNames);
+        Assert.Contains("IX_short_link_clicks_ShortCode_VisitorKeyHash", indexNames);
+        Assert.Contains("IX_short_link_clicks_TenantId_ShortCode_VisitorKeyHash", indexNames);
     }
 
     private sealed class SqliteTestDatabase : IAsyncDisposable

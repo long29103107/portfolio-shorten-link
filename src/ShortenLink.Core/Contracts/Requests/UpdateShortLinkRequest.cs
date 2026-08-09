@@ -6,4 +6,6 @@ public sealed record UpdateShortLinkRequest(
     DateTimeOffset? ActiveFrom = null,
     int? MaxClicks = null,
     string? Password = null,
-    bool ClearPassword = false);
+    bool ClearPassword = false,
+    string? Folder = null,
+    IReadOnlyList<string>? Tags = null);

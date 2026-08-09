@@ -529,6 +529,17 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
                 ? <Badge variant="secondary">Password</Badge>
                 : <span className="muted">Public</span>
             },
+            {
+              id: "organization",
+              header: "Folder / tags",
+              cell: (link) => (
+                <div className="organization-cell">
+                  {link.folder ? <Badge variant="secondary">{link.folder}</Badge> : null}
+                  {(link.tags ?? []).map((tag) => <Badge key={tag} variant="secondary">{tag}</Badge>)}
+                  {!link.folder && (link.tags ?? []).length === 0 ? <span className="muted">Uncategorized</span> : null}
+                </div>
+              )
+            },
             { id: "actions", header: "Actions", cell: renderActions }
           ]}
         />
@@ -728,6 +739,42 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
                 Enter a new password to replace the current one.
               </span>
             </Label>
+            <div className="field-grid">
+              <Label className="field">
+                <span className="field-label">Folder <span className="muted">(optional)</span></span>
+                <Input
+                  maxLength={128}
+                  placeholder="e.g. marketing"
+                  value={editForm.folderLocal}
+                  aria-invalid={fieldErrors.folderLocal ? "true" : undefined}
+                  aria-describedby={fieldErrors.folderLocal ? "editor-folder-error" : undefined}
+                  onChange={(event) => {
+                    setEditForm((current) => ({ ...current, folderLocal: event.target.value }));
+                    setFieldErrors((current) => ({ ...current, folderLocal: undefined }));
+                  }}
+                />
+                {fieldErrors.folderLocal ? (
+                  <span id="editor-folder-error" className="field-error">{fieldErrors.folderLocal}</span>
+                ) : null}
+              </Label>
+              <Label className="field">
+                <span className="field-label">Tags <span className="muted">(optional)</span></span>
+                <Input
+                  placeholder="campaign, launch"
+                  value={editForm.tagsLocal}
+                  aria-invalid={fieldErrors.tagsLocal ? "true" : undefined}
+                  aria-describedby={fieldErrors.tagsLocal ? "editor-tags-error" : undefined}
+                  onChange={(event) => {
+                    setEditForm((current) => ({ ...current, tagsLocal: event.target.value }));
+                    setFieldErrors((current) => ({ ...current, tagsLocal: undefined }));
+                  }}
+                />
+                {fieldErrors.tagsLocal ? (
+                  <span id="editor-tags-error" className="field-error">{fieldErrors.tagsLocal}</span>
+                ) : null}
+                <span className="field-hint">Separate tags with commas.</span>
+              </Label>
+            </div>
             {!isCreating && editingLink?.isPasswordProtected ? (
               <label className="field-checkbox">
                 <Input

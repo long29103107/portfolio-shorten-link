@@ -10,4 +10,6 @@ public sealed record CreateShortLinkRequest(
     string? TenantId = null,
     DateTimeOffset? ActiveFrom = null,
     int? MaxClicks = null,
-    string? Password = null);
+    string? Password = null,
+    string? Folder = null,
+    IReadOnlyList<string>? Tags = null);

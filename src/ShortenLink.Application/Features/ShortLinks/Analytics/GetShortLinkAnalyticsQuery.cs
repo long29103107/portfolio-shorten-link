@@ -30,16 +30,47 @@ internal sealed class GetShortLinkAnalyticsQueryHandler(
             link, user, ShortLinkShareAccess.View, false,
             "You do not have access to this short link.", cancellationToken);
         ShortLinkClickSummaryResponse summary;
+        ShortLinkClickAnalyticsSummary? advancedSummary = null;
         IReadOnlyList<ShortLinkClickEntity> clicks;
         if (link.TenantId is null)
         {
-            summary = await clickRepository.GetSummaryAsync(request.Code, cancellationToken);
+            if (clickRepository is IAdvancedShortLinkClickRepository advancedRepository)
+            {
+                advancedSummary = await advancedRepository.GetAnalyticsAsync(
+                    request.Code,
+                    cancellationToken);
+                summary = new ShortLinkClickSummaryResponse(
+                    request.Code,
+                    advancedSummary.ClickCount,
+                    advancedSummary.LastClickedAtUtc);
+            }
+            else
+            {
+                summary = await clickRepository.GetSummaryAsync(request.Code, cancellationToken);
+            }
             clicks = await clickRepository.ListRecentAsync(
                 request.Code, Math.Clamp(request.Limit ?? 20, 1, 100), cancellationToken);
         }
         else if (clickRepository is ITenantAwareShortLinkClickRepository tenantRepository)
         {
-            summary = await tenantRepository.GetSummaryAsync(request.Code, link.TenantId, cancellationToken);
+            if (clickRepository is ITenantAwareAdvancedShortLinkClickRepository advancedRepository)
+            {
+                advancedSummary = await advancedRepository.GetAnalyticsAsync(
+                    request.Code,
+                    link.TenantId,
+                    cancellationToken);
+                summary = new ShortLinkClickSummaryResponse(
+                    request.Code,
+                    advancedSummary.ClickCount,
+                    advancedSummary.LastClickedAtUtc);
+            }
+            else
+            {
+                summary = await tenantRepository.GetSummaryAsync(
+                    request.Code,
+                    link.TenantId,
+                    cancellationToken);
+            }
             clicks = await tenantRepository.ListRecentAsync(
                 request.Code, link.TenantId, Math.Clamp(request.Limit ?? 20, 1, 100), cancellationToken);
         }
@@ -49,6 +80,10 @@ internal sealed class GetShortLinkAnalyticsQueryHandler(
                 ShortLinkErrorCodes.TenantNotSupported,
                 "The configured analytics provider does not support tenant partitions.");
         }
-        return ShortLinkAnalyticsResponse.FromClicks(request.Code, summary, clicks);
+        return ShortLinkAnalyticsResponse.FromClicks(
+            request.Code,
+            summary,
+            clicks,
+            advancedSummary);
     }
 }

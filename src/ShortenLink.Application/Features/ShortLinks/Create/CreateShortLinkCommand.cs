@@ -14,7 +14,9 @@ public sealed record CreateShortLinkCommand(
     string? IdempotencyKey = null,
     DateTimeOffset? ActiveFromUtc = null,
     int? MaxClicks = null,
-    string? Password = null) : IRequest<CreateShortLinkResponse>;
+    string? Password = null,
+    string? Folder = null,
+    IReadOnlyList<string>? Tags = null) : IRequest<CreateShortLinkResponse>;
 
 internal sealed class CreateShortLinkCommandHandler(
     IShortLinkService shortLinkService,
@@ -44,7 +46,9 @@ internal sealed class CreateShortLinkCommandHandler(
                 actor.TenantId,
                 request.ActiveFromUtc,
                 request.MaxClicks,
-                request.Password),
+                request.Password,
+                request.Folder,
+                request.Tags),
             cancellationToken);
 
         if (!result.Succeeded || result.ShortLink is null)
@@ -75,6 +79,8 @@ internal sealed class CreateShortLinkCommandHandler(
                 or ShortLinkErrorCodes.InvalidActivationWindow
                 or ShortLinkErrorCodes.InvalidMaxClicks
                 or ShortLinkErrorCodes.InvalidPassword
+                or ShortLinkErrorCodes.InvalidFolder
+                or ShortLinkErrorCodes.InvalidTags
                 or ShortLinkErrorCodes.InvalidIdempotencyKey
                 or ShortLinkErrorCodes.InvalidTenantId =>
                 new RequestValidationException(errorCode, message),

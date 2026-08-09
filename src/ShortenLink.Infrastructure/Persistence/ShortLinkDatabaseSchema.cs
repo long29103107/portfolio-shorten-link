@@ -33,6 +33,16 @@ public static class ShortLinkDatabaseSchema
         CancellationToken cancellationToken = default) =>
         GetDialect(dbContext).EnsurePasswordProtectionSchemaAsync(dbContext, cancellationToken);
 
+    public static Task EnsureAdvancedAnalyticsSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken = default) =>
+        GetDialect(dbContext).EnsureAdvancedAnalyticsSchemaAsync(dbContext, cancellationToken);
+
+    public static Task EnsureOrganizationSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken = default) =>
+        GetDialect(dbContext).EnsureOrganizationSchemaAsync(dbContext, cancellationToken);
+
     public static Task EnsureAuditEventsTableAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken = default) =>
