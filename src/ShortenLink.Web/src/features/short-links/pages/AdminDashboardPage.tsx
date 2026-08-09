@@ -4,9 +4,9 @@ import { DASHBOARD_DEFAULTS } from "../constants/defaults";
 import { formatDateTime } from "../types";
 import { buildRateLimitPolicyViews } from "../domain/rateLimitPresentation";
 import { useAdminDashboardData } from "../hooks/useAdminDashboardData";
-import { RefreshButton } from "../../../shared/components/RefreshButton";
-import { Badge } from "../../../shared/components/ui/badge";
-import { Card, CardContent } from "../../../shared/components/ui/card";
+import { RefreshButton } from "@/shared/components/RefreshButton";
+import { Badge } from "@/shared/components/ui/badge";
+import { Card, CardContent } from "@/shared/components/ui/card";
 
 const sourceLabels: Record<DashboardSource, string> = {
   shortLinks: "Short Links",

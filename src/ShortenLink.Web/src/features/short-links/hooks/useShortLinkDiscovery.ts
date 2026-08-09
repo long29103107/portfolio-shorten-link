@@ -4,7 +4,7 @@ import { listShortLinks } from "../api/shortLinksApi";
 import { isCurrentRequestGeneration } from "../domain/requestLifecycle";
 import type { ShortLinkAdminItem, ShortLinkDiscoveryQuery } from "../types";
 import { toFriendlyErrorMessage } from "../types";
-import { createRecoveryNotice, type RecoveryNotice } from "../../../shared/api/recovery";
+import { createRecoveryNotice, type RecoveryNotice } from "@/shared/api/recovery";
 import {
   defaultShortLinkDiscoveryQuery
 } from "../components/ShortLinkDiscoveryToolbar";

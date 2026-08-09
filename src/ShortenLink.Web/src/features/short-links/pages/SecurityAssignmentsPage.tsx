@@ -8,14 +8,14 @@ import { getAdminPermissionState } from "../api/adminSecurity";
 import type { SecurityAssignment } from "../types";
 import { formatDateTime, toFriendlyErrorMessage } from "../types";
 import { useSecurityAssignmentsData } from "../hooks/useSecurityAssignmentsData";
-import { Badge } from "../../../shared/components/ui/badge";
-import { Button } from "../../../shared/components/ui/button";
-import { RefreshButton } from "../../../shared/components/RefreshButton";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card";
-import { ConfirmDialog } from "../../../shared/components/ConfirmDialog";
-import { EmptyState } from "../../../shared/components/EmptyState";
-import { FormField } from "../../../shared/components/FormField";
-import { showToast } from "../../../shared/toast";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { RefreshButton } from "@/shared/components/RefreshButton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
+import { EmptyState } from "@/shared/components/EmptyState";
+import { FormField } from "@/shared/components/FormField";
+import { showToast } from "@/shared/toast";
 
 type SecurityAssignmentFieldErrors = {
   name?: string;

@@ -1,15 +1,15 @@
 import { type FormEvent, useState } from "react";
-import { EmptyState } from "../../../shared/components/EmptyState";
-import { Badge } from "../../../shared/components/ui/badge";
-import { Button } from "../../../shared/components/ui/button";
+import { EmptyState } from "@/shared/components/EmptyState";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle
-} from "../../../shared/components/ui/card";
-import { Input } from "../../../shared/components/ui/input";
-import { DiscoverySelect } from "../../../shared/components/DiscoverySelect";
+} from "@/shared/components/ui/card";
+import { Input } from "@/shared/components/ui/input";
+import { DiscoverySelect } from "@/shared/components/DiscoverySelect";
 import {
   emptyAuditLogFilters,
   formatAuditLabel,

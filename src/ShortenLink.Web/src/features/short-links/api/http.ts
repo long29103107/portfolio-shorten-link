@@ -1,15 +1,15 @@
 import type { ApiErrorPayload, SecurityLoginResponse } from "../types";
-import { showToast } from "../../../shared/toast";
+import { showToast } from "@/shared/toast";
 import {
   classifyFetchFailure,
   classifyHttpFailure,
   isAbortError,
   type ApiFailure
-} from "../../../shared/api/apiFailure";
+} from "@/shared/api/apiFailure";
 import { clearStoredSession, getAdminApiKeyHeader, getStoredRefreshToken, storeSession } from "./adminSecurity";
-import type { ApiRequestOptions } from "../../../shared/api/apiClient";
-import { HTTP_HEADERS, HTTP_METHODS, HTTP_STATUS } from "../../../shared/constants/http";
-import { APP_ROUTES } from "../../../shared/constants/routes";
+import type { ApiRequestOptions } from "@/shared/api/apiClient";
+import { HTTP_HEADERS, HTTP_METHODS, HTTP_STATUS } from "@/shared/constants/http";
+import { APP_ROUTES } from "@/shared/constants/routes";
 import { SHORT_LINK_API_ROUTES } from "../constants/apiRoutes";
 
 export type FetchJsonOptions = ApiRequestOptions;

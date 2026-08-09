@@ -3,11 +3,11 @@ import { ApiError } from "../api/http";
 import { createShortLink } from "../api/shortLinksApi";
 import type { CreatedShortLink, ShortLinkFormInput } from "../types";
 import { toFriendlyErrorMessage } from "../types";
-import { Button } from "../../../shared/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../shared/components/ui/card";
-import { Input } from "../../../shared/components/ui/input";
-import { Label } from "../../../shared/components/ui/label";
-import { showToast } from "../../../shared/toast";
+import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { showToast } from "@/shared/toast";
 import { ExpiryQuickPicks } from "./ExpiryQuickPicks";
 import {
   hasShortLinkFieldErrors,

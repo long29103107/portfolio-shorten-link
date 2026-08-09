@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button } from "../../../shared/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import type { ShortLinkAdminItem } from "../types";
 import { createShortLinkQrDataUrl, downloadShortLinkQr } from "../domain/qr";
 

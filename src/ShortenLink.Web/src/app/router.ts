@@ -1,6 +1,6 @@
-import type { AppRoute } from "../features/short-links/types";
-import { APP_ROUTES } from "../shared/constants/routes";
-import { HTTP_STATUS } from "../shared/constants/http";
+import type { AppRoute } from "@/features/short-links/types";
+import { APP_ROUTES } from "@/shared/constants/routes";
+import { HTTP_STATUS } from "@/shared/constants/http";
 
 export function parseRoute(pathname: string): AppRoute {
   if (pathname === APP_ROUTES.HOME) {

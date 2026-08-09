@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listSecurityRoles, listSecurityUsers } from "../api/shortLinksApi";
 import type { SecurityRole, SecurityUser } from "../types";
-import { createRecoveryNotice, type RecoveryNotice } from "../../../shared/api/recovery";
+import { createRecoveryNotice, type RecoveryNotice } from "@/shared/api/recovery";
 import { ApiError } from "../api/http";
 import { toFriendlyErrorMessage } from "../types";
 

@@ -7,12 +7,12 @@ import {
 } from "../api/shortLinksApi";
 import { ApiError } from "../api/http";
 import { isCurrentRequestGeneration } from "../domain/requestLifecycle";
-import { HTTP_STATUS } from "../../../shared/constants/http";
+import { HTTP_STATUS } from "@/shared/constants/http";
 import type { ShortLinkAdminItem, ShortLinkShare, ShortLinkSharingMode } from "../types";
-import { ConfirmDialog } from "../../../shared/components/ConfirmDialog";
-import { Button } from "../../../shared/components/ui/button";
-import { Input } from "../../../shared/components/ui/input";
-import { Label } from "../../../shared/components/ui/label";
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 
 type ShortLinkShareDialogProps = {
   link: ShortLinkAdminItem | null;

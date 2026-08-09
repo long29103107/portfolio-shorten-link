@@ -1,9 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { SecurityRole, SecurityUser } from "../types";
 import type { ManagedUserFieldErrors } from "../domain/identityValidation";
-import { ConfirmDialog } from "../../../shared/components/ConfirmDialog";
-import { FormDialog } from "../../../shared/components/FormDialog";
-import { FormField } from "../../../shared/components/FormField";
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
+import { FormDialog } from "@/shared/components/FormDialog";
+import { FormField } from "@/shared/components/FormField";
 import type { CreateUserForm } from "../hooks/useSecurityMutations";
 
 type SecurityManagementDialogsProps = {

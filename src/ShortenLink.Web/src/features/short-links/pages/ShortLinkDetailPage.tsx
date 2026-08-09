@@ -4,9 +4,9 @@ import { deactivateShortLink } from "../api/shortLinksApi";
 import { formatDateTime, toFriendlyErrorMessage } from "../types";
 import { getExpiryPresentation } from "../domain/expiryPresentation";
 import { useShortLinkDetailData } from "../hooks/useShortLinkDetailData";
-import { Badge } from "../../../shared/components/ui/badge";
-import { Button } from "../../../shared/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../shared/components/ui/card";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/shared/components/ui/card";
 
 type ShortLinkDetailPageProps = {
   code: string;

@@ -4,8 +4,8 @@ import { listShortLinks } from "../api/shortLinksApi";
 import { downloadShortLinksCsv } from "../domain/export";
 import type { ShortLinkAdminItem, ShortLinkDiscoveryQuery } from "../types";
 import { toFriendlyErrorMessage } from "../types";
-import { createRecoveryNotice, type RecoveryNotice } from "../../../shared/api/recovery";
-import { showToast } from "../../../shared/toast";
+import { createRecoveryNotice, type RecoveryNotice } from "@/shared/api/recovery";
+import { showToast } from "@/shared/toast";
 
 export function useShortLinkExport(discoveryQuery: ShortLinkDiscoveryQuery) {
   const [isExporting, setIsExporting] = useState(false);

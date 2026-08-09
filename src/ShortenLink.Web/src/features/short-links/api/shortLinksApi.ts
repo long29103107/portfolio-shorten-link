@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import { appendQueryExpression } from "../../../shared/queryExpression";
+import { appendQueryExpression } from "@/shared/queryExpression";
 import { buildShortLinkFilterExpression, buildShortLinkSortExpression } from "../domain/queryExpression";
 import type {
   AuditLogPage,

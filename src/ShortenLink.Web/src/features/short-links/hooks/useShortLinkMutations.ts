@@ -21,8 +21,8 @@ import {
   type ShortLinkFieldErrors,
   validateShortLinkForm
 } from "../domain/validation";
-import { shouldPreserveMutationContext } from "../../../shared/api/recovery";
-import { showToast } from "../../../shared/toast";
+import { shouldPreserveMutationContext } from "@/shared/api/recovery";
+import { showToast } from "@/shared/toast";
 
 type UseShortLinkMutationsOptions = {
   adminPermissions: AdminPermissionState;

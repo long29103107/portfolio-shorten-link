@@ -8,7 +8,7 @@ import type {
   AuditLogEvent,
   AuditLogFilters
 } from "../types";
-import { createRecoveryNotice, type RecoveryNotice } from "../../../shared/api/recovery";
+import { createRecoveryNotice, type RecoveryNotice } from "@/shared/api/recovery";
 
 const AUDIT_LOG_PAGE_LIMIT = 50;
 

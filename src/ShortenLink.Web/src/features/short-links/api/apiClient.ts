@@ -6,7 +6,7 @@ import {
   type ApiClientRequestOptions,
   type ApiQuery,
   type ApiQueryValue
-} from "../../../shared/api/apiClient";
+} from "@/shared/api/apiClient";
 import { fetchJson } from "./http";
 
 export type { ApiClient, ApiClientRequestOptions, ApiQuery, ApiQueryValue };

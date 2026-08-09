@@ -1,5 +1,5 @@
-import { Button } from "../../../shared/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../shared/components/ui/card";
+import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import type { HttpStatusCode } from "../types";
 
 type StatusPageProps = {

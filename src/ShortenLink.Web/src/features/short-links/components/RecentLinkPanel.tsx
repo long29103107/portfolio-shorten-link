@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { CreatedShortLink } from "../types";
 import { formatDateTime } from "../types";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card";
-import { PortalTooltip } from "../../../shared/components/ui/portal-tooltip";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { PortalTooltip } from "@/shared/components/ui/portal-tooltip";
 
 type RecentLinkPanelProps = {
   recentLink: CreatedShortLink | null;

@@ -22,8 +22,8 @@ import {
   validateCustomRoleForm,
   type CustomRoleFieldErrors
 } from "../domain/securityValidation";
-import { createRecoveryNotice, type RecoveryNotice } from "../../../shared/api/recovery";
-import { showToast } from "../../../shared/toast";
+import { createRecoveryNotice, type RecoveryNotice } from "@/shared/api/recovery";
+import { showToast } from "@/shared/toast";
 import { toFriendlyErrorMessage } from "../types";
 
 export type RoleFormState = {

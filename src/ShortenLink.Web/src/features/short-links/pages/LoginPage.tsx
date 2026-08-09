@@ -3,11 +3,11 @@ import { loginSecurityUser } from "../api/shortLinksApi";
 import { storeSession } from "../api/adminSecurity";
 import { ApiError } from "../api/http";
 import { toFriendlyErrorMessage } from "../types";
-import { Button } from "../../../shared/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../shared/components/ui/card";
-import { FormField } from "../../../shared/components/FormField";
-import { showToast } from "../../../shared/toast";
-import { createRecoveryNotice, type RecoveryNotice } from "../../../shared/api/recovery";
+import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { FormField } from "@/shared/components/FormField";
+import { showToast } from "@/shared/toast";
+import { createRecoveryNotice, type RecoveryNotice } from "@/shared/api/recovery";
 import {
   hasFieldErrors,
   mapLoginApiFieldErrors,

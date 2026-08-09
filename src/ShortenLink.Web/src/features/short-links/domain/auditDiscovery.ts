@@ -3,7 +3,7 @@ import type {
   AuditLogFilters,
   AuditLogQuery
 } from "../types";
-import { appendQueryExpression, filter, type FilterExpression } from "../../../shared/queryExpression";
+import { appendQueryExpression, filter, type FilterExpression } from "@/shared/queryExpression";
 import { SHORT_LINK_API_ROUTES } from "../constants/apiRoutes";
 import { AUDIT_LOG_DEFAULTS } from "../constants/defaults";
 

@@ -1,7 +1,7 @@
 import type { ShortLinkAnalytics } from "../types";
 import { formatDateTime } from "../types";
-import { EmptyState } from "../../../shared/components/EmptyState";
-import { Button } from "../../../shared/components/ui/button";
+import { EmptyState } from "@/shared/components/EmptyState";
+import { Button } from "@/shared/components/ui/button";
 
 type ShortLinkAnalyticsDialogProps = {
   code: string;

@@ -1,12 +1,12 @@
 ---
 phase: 031
 title: Frontend Source Optimization
-status: active
+status: complete
 created_at: 2026-08-07
-updated_at: 2026-08-08
+updated_at: 2026-08-09
 current_task: null
-task_count: 22
-done_count: 22
+task_count: 23
+done_count: 23
 depends_on:
   - 030
 ---
@@ -54,24 +54,24 @@ without changing routes, API contracts, or user-facing behavior.
 | 031_020 | Protect short-link share dialog reads from stale responses | Correctness | done | 2026-08-08 |
 | 031_021 | Decompose short-link admin mutation and dialog responsibilities | Refactor | done | 2026-08-08 |
 | 031_022 | Decompose security management mutation and dialog responsibilities | Refactor | done | 2026-08-08 |
+| 031_023 | Extract security role-permission workspace presentation | Refactor | done | 2026-08-09 |
 
 ## Current Task
 
-`031_022` is complete, but Phase 031 is not yet complete. The twenty-two tasks
-now provide feature boundaries, lazy route loading, cancellable discovery reads,
-a typed API client, centralized frontend contracts, focused data boundaries, a
-repeatable bundle/performance budget check, a verified dashboard pagination
-contract, silent expected cancellation, stale-safe short-link/share discovery,
-focused short-link mutation/dialog boundaries, and focused security mutation and
-dialog boundaries. Remaining work is the role-permission workspace presentation.
+`031_023` is complete. The role-permission workspace presentation, local search,
+group expansion, staged drafts, dirty-state reporting, and save confirmation
+now live in a feature-scoped component while the page retains security access,
+discovery, user management, and role mutation ownership. All twenty-three
+tasks provide feature boundaries, lazy route loading, cancellable discovery
+reads, a typed API client, centralized frontend contracts, focused data
+boundaries, a repeatable bundle/performance budget check, verified pagination,
+silent expected cancellation, stale-safe discovery, and focused mutation/dialog
+boundaries.
 
 ## Next Task Proposal
 
-The next smallest task is to extract the role-permission workspace presentation
-from `SecurityManagementPage` while keeping staged permission behavior unchanged.
-
-Proposed next task (not created yet): `031_023` - extract security role-permission
-workspace presentation.
+Phase 031 is complete. Select the next phase from the product roadmap rather
+than adding more frontend refactor-only tasks here.
 
 ## Task Notes
 
@@ -1187,3 +1187,64 @@ bun run check:performance
 - Added role form and permission override boundary regression tests.
 - Architecture boundaries passed, 75 Bun tests passed, production build
   completed, and the performance budget passed.
+
+### 031_023 - Extract security role-permission workspace presentation
+
+#### Step Goal
+
+Move the role-permission workspace presentation and its local search, expansion,
+draft, and save-confirmation UI out of `SecurityManagementPage` while preserving
+staged permission behavior and API contracts.
+
+#### Scope
+
+- Extract `RolePermissionMatrix` and its permission workspace helpers into a
+  feature-scoped component.
+- Keep role selection, permission search, group expansion, dirty-state callback,
+  staged drafts, save confirmation, and permission persistence compatible.
+- Keep page-level security access checks, discovery, user management, and role
+  mutation ownership unchanged.
+
+#### Foundation for Next Step
+
+Phase 031 leaves the frontend with a feature-scoped role-permission workspace
+and verified page, query, mutation, cancellation, and performance boundaries.
+The next phase can build product behavior on this frontend foundation without
+reopening the completed decomposition work.
+
+#### Acceptance Criteria
+
+- `SecurityManagementPage` no longer contains the role-permission workspace
+  implementation or its presentation-only helpers.
+- Role selection, permission toggles, group toggles, search, expansion, dirty
+  state, save confirmation, and save callbacks behave as before.
+- Architecture check, frontend tests, production build, and performance budget
+  remain green.
+
+#### Affected Files
+
+- `src/ShortenLink.Web/src/features/short-links/components/RolePermissionMatrix.tsx`
+- `src/ShortenLink.Web/src/features/short-links/pages/SecurityManagementPage.tsx`
+- `src/ShortenLink.Web/test/security-role-permission.test.ts`
+- `.okf/phase/031/PHASE_SUMMARY.md`
+
+#### Verification
+
+```powershell
+cd .\src\ShortenLink.Web
+bun run check:architecture
+bun test
+bun run build
+bun run check:performance
+```
+
+#### Done Notes
+
+- Extracted `RolePermissionMatrix` and its permission workspace helpers from
+  `SecurityManagementPage` while preserving role selection, permission search,
+  group expansion, staged drafts, dirty-state callbacks, save confirmation,
+  and permission persistence behavior.
+- Kept page-level security access checks, discovery, user management, and role
+  mutation ownership unchanged.
+- Architecture boundaries passed, all 77 Bun tests passed, production build
+  completed successfully, and the frontend performance budget passed.

@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Input } from "../../../shared/components/ui/input";
+import { Input } from "@/shared/components/ui/input";
 import type { ShortLinkDiscoveryQuery } from "../types";
-import { DiscoverySelect } from "../../../shared/components/DiscoverySelect";
-import { useDebouncedCallback } from "../../../shared/hooks/useDebouncedCallback";
+import { DiscoverySelect } from "@/shared/components/DiscoverySelect";
+import { useDebouncedCallback } from "@/shared/hooks/useDebouncedCallback";
 
 export const defaultShortLinkDiscoveryQuery: ShortLinkDiscoveryQuery = {
   search: "",

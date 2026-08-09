@@ -1,6 +1,6 @@
 import type { SecurityCurrentUser } from "../types";
-import { HTTP_HEADERS } from "../../../shared/constants/http";
-import { APP_EVENTS } from "../../../shared/constants/events";
+import { HTTP_HEADERS } from "@/shared/constants/http";
+import { APP_EVENTS } from "@/shared/constants/events";
 
 export const shortLinkPermissions = {
   read: "short_links.read",
