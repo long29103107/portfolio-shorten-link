@@ -85,12 +85,7 @@ public sealed class AuthorizationService(
             return ShortenLinkAuthorizationResult.Success(isAdmin: true);
         }
 
-        if (!httpContext.Request.Headers.TryGetValue(security.HeaderName, out var keyValues))
-        {
-            return ShortenLinkAuthorizationResult.Unauthorized();
-        }
-
-        var apiKey = keyValues.FirstOrDefault();
+        var apiKey = ExtractApiKey(httpContext, security);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             return ShortenLinkAuthorizationResult.Unauthorized();
@@ -235,6 +230,40 @@ public sealed class AuthorizationService(
         var authorization = httpContext.Request.Headers.Authorization.FirstOrDefault();
         return !string.IsNullOrWhiteSpace(authorization)
             && authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ExtractApiKey(
+        HttpContext httpContext,
+        ShortenLinkSecurityOptions security)
+    {
+        var authorization = httpContext.Request.Headers.Authorization.FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(authorization)
+            && authorization.StartsWith(
+                $"{ShortenLinkSecurityOptions.ApiKeyAuthorizationScheme} ",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var value = authorization[
+                ShortenLinkSecurityOptions.ApiKeyAuthorizationScheme.Length..].Trim();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        if (httpContext.Request.Headers.TryGetValue(security.HeaderName, out var configuredValues))
+        {
+            var configuredValue = configuredValues.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(configuredValue))
+            {
+                return configuredValue;
+            }
+        }
+
+        return httpContext.Request.Headers.TryGetValue(
+            ShortenLinkSecurityOptions.StandardApiKeyHeaderName,
+            out var standardValues)
+            ? standardValues.FirstOrDefault()
+            : null;
     }
 
     private static string NormalizeActorName(string? name) =>

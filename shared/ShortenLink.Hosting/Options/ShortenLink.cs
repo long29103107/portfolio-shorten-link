@@ -125,7 +125,13 @@ public sealed class ShortenLinkSecurityOptions
 {
     public bool Enabled { get; set; }
 
-    public string HeaderName { get; set; } = "X-ShortenLink-Api-Key";
+    public const string DefaultApiKeyHeaderName = "X-ShortenLink-Api-Key";
+
+    public const string StandardApiKeyHeaderName = "X-Api-Key";
+
+    public const string ApiKeyAuthorizationScheme = "ApiKey";
+
+    public string HeaderName { get; set; } = DefaultApiKeyHeaderName;
 
     public string SessionSigningKey { get; set; } = string.Empty;
 

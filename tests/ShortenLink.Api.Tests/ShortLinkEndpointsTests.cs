@@ -1941,7 +1941,8 @@ public sealed class ShortLinkEndpointsTests
         Assert.NotNull(created);
 
         using var apiClient = factory.CreateClient();
-        apiClient.DefaultRequestHeaders.Add("X-ShortenLink-Api-Key", created.RawApiKey);
+        apiClient.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("ApiKey", created.RawApiKey);
 
         using var readResponse = await apiClient.GetAsync("/api/short-links?limit=10");
         using var deleteResponse = await apiClient.DeleteAsync("/api/short-links/missing");
@@ -1951,6 +1952,35 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal(HttpStatusCode.NotFound, deleteResponse.StatusCode);
         Assert.NotNull(deletePayload);
         Assert.Equal("not_found", deletePayload.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ApiKeyAuthentication_AcceptsAuthorizationApiKeySchemeWithoutSession()
+    {
+        await using var factory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            securityEnabled: true);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("ApiKey", "test-admin-key");
+
+        using var response = await client.GetAsync("/api/short-links?limit=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApiKeyAuthentication_AcceptsStandardHeaderWithoutSession()
+    {
+        await using var factory = new ShortLinkApiFactory(
+            enableFrontendFallback: false,
+            securityEnabled: true);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Api-Key", "test-admin-key");
+
+        using var response = await client.GetAsync("/api/short-links?limit=10");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -3028,6 +3058,28 @@ public sealed class ShortLinkEndpointsTests
             _ = scope.ServiceProvider.GetRequiredService<IOptions<ShortenLinkOptions>>().Value);
 
         Assert.Contains("Cache:Provider", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddShortenLink_AllowsEnabledSecurityWithoutConfiguredBootstrapKeys()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ShortenLink:Database:SqliteConnectionString"] = "Data Source=api-key-only-test.db",
+                ["ShortenLink:Security:Enabled"] = "true",
+                ["ShortenLink:Security:HeaderName"] = "X-ShortenLink-Api-Key"
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddShortenLink(configuration);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptions<ShortenLinkOptions>>().Value;
+
+        Assert.True(options.Security.Enabled);
+        Assert.Empty(options.Security.ApiKeys);
     }
 
     [Fact]

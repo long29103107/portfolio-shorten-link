@@ -127,6 +127,6 @@ public static partial class Services
         ArgumentNullException.ThrowIfNull(options);
 
         return !string.IsNullOrWhiteSpace(options.HeaderName)
-            && options.ApiKeys.Any(static key => !string.IsNullOrWhiteSpace(key.Key));
+            && options.ApiKeys.All(static key => !string.IsNullOrWhiteSpace(key.Key));
     }
 }

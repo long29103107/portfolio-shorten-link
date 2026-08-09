@@ -437,10 +437,12 @@ username/email per request, and the admin UI accepts multiple email addresses
 separated by commas, spaces, or new lines.
 
 The demo API enables security by default. Send either a signed user session
-token as `Authorization: Bearer <token>` or the configured API-key header,
-which defaults to `X-ShortenLink-Api-Key`. Reusable consumers may choose their
-own configuration, but should keep security enabled for any exposed management
-endpoint.
+token as `Authorization: Bearer <token>` or an API key without a session. The
+portable API-key forms are `Authorization: ApiKey <key>` and `X-Api-Key: <key>`;
+the configured `ShortenLink:Security:HeaderName` header, which defaults to
+`X-ShortenLink-Api-Key`, remains supported for compatibility. Reusable
+consumers may choose their own configuration, but should keep security enabled
+for any exposed management endpoint.
 
 On a fresh database, startup seeds `admin@shortenlink.local` with password
 `admin`, assigns the `Admin` role, and enables the full permission bundle. The
@@ -498,7 +500,18 @@ Logged-in users can manage their own API keys through backend API contracts:
 - `PUT /api/security/api-keys/{id}`
 - `POST /api/security/api-keys/{id}/disable`
 
-These endpoints require `Authorization: Bearer <token>` from `POST /api/security/login`. `POST /api/security/api-keys` returns the raw API key only once in the create response; subsequent list, rename, and disable responses return metadata only and never include raw key material or key hashes. Store the raw key securely when it is created. API-key requests use the configured admin API key header, defaulting to `X-ShortenLink-Api-Key`, and authorization resolves permissions from the owning user's enabled system and custom roles. Disabled keys and disabled users are rejected.
+These endpoints require `Authorization: Bearer <token>` from `POST /api/security/login`. `POST /api/security/api-keys` returns the raw API key only once in the create response; subsequent list, rename, and disable responses return metadata only and never include raw key material or key hashes. Store the raw key securely when it is created. Use the returned key on protected API calls with `Authorization: ApiKey <key>` or `X-Api-Key: <key>`; the configured `X-ShortenLink-Api-Key` header remains available for existing clients. Authorization resolves permissions from the owning user's enabled system and custom roles. Disabled keys and disabled users are rejected.
+
+For example, an external application can call the management API without
+creating a session:
+
+```bash
+curl https://localhost:5001/api/short-links?limit=25 \
+  -H "Authorization: ApiKey slk_<stored-key>"
+```
+
+When using persisted user-owned API keys, `ShortenLink:Security:ApiKeys` may be
+empty; configured keys are only the optional bootstrap/local fallback path.
 
 When security is enabled, missing credentials return `401 unauthorized`; valid credentials without the required permission return `403 forbidden`. The React app routes those outcomes to `/unauthorized` and `/forbidden`.
 

@@ -92,7 +92,7 @@ public static partial class Services
                 "ShortenLink:RateLimiting create and redirect policies require PermitLimit > 0, WindowSeconds > 0, and QueueLimit >= 0.")
             .Validate(
                 static options => !options.Security.Enabled || HasValidSecurityOptions(options.Security),
-                "ShortenLink:Security requires HeaderName and at least one API key when enabled.")
+                "ShortenLink:Security requires a valid HeaderName and configured API-key entries when provided.")
             .Validate(
                 static options => options.Security.SessionTokenTtlMinutes > 0,
                 "ShortenLink:Security:SessionTokenTtlMinutes must be greater than 0.")
