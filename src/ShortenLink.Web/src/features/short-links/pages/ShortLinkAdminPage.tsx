@@ -16,6 +16,7 @@ import { Label } from "@/shared/components/ui/label";
 import { DataTable } from "@/shared/components/DataTable";
 import { Pagination } from "@/shared/components/Pagination";
 import { ExpiryQuickPicks } from "../components/ExpiryQuickPicks";
+import { BulkOrganizationDialog } from "../components/BulkOrganizationDialog";
 import { ShortLinkShareDialog } from "../components/ShortLinkShareDialog";
 import { ShortLinkQrDialog } from "../components/ShortLinkQrDialog";
 import {
@@ -29,6 +30,7 @@ import { useShortLinkAnalyticsData } from "../hooks/useShortLinkAnalyticsData";
 import { useShortLinkExport } from "../hooks/useShortLinkExport";
 import { useShortLinkMutations } from "../hooks/useShortLinkMutations";
 import { ShortLinkAnalyticsDialog } from "../components/ShortLinkAnalyticsDialog";
+import { downloadShortLinksCsv } from "../domain/export";
 
 type ShortLinkAdminPageProps = {
   onDirtyChange?: (isDirty: boolean) => void;
@@ -47,6 +49,7 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
   const [openMenuCode, setOpenMenuCode] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [isBulkOrganizationOpen, setIsBulkOrganizationOpen] = useState(false);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(() => new Set());
   const [sharingLink, setSharingLink] = useState<ShortLinkAdminItem | null>(null);
   const [qrLink, setQrLink] = useState<ShortLinkAdminItem | null>(null);
@@ -108,7 +111,8 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
     handleSaveEdit,
     handleDelete,
     handleBulkDelete,
-    handleBulkStatusChange
+    handleBulkStatusChange,
+    handleBulkOrganization
   } = useShortLinkMutations({
     adminPermissions,
     links,
@@ -132,7 +136,9 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
   const canBulkDeactivate = adminPermissions.canDeactivate && selectedAreEditable && selectedLinks.some((link) => link.isActive);
   const canBulkActivate = adminPermissions.canActivate && selectedAreEditable && selectedLinks.some((link) => !link.isActive);
   const canBulkDelete = adminPermissions.canDelete && selectedAreManaged;
-  const hasBulkActions = canBulkDeactivate || canBulkActivate || canBulkDelete;
+  const canBulkOrganize = adminPermissions.canUpdate && selectedAreEditable;
+  const canBulkExport = selectedLinks.length > 0;
+  const hasBulkActions = canBulkDeactivate || canBulkActivate || canBulkDelete || canBulkOrganize || canBulkExport;
   const shouldShowList = !isLoading && links.length > 0;
   useEffect(() => () => {
     if (copyFeedbackTimeoutRef.current !== null) {
@@ -263,6 +269,21 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
       variant: nextIsActive ? "default" : "destructive",
       onConfirm: () => void handleBulkStatusChange(nextIsActive)
     });
+  };
+
+  const handleBulkExport = () => {
+    downloadShortLinksCsv(selectedLinks);
+    setSelectedCodes(new Set());
+    showToast({
+      title: "Selected links exported",
+      message: `${selectedLinks.length} link${selectedLinks.length === 1 ? "" : "s"} downloaded`,
+      variant: "success"
+    });
+  };
+
+  const applyBulkOrganization = async (folder: string, tags: string[]) => {
+    await handleBulkOrganization(folder, tags);
+    setIsBulkOrganizationOpen(false);
   };
 
   const goToPage = (nextPageNumber: number) => {
@@ -448,6 +469,18 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
             getRowLabel: (link) => `Select ${link.code}`,
             clearDisabled: isBulkDeleting || isBulkUpdating,
             actions: [
+              ...(canBulkOrganize ? [{
+                id: "organize",
+                label: "Organize selected",
+                disabled: isBulkUpdating || isBulkDeleting,
+                onSelect: () => setIsBulkOrganizationOpen(true)
+              }] : []),
+              ...(canBulkExport ? [{
+                id: "export",
+                label: "Export selected",
+                disabled: isBulkUpdating || isBulkDeleting,
+                onSelect: handleBulkExport
+              }] : []),
               ...(canBulkDeactivate ? [{
                 id: "deactivate",
                 label: isBulkUpdating ? "Updating..." : (count: number) => `Deactivate selected (${count})`,
@@ -847,6 +880,13 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
           action?.onConfirm();
         }}
         onCancel={() => setConfirmAction(null)}
+        />
+        <BulkOrganizationDialog
+          open={isBulkOrganizationOpen}
+          selectedCount={selectedCount}
+          isSubmitting={isBulkUpdating}
+          onConfirm={(folder, tags) => void applyBulkOrganization(folder, tags)}
+          onCancel={() => setIsBulkOrganizationOpen(false)}
         />
       </Card>
     </>

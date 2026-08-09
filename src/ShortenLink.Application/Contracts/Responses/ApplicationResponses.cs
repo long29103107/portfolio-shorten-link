@@ -353,6 +353,19 @@ public sealed record ShortLinkDeactivatedResponse(string Code, bool IsActive);
 
 public sealed record ShortLinkDeletedResponse(string Code);
 
+public sealed record ShortLinkBulkOperationResponse(
+    string Operation,
+    int RequestedCount,
+    int SucceededCount,
+    int FailedCount,
+    IReadOnlyList<ShortLinkBulkOperationItemResponse> Items);
+
+public sealed record ShortLinkBulkOperationItemResponse(
+    string Code,
+    bool Succeeded,
+    string? ErrorCode = null,
+    string? Message = null);
+
 public sealed record ShortLinkAuditEventsResponse(
     IReadOnlyList<ShortLinkAuditEventResponse> Items,
     string? NextCursor);

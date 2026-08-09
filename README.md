@@ -445,6 +445,28 @@ Management list calls can filter the authorized result set with
 and ownership rules remain unchanged. Folder/tag taxonomy CRUD and nested
 folders are intentionally outside this first slice.
 
+### Bulk Operations
+
+Authorized management clients can apply one bounded operation to 1-100 unique
+short-link codes through `POST /api/short-links/bulk`:
+
+```json
+{
+  "codes": ["abc1234", "def5678"],
+  "operation": "organize",
+  "folder": "marketing",
+  "tags": ["launch", "email"]
+}
+```
+
+Supported operations are `activate`, `deactivate`, `delete`, and `organize`.
+`organize` replaces the selected folder and tags; send blank/null metadata to
+clear them. Each item is authorized independently and the response reports
+`requestedCount`, `succeededCount`, `failedCount`, and item-level errors, so a
+missing or unauthorized code does not hide successful sibling results. The
+management table also exports only the currently selected rows through its
+`Export selected` action.
+
 ### Admin Security
 
 The only system roles are:

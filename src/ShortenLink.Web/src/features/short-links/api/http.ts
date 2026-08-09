@@ -139,7 +139,7 @@ async function performRefresh(): Promise<boolean> {
   }
 
   try {
-    const response = await fetch(SHORT_LINK_API_ROUTES.REFRESH, {
+    const response = await fetch(SHORT_LINK_API_ROUTES.AUTH.REFRESH, {
       method: HTTP_METHODS.POST,
       headers: { [HTTP_HEADERS.CONTENT_TYPE]: HTTP_HEADERS.JSON },
       body: JSON.stringify({ refreshToken })

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using ShortenLink.Application.Contracts.Responses;
 using ShortenLink.Application.Features.ShortLinks.Analytics;
+using ShortenLink.Application.Features.ShortLinks.Bulk;
 using ShortenLink.Application.Features.ShortLinks.Create;
 using ShortenLink.Application.Features.ShortLinks.Delete;
 using ShortenLink.Application.Features.ShortLinks.Details;
@@ -55,6 +56,8 @@ public static class ShortenLinkEndpointMappings
             .WithName("ExecuteShortenLinkImportEndpoint");
         group.MapPost("/import/dry-run", DryRunShortLinkImportAsync)
             .WithName("DryRunShortenLinkImportEndpoint");
+        group.MapPost("/bulk", ExecuteShortLinkBulkOperationAsync)
+            .WithName("ExecuteShortLinkBulkOperationEndpoint");
         group.MapGet("/export", ExportShortLinksAsync)
             .WithName("ExportShortenLinkEndpoint");
         group.MapPost("/expiration/execute", static async (
@@ -280,6 +283,18 @@ public static class ShortenLinkEndpointMappings
         ISender sender,
         CancellationToken cancellationToken) =>
         sender.Send(new ExecuteShortLinkImportCommand(request.Items), cancellationToken);
+
+    private static Task<ShortLinkBulkOperationResponse> ExecuteShortLinkBulkOperationAsync(
+        ShortLinkBulkOperationRequest request,
+        ISender sender,
+        CancellationToken cancellationToken) =>
+        sender.Send(
+            new ExecuteShortLinkBulkOperationCommand(
+                request.Codes,
+                request.Operation,
+                request.Folder,
+                request.Tags),
+            cancellationToken);
 
     private static Task<IAsyncEnumerable<ShortLinkExportRecord>> ExportShortLinksAsync(
         int? limit,

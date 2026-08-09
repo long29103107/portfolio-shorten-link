@@ -83,6 +83,12 @@ public interface IShortLinkService
         UpdateShortLinkRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<ShortLinkDetailsResponse> UpdateOrganizationAsync(
+        string code,
+        string? folder,
+        IReadOnlyList<string>? tags,
+        CancellationToken cancellationToken = default);
+
     Task<DeactivateShortLinkResponse> DeactivateAsync(
         string code,
         CancellationToken cancellationToken = default);

@@ -209,6 +209,30 @@ export type DeletedShortLink = {
   code: string;
 };
 
+export type ShortLinkBulkOperation = "activate" | "deactivate" | "delete" | "organize";
+
+export type ShortLinkBulkOperationRequest = {
+  codes: string[];
+  operation: ShortLinkBulkOperation;
+  folder?: string | null;
+  tags?: string[] | null;
+};
+
+export type ShortLinkBulkOperationItem = {
+  code: string;
+  succeeded: boolean;
+  errorCode: string | null;
+  message: string | null;
+};
+
+export type ShortLinkBulkOperationResponse = {
+  operation: ShortLinkBulkOperation;
+  requestedCount: number;
+  succeededCount: number;
+  failedCount: number;
+  items: ShortLinkBulkOperationItem[];
+};
+
 export type SecurityAssignment = {
   credentialKeyHash: string;
   name: string;

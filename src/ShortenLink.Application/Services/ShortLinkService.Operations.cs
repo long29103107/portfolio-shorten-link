@@ -378,6 +378,69 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         return ShortLinkDetailsResponse.Success(updated);
     }
 
+    public async Task<ShortLinkDetailsResponse> UpdateOrganizationAsync(
+        string code,
+        string? folder,
+        IReadOnlyList<string>? tags,
+        CancellationToken cancellationToken = default)
+    {
+        var validationFailure = ValidateCode(code);
+        if (validationFailure is not null)
+        {
+            return ShortLinkDetailsResponse.Failure(
+                validationFailure.Value.ErrorCode,
+                validationFailure.Value.ErrorMessage);
+        }
+
+        var normalizedCode = code.Trim();
+        var existing = await repository.FindByCodeAsync(normalizedCode, cancellationToken);
+        if (existing is null)
+        {
+            return ShortLinkDetailsResponse.Failure(
+                ShortLinkErrorCodes.NotFound,
+                "Short link was not found.");
+        }
+
+        if (!ShortLinkOrganization.TryNormalize(
+                folder,
+                tags,
+                out var normalizedFolder,
+                out var normalizedTags,
+                out var organizationErrorCode,
+                out var organizationErrorMessage))
+        {
+            return ShortLinkDetailsResponse.Failure(
+                organizationErrorCode!,
+                organizationErrorMessage!);
+        }
+
+        var updated = new ShortLink(
+            existing.Code,
+            existing.OriginalUrl,
+            existing.CreatedAt,
+            existing.ExpiresAt,
+            existing.IsActive,
+            existing.CreatedByUserId,
+            existing.CreatedByDisplayName,
+            existing.CreatedByUsername,
+            technicalId: existing.Id,
+            idempotencyKey: existing.IdempotencyKey,
+            tenantId: existing.TenantId,
+            sharingMode: existing.SharingMode,
+            activeFrom: existing.ActiveFrom,
+            maxClicks: existing.MaxClicks,
+            clickCount: existing.ClickCount,
+            passwordHash: existing.PasswordHash,
+            folder: normalizedFolder,
+            tags: normalizedTags);
+
+        await repository.UpdateAsync(updated, cancellationToken);
+        await RemoveCachedAsync(updated.Code, updated.TenantId, cancellationToken);
+        PublishEvent(ShortLinkEventTypes.Updated, updated, cancellationToken);
+
+        return ShortLinkDetailsResponse.Success(updated);
+    }
+
     public async Task<DeactivateShortLinkResponse> DeleteAsync(
         string code,
         CancellationToken cancellationToken = default)

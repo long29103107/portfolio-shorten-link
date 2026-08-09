@@ -528,6 +528,70 @@ public sealed class ShortLinkEndpointsTests
     }
 
     [Fact]
+    public async Task BulkOperations_ReportsPartialResultsAndUpdatesLifecycleAndOrganization()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+        var created = await CreateShortLinkAsync(client, "https://example.com/bulk-created");
+        await factory.SeedShortLinkAsync(
+            "Bulk01A",
+            "https://example.com/bulk-expired",
+            new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 7, 10, 0, 0, 0, TimeSpan.Zero));
+
+        using var organizeResponse = await client.PostAsJsonAsync("/api/short-links/bulk", new
+        {
+            codes = new[] { created.Code, "Bulk01A", "missing" },
+            operation = "organize",
+            folder = " Campaign ",
+            tags = new[] { "Launch", " launch " }
+        });
+        var organized = await organizeResponse.Content.ReadFromJsonAsync<ShortLinkBulkOperationResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, organizeResponse.StatusCode);
+        Assert.NotNull(organized);
+        Assert.Equal("organize", organized.Operation);
+        Assert.Equal(3, organized.RequestedCount);
+        Assert.Equal(2, organized.SucceededCount);
+        Assert.Equal(1, organized.FailedCount);
+        Assert.Contains(organized.Items, item => item.Code == "Bulk01A" && item.Succeeded);
+        Assert.Contains(organized.Items, item => item.Code == "missing" && !item.Succeeded);
+
+        using var detailsResponse = await client.GetAsync("/api/short-links/Bulk01A");
+        var details = await detailsResponse.Content.ReadFromJsonAsync<ShortLinkDetailsResponse>();
+        Assert.Equal(HttpStatusCode.OK, detailsResponse.StatusCode);
+        Assert.Equal("campaign", details?.Folder);
+        Assert.Equal(new[] { "launch" }, details?.Tags);
+
+        using var deactivateResponse = await client.PostAsJsonAsync("/api/short-links/bulk", new
+        {
+            codes = new[] { created.Code, "Bulk01A" },
+            operation = "deactivate"
+        });
+        var deactivated = await deactivateResponse.Content.ReadFromJsonAsync<ShortLinkBulkOperationResponse>();
+        Assert.Equal(HttpStatusCode.OK, deactivateResponse.StatusCode);
+        Assert.Equal(2, deactivated?.SucceededCount);
+
+        using var activateResponse = await client.PostAsJsonAsync("/api/short-links/bulk", new
+        {
+            codes = new[] { created.Code, "Bulk01A" },
+            operation = "activate"
+        });
+        var activated = await activateResponse.Content.ReadFromJsonAsync<ShortLinkBulkOperationResponse>();
+        Assert.Equal(HttpStatusCode.OK, activateResponse.StatusCode);
+        Assert.Equal(2, activated?.SucceededCount);
+
+        using var deleteResponse = await client.PostAsJsonAsync("/api/short-links/bulk", new
+        {
+            codes = new[] { created.Code, "Bulk01A" },
+            operation = "delete"
+        });
+        var deleted = await deleteResponse.Content.ReadFromJsonAsync<ShortLinkBulkOperationResponse>();
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+        Assert.Equal(2, deleted?.SucceededCount);
+    }
+
+    [Fact]
     public async Task PostCreate_ScheduledLinkIsExposedAndCannotRedirectBeforeActivation()
     {
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
@@ -3909,6 +3973,19 @@ public sealed class ShortLinkEndpointsTests
         string ErrorCode,
         string Message,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? FieldErrors = null);
+
+    private sealed record ShortLinkBulkOperationResponse(
+        string Operation,
+        int RequestedCount,
+        int SucceededCount,
+        int FailedCount,
+        IReadOnlyList<ShortLinkBulkOperationItemResponse> Items);
+
+    private sealed record ShortLinkBulkOperationItemResponse(
+        string Code,
+        bool Succeeded,
+        string? ErrorCode,
+        string? Message);
 
     private static async Task<bool> WaitForConditionAsync(Func<Task<bool>> condition)
     {

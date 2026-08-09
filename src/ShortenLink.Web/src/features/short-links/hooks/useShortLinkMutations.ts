@@ -1,6 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   activateShortLink,
+  executeShortLinkBulkOperation,
   createShortLink,
   deactivateShortLink,
   deleteShortLink,
@@ -11,6 +12,7 @@ import type { AdminPermissionState } from "../api/adminSecurity";
 import type {
   ShortLinkAdminItem,
   ShortLinkAdminPageResult,
+  ShortLinkBulkOperationResponse,
   ShortLinkFormInput
 } from "../types";
 import { toFriendlyErrorMessage } from "../types";
@@ -325,15 +327,15 @@ export function useShortLinkMutations({
     setActionError(null);
 
     try {
-      await Promise.all(codes.map((code) => deleteShortLink(code)));
-      setLinks((current) => current.filter((link) => !selectedCodes.has(link.code)));
+      const response = await executeShortLinkBulkOperation({ codes, operation: "delete" });
+      const successfulCodes = new Set(
+        response.items.filter((item) => item.succeeded).map((item) => item.code)
+      );
+      setLinks((current) => current.filter((link) => !successfulCodes.has(link.code)));
       setSelectedCodes(new Set());
-      if (editingCode && selectedCodes.has(editingCode)) setEditingCode(null);
-      showToast({
-        title: "Selected links deleted",
-        message: `${codes.length} link${codes.length === 1 ? "" : "s"} removed`,
-        variant: "success"
-      });
+      if (editingCode && successfulCodes.has(editingCode)) setEditingCode(null);
+      if (analyticsCode && successfulCodes.has(analyticsCode)) onAnalyticsClose();
+      showBulkOperationResult("Selected links deleted", response, "removed");
     } catch (error) {
       setActionError(error instanceof ApiError
         ? toFriendlyErrorMessage(error.errorCode, error.message)
@@ -351,27 +353,63 @@ export function useShortLinkMutations({
     setActionError(null);
 
     try {
-      const responses = await Promise.all(
-        codes.map((code) => nextIsActive ? activateShortLink(code) : deactivateShortLink(code))
+      const response = await executeShortLinkBulkOperation({
+        codes,
+        operation: nextIsActive ? "activate" : "deactivate"
+      });
+      const updatedCodes = new Set(
+        response.items.filter((item) => item.succeeded).map((item) => item.code)
       );
-      const updatedCodes = new Set(responses.map((response) => response.code));
       setLinks((current) =>
         current.map((link) =>
           updatedCodes.has(link.code) ? { ...link, isActive: nextIsActive } : link
         )
       );
       setSelectedCodes(new Set());
-      showToast({
-        title: nextIsActive ? "Selected links activated" : "Selected links deactivated",
-        message: `${codes.length} link${codes.length === 1 ? "" : "s"} updated`,
-        variant: "success"
-      });
+      showBulkOperationResult(
+        nextIsActive ? "Selected links activated" : "Selected links deactivated",
+        response,
+        "updated"
+      );
     } catch (error) {
       setActionError(error instanceof ApiError
         ? toFriendlyErrorMessage(error.errorCode, error.message)
         : nextIsActive
           ? "Selected links could not be activated."
           : "Selected links could not be deactivated.");
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkOrganization = async (folder: string, tags: string[]) => {
+    const codes = Array.from(selectedCodes);
+    if (codes.length === 0) return;
+
+    setIsBulkUpdating(true);
+    setActionError(null);
+
+    try {
+      const response = await executeShortLinkBulkOperation({
+        codes,
+        operation: "organize",
+        folder: folder.trim() || null,
+        tags
+      });
+      const successfulCodes = new Set(
+        response.items.filter((item) => item.succeeded).map((item) => item.code)
+      );
+      setLinks((current) =>
+        current.map((link) => successfulCodes.has(link.code)
+          ? { ...link, folder: folder.trim() || null, tags }
+          : link)
+      );
+      setSelectedCodes(new Set());
+      showBulkOperationResult("Selected links organized", response, "updated");
+    } catch (error) {
+      setActionError(error instanceof ApiError
+        ? toFriendlyErrorMessage(error.errorCode, error.message)
+        : "Selected links could not be organized.");
     } finally {
       setIsBulkUpdating(false);
     }
@@ -402,8 +440,24 @@ export function useShortLinkMutations({
     handleSaveEdit,
     handleDelete,
     handleBulkDelete,
-    handleBulkStatusChange
+    handleBulkStatusChange,
+    handleBulkOrganization
   };
+}
+
+function showBulkOperationResult(
+  title: string,
+  response: ShortLinkBulkOperationResponse,
+  successVerb: string
+) {
+  const message = response.failedCount === 0
+    ? `${response.succeededCount} link${response.succeededCount === 1 ? "" : "s"} ${successVerb}`
+    : `${response.succeededCount} ${successVerb}, ${response.failedCount} failed`;
+  showToast({
+    title,
+    message,
+    variant: response.failedCount === 0 ? "success" : "warning"
+  });
 }
 
 export function toEditorExpiryValue(value: string | null): string {

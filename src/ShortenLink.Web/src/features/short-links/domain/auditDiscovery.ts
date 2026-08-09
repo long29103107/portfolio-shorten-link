@@ -42,7 +42,7 @@ export function buildAuditLogUrl(query: AuditLogQuery = {}): string {
         : filter.and(...expressions)
   });
 
-  return `${SHORT_LINK_API_ROUTES.AUDIT_LOGS}?${params.toString()}`;
+  return `${SHORT_LINK_API_ROUTES.AUDIT.LOGS}?${params.toString()}`;
 }
 
 export function mergeAuditLogEvents(

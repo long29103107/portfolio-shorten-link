@@ -19,6 +19,12 @@ public sealed record ShortLinkUpdateRequest(
     string? Folder = null,
     IReadOnlyList<string>? Tags = null);
 
+public sealed record ShortLinkBulkOperationRequest(
+    IReadOnlyList<string>? Codes,
+    string Operation,
+    string? Folder = null,
+    IReadOnlyList<string>? Tags = null);
+
 public sealed record ShortLinkShareUpsertRequest(
     string Username,
     string Access);

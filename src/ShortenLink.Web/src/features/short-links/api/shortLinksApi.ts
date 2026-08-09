@@ -31,6 +31,8 @@ import type {
   ShortLinkAnalytics,
   ShortLinkAdminItem,
   ShortLinkAdminPageResult,
+  ShortLinkBulkOperationRequest,
+  ShortLinkBulkOperationResponse,
   ShortLinkDiscoveryQuery,
   ShortLinkDetails,
   RateLimitActivity,
@@ -47,13 +49,13 @@ export async function loginSecurityUser(
   email: string,
   password: string
 ): Promise<SecurityLoginResponse> {
-  return apiClient.post<SecurityLoginResponse>(SHORT_LINK_API_ROUTES.LOGIN, { email, password }, {
+  return apiClient.post<SecurityLoginResponse>(SHORT_LINK_API_ROUTES.AUTH.LOGIN, { email, password }, {
     suppressAuthRedirect: true,
   });
 }
 
 export async function getCurrentSecurityUser(): Promise<SecurityCurrentUser> {
-  return apiClient.get<SecurityCurrentUser>(SHORT_LINK_API_ROUTES.CURRENT_USER);
+  return apiClient.get<SecurityCurrentUser>(SHORT_LINK_API_ROUTES.AUTH.CURRENT_USER);
 }
 
 export async function listAuditLogEvents(
@@ -68,14 +70,14 @@ export async function listAuditLogEvents(
 
 export async function listAuditLogActions(signal?: AbortSignal): Promise<AuditLogActions> {
   return apiClient.get<AuditLogActions>(
-    SHORT_LINK_API_ROUTES.AUDIT_LOG_ACTIONS,
+    SHORT_LINK_API_ROUTES.AUDIT.ACTIONS,
     signal ? { signal } : undefined
   );
 }
 
 export async function getRateLimitActivity(signal?: AbortSignal): Promise<RateLimitActivity> {
   return apiClient.get<RateLimitActivity>(
-    SHORT_LINK_API_ROUTES.RATE_LIMITS,
+    SHORT_LINK_API_ROUTES.ADMIN.RATE_LIMITS,
     signal ? { signal } : undefined
   );
 }
@@ -83,19 +85,19 @@ export async function getRateLimitActivity(signal?: AbortSignal): Promise<RateLi
 export async function createShortLink(
   request: CreateShortLinkRequest
 ): Promise<CreatedShortLink> {
-  return apiClient.post<CreatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINKS, request);
+  return apiClient.post<CreatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK.ROOT, request);
 }
 
 export async function getShortLinkDetails(code: string, signal?: AbortSignal): Promise<ShortLinkDetails> {
   return apiClient.get<ShortLinkDetails>(
-    SHORT_LINK_API_ROUTES.SHORT_LINK(code),
+    SHORT_LINK_API_ROUTES.SHORT_LINK.BY_CODE(code),
     signal ? { signal } : undefined
   );
 }
 
 export async function getShortLinkAnalytics(code: string, signal?: AbortSignal): Promise<ShortLinkAnalytics> {
   return apiClient.get<ShortLinkAnalytics>(
-    SHORT_LINK_API_ROUTES.SHORT_LINK_ANALYTICS(code),
+    SHORT_LINK_API_ROUTES.SHORT_LINK.ANALYTICS(code),
     signal ? { signal } : undefined
   );
 }
@@ -108,7 +110,7 @@ export async function listShortLinks(
 ): Promise<ShortLinkAdminPageResult> {
   const query = Object.fromEntries(buildShortLinkQueryParams(limit, page, discovery));
   return apiClient.query<ShortLinkAdminPageResult>(
-    SHORT_LINK_API_ROUTES.SHORT_LINKS,
+    SHORT_LINK_API_ROUTES.SHORT_LINK.ROOT,
     query,
     signal ? { signal } : undefined
   );
@@ -147,31 +149,40 @@ export function buildShortLinkListUrl(
   page = SHORT_LINK_DISCOVERY_DEFAULTS.PAGE,
   discovery?: ShortLinkDiscoveryQuery
 ) {
-  return `${SHORT_LINK_API_ROUTES.SHORT_LINKS}?${buildShortLinkQueryParams(limit, page, discovery).toString()}`;
+  return `${SHORT_LINK_API_ROUTES.SHORT_LINK.ROOT}?${buildShortLinkQueryParams(limit, page, discovery).toString()}`;
 }
 
 export async function deactivateShortLink(code: string): Promise<DeactivatedShortLink> {
-  return apiClient.post<DeactivatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK_DEACTIVATE(code));
+  return apiClient.post<DeactivatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK.DEACTIVATE(code));
 }
 
 export async function activateShortLink(code: string): Promise<DeactivatedShortLink> {
-  return apiClient.post<DeactivatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK_ACTIVATE(code));
+  return apiClient.post<DeactivatedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK.ACTIVATE(code));
 }
 
 export async function updateShortLink(
   code: string,
   request: UpdateShortLinkRequest
 ): Promise<ShortLinkAdminItem> {
-  return apiClient.put<ShortLinkAdminItem>(SHORT_LINK_API_ROUTES.SHORT_LINK(code), request);
+  return apiClient.put<ShortLinkAdminItem>(SHORT_LINK_API_ROUTES.SHORT_LINK.BY_CODE(code), request);
 }
 
 export async function deleteShortLink(code: string): Promise<DeletedShortLink> {
-  return apiClient.delete<DeletedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK(code));
+  return apiClient.delete<DeletedShortLink>(SHORT_LINK_API_ROUTES.SHORT_LINK.BY_CODE(code));
+}
+
+export async function executeShortLinkBulkOperation(
+  request: ShortLinkBulkOperationRequest
+): Promise<ShortLinkBulkOperationResponse> {
+  return apiClient.post<ShortLinkBulkOperationResponse>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK.BULK,
+    request
+  );
 }
 
 export async function listSecurityAssignments(signal?: AbortSignal): Promise<SecurityAssignmentsList> {
   return apiClient.get<SecurityAssignmentsList>(
-    SHORT_LINK_API_ROUTES.SECURITY_ASSIGNMENTS,
+    SHORT_LINK_API_ROUTES.SECURITY.ASSIGNMENTS,
     signal ? { signal } : undefined
   );
 }
@@ -179,20 +190,20 @@ export async function listSecurityAssignments(signal?: AbortSignal): Promise<Sec
 export async function upsertSecurityAssignment(
   request: SecurityAssignmentUpsertRequest
 ): Promise<SecurityAssignment> {
-  return apiClient.put<SecurityAssignment>(SHORT_LINK_API_ROUTES.SECURITY_ASSIGNMENTS, request);
+  return apiClient.put<SecurityAssignment>(SHORT_LINK_API_ROUTES.SECURITY.ASSIGNMENTS, request);
 }
 
 export async function disableSecurityAssignment(
   credentialKeyHash: string
 ): Promise<SecurityAssignmentDisabled> {
   return apiClient.post<SecurityAssignmentDisabled>(
-    SHORT_LINK_API_ROUTES.SECURITY_ASSIGNMENT_DISABLE(credentialKeyHash),
+    SHORT_LINK_API_ROUTES.SECURITY.ASSIGNMENT_DISABLE(credentialKeyHash),
   );
 }
 
 export async function listSecurityRoles(signal?: AbortSignal): Promise<SecurityRolesList> {
   return apiClient.get<SecurityRolesList>(
-    SHORT_LINK_API_ROUTES.SECURITY_ROLES,
+    SHORT_LINK_API_ROUTES.SECURITY.ROLES,
     signal ? { signal } : undefined
   );
 }
@@ -200,12 +211,12 @@ export async function listSecurityRoles(signal?: AbortSignal): Promise<SecurityR
 export async function upsertCustomSecurityRole(
   request: SecurityCustomRoleUpsertRequest
 ): Promise<SecurityRole> {
-  return apiClient.put<SecurityRole>(SHORT_LINK_API_ROUTES.SECURITY_CUSTOM_ROLES, request);
+  return apiClient.put<SecurityRole>(SHORT_LINK_API_ROUTES.SECURITY.CUSTOM_ROLES, request);
 }
 
 export async function deleteCustomSecurityRole(id: string): Promise<SecurityRoleDeleted> {
   return apiClient.delete<SecurityRoleDeleted>(
-    SHORT_LINK_API_ROUTES.SECURITY_CUSTOM_ROLE(id),
+    SHORT_LINK_API_ROUTES.SECURITY.CUSTOM_ROLE(id),
   );
 }
 
@@ -214,7 +225,7 @@ export async function listShortLinkShares(
   signal?: AbortSignal
 ): Promise<ShortLinkSharesList> {
   return apiClient.get<ShortLinkSharesList>(
-    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARES(code),
+    SHORT_LINK_API_ROUTES.SHORT_LINK.SHARES(code),
     signal ? { signal } : undefined
   );
 }
@@ -224,7 +235,7 @@ export async function setShortLinkSharingMode(
   mode: ShortLinkSharingMode
 ): Promise<ShortLinkSharingMode> {
   return apiClient.put<ShortLinkSharingMode>(
-    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARING_MODE(code),
+    SHORT_LINK_API_ROUTES.SHORT_LINK.SHARING_MODE(code),
     { mode }
   );
 }
@@ -235,14 +246,14 @@ export async function upsertShortLinkShare(
   access: "View" | "Edit"
 ): Promise<ShortLinkShare> {
   return apiClient.put<ShortLinkShare>(
-    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARES(code),
+    SHORT_LINK_API_ROUTES.SHORT_LINK.SHARES(code),
     { username, access }
   );
 }
 
 export async function deleteShortLinkShare(code: string, userId: string): Promise<void> {
   await apiClient.delete<void>(
-    SHORT_LINK_API_ROUTES.SHORT_LINK_SHARE(code, userId),
+    SHORT_LINK_API_ROUTES.SHORT_LINK.SHARE(code, userId),
   );
 }
 
@@ -251,40 +262,40 @@ export async function replaceSecurityRolePermissionOverrides(
   request: SecurityRolePermissionOverridesRequest
 ): Promise<SecurityRole> {
   return apiClient.put<SecurityRole>(
-    SHORT_LINK_API_ROUTES.SECURITY_PERMISSION_OVERRIDES(roleId),
+    SHORT_LINK_API_ROUTES.SECURITY.PERMISSION_OVERRIDES(roleId),
     request
   );
 }
 
 export async function listSecurityUsers(signal?: AbortSignal): Promise<SecurityUsersList> {
   return apiClient.get<SecurityUsersList>(
-    SHORT_LINK_API_ROUTES.SECURITY_USERS,
+    SHORT_LINK_API_ROUTES.SECURITY.USERS,
     signal ? { signal } : undefined
   );
 }
 
 export async function upsertSecurityUser(request: SecurityUserUpsertRequest): Promise<SecurityUser> {
-  return apiClient.put<SecurityUser>(SHORT_LINK_API_ROUTES.SECURITY_USERS, request);
+  return apiClient.put<SecurityUser>(SHORT_LINK_API_ROUTES.SECURITY.USERS, request);
 }
 
 export async function disableSecurityUser(id: string): Promise<SecurityUserDisabled> {
-  return apiClient.post<SecurityUserDisabled>(SHORT_LINK_API_ROUTES.SECURITY_USER_DISABLE(id));
+  return apiClient.post<SecurityUserDisabled>(SHORT_LINK_API_ROUTES.SECURITY.USER_DISABLE(id));
 }
 
 export async function listUserApiKeys(): Promise<SecurityUserApiKeysList> {
-  return apiClient.get<SecurityUserApiKeysList>(SHORT_LINK_API_ROUTES.SECURITY_API_KEYS);
+  return apiClient.get<SecurityUserApiKeysList>(SHORT_LINK_API_ROUTES.SECURITY.API_KEYS);
 }
 
 export async function createUserApiKey(displayName: string): Promise<SecurityUserApiKeyCreated> {
-  return apiClient.post<SecurityUserApiKeyCreated>(SHORT_LINK_API_ROUTES.SECURITY_API_KEYS, { displayName });
+  return apiClient.post<SecurityUserApiKeyCreated>(SHORT_LINK_API_ROUTES.SECURITY.API_KEYS, { displayName });
 }
 
 export async function renameUserApiKey(id: string, displayName: string): Promise<SecurityUserApiKey> {
-  return apiClient.put<SecurityUserApiKey>(SHORT_LINK_API_ROUTES.SECURITY_API_KEY(id), { displayName });
+  return apiClient.put<SecurityUserApiKey>(SHORT_LINK_API_ROUTES.SECURITY.API_KEY(id), { displayName });
 }
 
 export async function disableUserApiKey(id: string): Promise<SecurityUserApiKeyDisabled> {
   return apiClient.post<SecurityUserApiKeyDisabled>(
-    SHORT_LINK_API_ROUTES.SECURITY_API_KEY_DISABLE(id),
+    SHORT_LINK_API_ROUTES.SECURITY.API_KEY_DISABLE(id),
   );
 }
