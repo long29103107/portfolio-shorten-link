@@ -52,7 +52,8 @@ internal sealed class ResolveShortLinkCommandHandler(
         if (request.EnableFallback
             && result.ErrorCode is ShortLinkErrorCodes.NotFound
                 or ShortLinkErrorCodes.Expired
-                or ShortLinkErrorCodes.Inactive)
+                or ShortLinkErrorCodes.Inactive
+                or ShortLinkErrorCodes.ClickLimitReached)
         {
             return new ResolveShortLinkResponse(
                 string.IsNullOrWhiteSpace(request.FallbackPath)

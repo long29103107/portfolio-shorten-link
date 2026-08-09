@@ -98,6 +98,10 @@ export function RecentLinkPanel({ recentLink }: RecentLinkPanelProps) {
           <dt>Created</dt>
           <dd>{formatDateTime(recentLink.createdAtUtc)}</dd>
         </div>
+        <div>
+          <dt>Clicks</dt>
+          <dd>{recentLink.clickCount} / {recentLink.maxClicks ?? "Unlimited"}</dd>
+        </div>
       </dl>
 
       {copyState === "error" ? (

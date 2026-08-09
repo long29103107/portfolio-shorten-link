@@ -16,18 +16,21 @@ export type ShortLinkFormInput = {
   originalUrl: string;
   activeFromLocal: string;
   expiredAtLocal: string;
+  maxClicksLocal: string;
 };
 
 export type CreateShortLinkRequest = {
   originalUrl: string;
   activeFromUtc: string | null;
   expiredAtUtc: string;
+  maxClicks: number | null;
 };
 
 export type UpdateShortLinkRequest = {
   originalUrl: string;
   activeFromUtc: string | null;
   expiredAtUtc: string;
+  maxClicks: number | null;
 };
 
 export type CreatedShortLink = {
@@ -37,6 +40,8 @@ export type CreatedShortLink = {
   createdAtUtc: string;
   activeFromUtc: string | null;
   expiredAtUtc: string | null;
+  maxClicks: number | null;
+  clickCount: number;
 };
 
 export type ShortLinkDetails = {
@@ -46,6 +51,8 @@ export type ShortLinkDetails = {
   expiredAtUtc: string | null;
   activeFromUtc: string | null;
   isActive: boolean;
+  maxClicks: number | null;
+  clickCount: number;
 };
 
 export type ShortLinkAdminItem = {
@@ -56,6 +63,8 @@ export type ShortLinkAdminItem = {
   expiredAtUtc: string | null;
   activeFromUtc: string | null;
   isActive: boolean;
+  maxClicks: number | null;
+  clickCount: number;
   createdByUserId: string | null;
   createdByDisplayName: string | null;
   createdByUsername: string | null;
@@ -343,6 +352,10 @@ export function toFriendlyErrorMessage(errorCode: string, fallbackMessage: strin
       return "This link has expired.";
     case "scheduled":
       return "This link is not active yet.";
+    case "click_limit_reached":
+      return "This link has reached its click limit.";
+    case "invalid_max_clicks":
+      return "Enter a positive whole-number click limit, or leave it blank for unlimited clicks.";
     case "not_found":
       return "We could not find that short link.";
     case "invalid_role":

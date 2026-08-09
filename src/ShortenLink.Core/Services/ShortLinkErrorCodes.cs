@@ -5,6 +5,9 @@ public static class ShortLinkErrorCodes
     public const string Expired = "expired";
     public const string Inactive = "inactive";
     public const string Scheduled = "scheduled";
+    public const string ClickLimitReached = "click_limit_reached";
+    public const string InvalidMaxClicks = "invalid_max_clicks";
+    public const string ClickLimitNotSupported = "click_limit_not_supported";
     public const string InvalidCode = "invalid_code";
     public const string InvalidExpiration = "invalid_expiration";
     public const string InvalidActivationWindow = "invalid_activation_window";

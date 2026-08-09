@@ -11,10 +11,12 @@ public sealed record ShortLinkCreatedResponse(
     string OriginalUrl,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? ActiveFromUtc = null,
-    DateTimeOffset? ExpiredAtUtc = null)
+    DateTimeOffset? ExpiredAtUtc = null,
+    int? MaxClicks = null,
+    int ClickCount = 0)
 {
     public static ShortLinkCreatedResponse FromDomain(ShortLink shortLink, string shortUrl) =>
-        new(shortLink.Code, shortUrl, shortLink.OriginalUrl.AbsoluteUri, shortLink.CreatedAt, shortLink.ActiveFrom, shortLink.ExpiresAt);
+        new(shortLink.Code, shortUrl, shortLink.OriginalUrl.AbsoluteUri, shortLink.CreatedAt, shortLink.ActiveFrom, shortLink.ExpiresAt, shortLink.MaxClicks, shortLink.ClickCount);
 }
 
 public sealed record ShortLinkAdminListItemResponse(
@@ -28,7 +30,9 @@ public sealed record ShortLinkAdminListItemResponse(
     string? CreatedByDisplayName,
     string? CreatedByUsername,
     string? AccessLevel,
-    DateTimeOffset? ActiveFromUtc = null)
+    DateTimeOffset? ActiveFromUtc = null,
+    int? MaxClicks = null,
+    int ClickCount = 0)
 {
     public static ShortLinkAdminListItemResponse FromDomain(
         ShortLink shortLink,
@@ -45,7 +49,9 @@ public sealed record ShortLinkAdminListItemResponse(
             shortLink.CreatedByDisplayName,
             shortLink.CreatedByUsername,
             accessLevel,
-            shortLink.ActiveFrom);
+            shortLink.ActiveFrom,
+            shortLink.MaxClicks,
+            shortLink.ClickCount);
 }
 
 public sealed record ShortLinkAdminListResponse(
@@ -86,7 +92,9 @@ public sealed record ShortLinkDetailsResponse(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? ExpiredAtUtc,
     bool IsActive,
-    DateTimeOffset? ActiveFromUtc = null)
+    DateTimeOffset? ActiveFromUtc = null,
+    int? MaxClicks = null,
+    int ClickCount = 0)
 {
     public static ShortLinkDetailsResponse FromDomain(ShortLink shortLink) =>
         new(
@@ -95,7 +103,9 @@ public sealed record ShortLinkDetailsResponse(
             shortLink.CreatedAt,
             shortLink.ExpiresAt,
             shortLink.IsActive,
-            shortLink.ActiveFrom);
+            shortLink.ActiveFrom,
+            shortLink.MaxClicks,
+            shortLink.ClickCount);
 }
 
 public sealed record ShortLinkAnalyticsResponse(

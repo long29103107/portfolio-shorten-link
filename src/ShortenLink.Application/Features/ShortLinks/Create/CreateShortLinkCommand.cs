@@ -12,7 +12,8 @@ public sealed record CreateShortLinkCommand(
     string OriginalUrl,
     DateTimeOffset? ExpiresAt,
     string? IdempotencyKey = null,
-    DateTimeOffset? ActiveFromUtc = null) : IRequest<CreateShortLinkResponse>;
+    DateTimeOffset? ActiveFromUtc = null,
+    int? MaxClicks = null) : IRequest<CreateShortLinkResponse>;
 
 internal sealed class CreateShortLinkCommandHandler(
     IShortLinkService shortLinkService,
@@ -40,7 +41,8 @@ internal sealed class CreateShortLinkCommandHandler(
                 creator?.Username,
                 request.IdempotencyKey,
                 actor.TenantId,
-                request.ActiveFromUtc),
+                request.ActiveFromUtc,
+                request.MaxClicks),
             cancellationToken);
 
         if (!result.Succeeded || result.ShortLink is null)
@@ -69,12 +71,15 @@ internal sealed class CreateShortLinkCommandHandler(
             ShortLinkErrorCodes.InvalidUrl
                 or ShortLinkErrorCodes.InvalidExpiration
                 or ShortLinkErrorCodes.InvalidActivationWindow
+                or ShortLinkErrorCodes.InvalidMaxClicks
                 or ShortLinkErrorCodes.InvalidIdempotencyKey
                 or ShortLinkErrorCodes.InvalidTenantId =>
                 new RequestValidationException(errorCode, message),
             ShortLinkErrorCodes.IdempotencyConflict => new ConflictException(errorCode, message),
             ShortLinkErrorCodes.NotFound => new NotFoundException(errorCode, message),
-            ShortLinkErrorCodes.Expired or ShortLinkErrorCodes.Inactive =>
+            ShortLinkErrorCodes.Expired
+                or ShortLinkErrorCodes.Inactive
+                or ShortLinkErrorCodes.ClickLimitReached =>
                 new ResourceGoneException(errorCode, message),
             ErrorCodes.DuplicateAlias => new ConflictException(errorCode, message),
             _ => new BusinessRuleException(errorCode, message)

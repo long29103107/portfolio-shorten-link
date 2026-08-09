@@ -9,7 +9,8 @@ public sealed record UpdateShortLinkCommand(
     string OriginalUrl,
     DateTimeOffset? ExpiresAt,
     string BaseUrl,
-    DateTimeOffset? ActiveFromUtc = null) : IRequest<ShortLinkAdminListItemResponse>;
+    DateTimeOffset? ActiveFromUtc = null,
+    int? MaxClicks = null) : IRequest<ShortLinkAdminListItemResponse>;
 
 internal sealed class UpdateShortLinkCommandHandler(
     IShortLinkService shortLinkService,
@@ -31,7 +32,7 @@ internal sealed class UpdateShortLinkCommandHandler(
         var updated = ShortLinkFeatureSupport.GetRequired(
             await shortLinkService.UpdateAsync(
                 request.Code,
-                new UpdateShortLinkRequest(request.OriginalUrl, request.ExpiresAt, request.ActiveFromUtc),
+                new UpdateShortLinkRequest(request.OriginalUrl, request.ExpiresAt, request.ActiveFromUtc, request.MaxClicks),
                 cancellationToken));
         await auditWriter.RecordAsync(
             user,

@@ -59,7 +59,8 @@ describe("expiry presentation", () => {
       expect(validateShortLinkForm({
         originalUrl: "https://example.com/docs",
         activeFromLocal: "",
-        expiredAtLocal: localValue
+        expiredAtLocal: localValue,
+        maxClicksLocal: ""
       }, referenceTime)).toEqual({});
     }
   });

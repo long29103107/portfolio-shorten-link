@@ -8,4 +8,5 @@ public sealed record CreateShortLinkRequest(
     string? CreatedByUsername = null,
     string? IdempotencyKey = null,
     string? TenantId = null,
-    DateTimeOffset? ActiveFrom = null);
+    DateTimeOffset? ActiveFrom = null,
+    int? MaxClicks = null);

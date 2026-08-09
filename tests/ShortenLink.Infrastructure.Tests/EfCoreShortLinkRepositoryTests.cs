@@ -139,6 +139,37 @@ public sealed class EfCoreShortLinkRepositoryTests
     }
 
     [Fact]
+    public async Task TryConsumeClickAsync_IncrementsBudgetAndDeactivatesAtLimit()
+    {
+        await using var database = await SqliteTestDatabase.CreateAsync();
+        var repository = database.CreateRepository();
+        var now = new DateTimeOffset(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+        await repository.AddAsync(new ShortLink(
+            "limit01",
+            new Uri("https://example.com/limited"),
+            now,
+            now.AddDays(1),
+            maxClicks: 2));
+
+        var limitRepository = (IShortLinkClickLimitRepository)repository;
+
+        Assert.Equal(
+            ShortLinkClickConsumptionResult.Consumed,
+            await limitRepository.TryConsumeClickAsync("limit01", null, now));
+        Assert.Equal(
+            ShortLinkClickConsumptionResult.Consumed,
+            await limitRepository.TryConsumeClickAsync("limit01", null, now));
+        Assert.Equal(
+            ShortLinkClickConsumptionResult.LimitReached,
+            await limitRepository.TryConsumeClickAsync("limit01", null, now));
+
+        var stored = await repository.FindByCodeAsync("limit01");
+        Assert.NotNull(stored);
+        Assert.Equal(2, stored.ClickCount);
+        Assert.False(stored.IsActive);
+    }
+
+    [Fact]
     public async Task ListRecentAsync_ReturnsNewestLinksFirst()
     {
         await using var database = await SqliteTestDatabase.CreateAsync();
@@ -293,6 +324,7 @@ public sealed class EfCoreShortLinkRepositoryTests
         Assert.Contains("IX_short_links_Code", indexes);
         Assert.Contains("IX_short_links_CreatedAt", indexes);
         Assert.Contains("IX_short_links_ExpiresAt", indexes);
+        Assert.Contains("IX_short_links_ActiveFrom", indexes);
         Assert.Contains("IX_short_links_IsActive", indexes);
         Assert.Contains("IX_short_links_TenantId_CreatedAt_Code", indexes);
         Assert.Contains("IX_short_links_TenantId_ExpiresAt_Code", indexes);
@@ -321,6 +353,7 @@ public sealed class EfCoreShortLinkRepositoryTests
         Assert.Contains("IX_short_links_Code", indexNames);
         Assert.Contains("IX_short_links_CreatedAt", indexNames);
         Assert.Contains("IX_short_links_ExpiresAt", indexNames);
+        Assert.Contains("IX_short_links_ActiveFrom", indexNames);
         Assert.Contains("IX_short_links_IsActive", indexNames);
         Assert.Contains("IX_short_links_TenantId_CreatedAt_Code", indexNames);
         Assert.Contains("IX_short_links_TenantId_ExpiresAt_Code", indexNames);

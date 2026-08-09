@@ -104,6 +104,13 @@ public sealed class ShortLinkImportValidator(TimeProvider timeProvider) : IShort
                 "Activation must be earlier than expiration.");
         }
 
+        if (item.MaxClicks is <= 0)
+        {
+            return (
+                ShortLinkImportErrorCodes.InvalidMaxClicks,
+                "MaxClicks must be a positive integer.");
+        }
+
         if (!ShortLinkIdempotencyKey.IsValid(item.IdempotencyKey))
         {
             return (

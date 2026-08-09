@@ -13,6 +13,7 @@ public sealed partial class EfCoreShortLinkRepository
         nameof(ShortLinkPersistenceEntity.Code),
         nameof(ShortLinkPersistenceEntity.OriginalUrl),
         nameof(ShortLinkPersistenceEntity.ExpiresAt),
+        nameof(ShortLinkPersistenceEntity.ActiveFrom),
         nameof(ShortLinkPersistenceEntity.IsActive),
         nameof(ShortLinkPersistenceEntity.CreatedAt),
         nameof(ShortLinkPersistenceEntity.CreatedByUserId)

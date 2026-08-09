@@ -5,6 +5,7 @@ public static class ShortLinkImportErrorCodes
     public const string InvalidUrl = "invalid_url";
     public const string InvalidExpiration = "invalid_expiration";
     public const string InvalidActivationWindow = "invalid_activation_window";
+    public const string InvalidMaxClicks = "invalid_max_clicks";
     public const string InvalidIdempotencyKey = "invalid_idempotency_key";
     public const string DuplicateIdempotencyKey = "duplicate_idempotency_key";
     public const string ImportLimitExceeded = "import_limit_exceeded";

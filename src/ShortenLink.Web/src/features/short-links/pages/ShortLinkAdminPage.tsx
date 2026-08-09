@@ -517,6 +517,11 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
                 );
               }
             },
+            {
+              id: "clicks",
+              header: "Clicks",
+              cell: (link) => `${link.clickCount} / ${link.maxClicks ?? "∞"}`
+            },
             { id: "actions", header: "Actions", cell: renderActions }
           ]}
         />
@@ -650,6 +655,37 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
                   }));
                 }}
               />
+            </Label>
+            <Label className="field">
+              <span className="field-label">
+                Click limit <span className="muted">(optional)</span>
+              </span>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                inputMode="numeric"
+                placeholder="Unlimited"
+                value={editForm.maxClicksLocal}
+                aria-invalid={fieldErrors.maxClicksLocal ? "true" : undefined}
+                aria-describedby={fieldErrors.maxClicksLocal ? "editor-max-clicks-error" : undefined}
+                onChange={(event) => {
+                  const { value } = event.target;
+                  setEditForm((current) => ({
+                    ...current,
+                    maxClicksLocal: value
+                  }));
+                  setFieldErrors((current) => ({
+                    ...current,
+                    maxClicksLocal: undefined
+                  }));
+                }}
+              />
+              {fieldErrors.maxClicksLocal ? (
+                <span id="editor-max-clicks-error" className="field-error">
+                  {fieldErrors.maxClicksLocal}
+                </span>
+              ) : null}
             </Label>
             {editorRequestError ? (
               <div className="recovery-banner recovery-banner-error" role="alert">

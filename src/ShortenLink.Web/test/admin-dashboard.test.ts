@@ -84,6 +84,8 @@ describe("admin dashboard snapshot", () => {
       createdAtUtc: "2026-07-24T03:00:00Z",
       expiredAtUtc: null,
       isActive: true,
+      maxClicks: null,
+      clickCount: 0,
       createdByUserId: "1",
       createdByDisplayName: "Admin",
       createdByUsername: "admin@shortenlink.local",

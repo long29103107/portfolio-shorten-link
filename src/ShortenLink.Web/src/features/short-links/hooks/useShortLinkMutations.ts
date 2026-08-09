@@ -36,13 +36,19 @@ type UseShortLinkMutationsOptions = {
   onAnalyticsClose: () => void;
 };
 
-const emptyEditForm: ShortLinkFormInput = { originalUrl: "", activeFromLocal: "", expiredAtLocal: "" };
+const emptyEditForm: ShortLinkFormInput = {
+  originalUrl: "",
+  activeFromLocal: "",
+  expiredAtLocal: "",
+  maxClicksLocal: ""
+};
 
 export function buildShortLinkMutationPayload(form: ShortLinkFormInput) {
   return {
     originalUrl: form.originalUrl.trim(),
     activeFromUtc: form.activeFromLocal ? new Date(form.activeFromLocal).toISOString() : null,
-    expiredAtUtc: new Date(form.expiredAtLocal).toISOString()
+    expiredAtUtc: new Date(form.expiredAtLocal).toISOString(),
+    maxClicks: form.maxClicksLocal.trim() ? Number(form.maxClicksLocal) : null
   };
 }
 
@@ -75,7 +81,8 @@ export function useShortLinkMutations({
   const hasEditChanges = isEditorOpen
     && (editForm.originalUrl !== initialEditForm.originalUrl
       || editForm.activeFromLocal !== initialEditForm.activeFromLocal
-      || editForm.expiredAtLocal !== initialEditForm.expiredAtLocal);
+      || editForm.expiredAtLocal !== initialEditForm.expiredAtLocal
+      || editForm.maxClicksLocal !== initialEditForm.maxClicksLocal);
 
   const handleDeactivate = async (code: string) => {
     setBusyCode(code);
@@ -139,7 +146,8 @@ export function useShortLinkMutations({
     const nextForm = {
       originalUrl: link.originalUrl,
       activeFromLocal: toEditorExpiryValue(link.activeFromUtc),
-      expiredAtLocal: toEditorExpiryValue(link.expiredAtUtc)
+      expiredAtLocal: toEditorExpiryValue(link.expiredAtUtc),
+      maxClicksLocal: link.maxClicks === null ? "" : String(link.maxClicks)
     };
     setEditForm(nextForm);
     setInitialEditForm(nextForm);

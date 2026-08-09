@@ -666,6 +666,7 @@ public sealed class ShortLinkServiceTests
                 Code = link.Code,
                 OriginalUrl = link.OriginalUrl.AbsoluteUri,
                 ExpiresAt = link.ExpiresAt,
+                ActiveFrom = link.ActiveFrom,
                 IsActive = link.IsActive,
                 CreatedAt = link.CreatedAt,
                 CreatedByUserId = link.CreatedByUserId
@@ -675,11 +676,12 @@ public sealed class ShortLinkServiceTests
         private sealed class ShortLinkFilterRow
         {
             public static readonly string[] AllowedProperties =
-            [nameof(Code), nameof(OriginalUrl), nameof(ExpiresAt), nameof(IsActive), nameof(CreatedAt), nameof(CreatedByUserId)];
+            [nameof(Code), nameof(OriginalUrl), nameof(ExpiresAt), nameof(ActiveFrom), nameof(IsActive), nameof(CreatedAt), nameof(CreatedByUserId)];
 
             public string Code { get; init; } = string.Empty;
             public string OriginalUrl { get; init; } = string.Empty;
             public DateTimeOffset? ExpiresAt { get; init; }
+            public DateTimeOffset? ActiveFrom { get; init; }
             public bool IsActive { get; init; }
             public DateTimeOffset CreatedAt { get; init; }
             public string? CreatedByUserId { get; init; }

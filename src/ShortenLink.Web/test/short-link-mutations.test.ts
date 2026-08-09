@@ -9,13 +9,15 @@ test("builds the API payload from normalized editor values", () => {
   const form = {
     originalUrl: "  https://example.com/docs  ",
     activeFromLocal: "",
-    expiredAtLocal: "2026-08-08T14:30"
+    expiredAtLocal: "2026-08-08T14:30",
+    maxClicksLocal: "3"
   };
 
   expect(buildShortLinkMutationPayload(form)).toEqual({
     originalUrl: "https://example.com/docs",
     activeFromUtc: null,
-    expiredAtUtc: new Date(form.expiredAtLocal).toISOString()
+    expiredAtUtc: new Date(form.expiredAtLocal).toISOString(),
+    maxClicks: 3
   });
 });
 

@@ -26,6 +26,20 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 "Original URL must be an absolute HTTP or HTTPS URL.");
         }
 
+        if (request.MaxClicks is <= 0)
+        {
+            return CreateShortLinkResponse.Failure(
+                ShortLinkErrorCodes.InvalidMaxClicks,
+                "MaxClicks must be a positive integer.");
+        }
+
+        if (request.MaxClicks is not null && repository is not IShortLinkClickLimitRepository)
+        {
+            return CreateShortLinkResponse.Failure(
+                ShortLinkErrorCodes.ClickLimitNotSupported,
+                "The configured persistence provider does not support click limits.");
+        }
+
         if (!ShortLinkIdempotencyKey.IsValid(request.IdempotencyKey))
         {
             return CreateShortLinkResponse.Failure(
@@ -92,6 +106,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 originalUrl,
                 request.ExpiresAt.Value,
                 request.ActiveFrom,
+                request.MaxClicks,
                 request.CreatedByUserId,
                 tenantId);
             if (replay is not null)
@@ -119,7 +134,8 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 createdByUsername: request.CreatedByUsername,
                 idempotencyKey: idempotencyKey,
                 tenantId: tenantId,
-                activeFrom: request.ActiveFrom);
+                activeFrom: request.ActiveFrom,
+                maxClicks: request.MaxClicks);
 
             try
             {
@@ -144,6 +160,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                     originalUrl,
                     request.ExpiresAt.Value,
                     request.ActiveFrom,
+                    request.MaxClicks,
                     request.CreatedByUserId,
                     tenantId);
                 return replay
@@ -163,6 +180,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         Uri originalUrl,
         DateTimeOffset expiresAt,
         DateTimeOffset? activeFrom,
+        int? maxClicks,
         string? createdByUserId,
         string? tenantId)
     {
@@ -174,6 +192,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         return string.Equals(existing.OriginalUrl.AbsoluteUri, originalUrl.AbsoluteUri, StringComparison.Ordinal)
             && existing.ExpiresAt == expiresAt
             && existing.ActiveFrom == activeFrom
+            && existing.MaxClicks == maxClicks
             && string.Equals(existing.CreatedByUserId, NormalizeIdentity(createdByUserId), StringComparison.Ordinal)
             && string.Equals(existing.TenantId, tenantId, StringComparison.Ordinal)
             ? CreateShortLinkResponse.Replay(existing)
@@ -205,6 +224,20 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 "Original URL must be an absolute HTTP or HTTPS URL.");
         }
 
+        if (request.MaxClicks is <= 0)
+        {
+            return ShortLinkDetailsResponse.Failure(
+                ShortLinkErrorCodes.InvalidMaxClicks,
+                "MaxClicks must be a positive integer.");
+        }
+
+        if (request.MaxClicks is not null && repository is not IShortLinkClickLimitRepository)
+        {
+            return ShortLinkDetailsResponse.Failure(
+                ShortLinkErrorCodes.ClickLimitNotSupported,
+                "The configured persistence provider does not support click limits.");
+        }
+
         var now = timeProvider.GetUtcNow();
         if (request.ExpiresAt is null)
         {
@@ -233,12 +266,20 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             return ShortLinkDetailsResponse.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
         }
 
+        if (request.MaxClicks is not null && request.MaxClicks < existing.ClickCount)
+        {
+            return ShortLinkDetailsResponse.Failure(
+                ShortLinkErrorCodes.InvalidMaxClicks,
+                "MaxClicks cannot be lower than the current click count.");
+        }
+
         var updated = new ShortLink(
             existing.Code,
             originalUrl,
             existing.CreatedAt,
             request.ExpiresAt.Value,
-            existing.IsActive,
+            existing.IsActive
+                && (request.MaxClicks is null || existing.ClickCount < request.MaxClicks.Value),
             existing.CreatedByUserId,
             existing.CreatedByDisplayName,
             existing.CreatedByUsername,
@@ -246,7 +287,9 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             idempotencyKey: existing.IdempotencyKey,
             tenantId: existing.TenantId,
             sharingMode: existing.SharingMode,
-            activeFrom: request.ActiveFrom);
+            activeFrom: request.ActiveFrom,
+            maxClicks: request.MaxClicks,
+            clickCount: existing.ClickCount);
 
         await repository.UpdateAsync(updated, cancellationToken);
         await RemoveCachedAsync(updated.Code, updated.TenantId, cancellationToken);

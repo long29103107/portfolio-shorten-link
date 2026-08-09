@@ -23,7 +23,8 @@ type CreateShortLinkFormProps = {
 const initialForm: ShortLinkFormInput = {
   originalUrl: "",
   activeFromLocal: "",
-  expiredAtLocal: ""
+  expiredAtLocal: "",
+  maxClicksLocal: ""
 };
 
 export function CreateShortLinkForm({
@@ -52,7 +53,8 @@ export function CreateShortLinkForm({
       const createdLink = await createShortLink({
         originalUrl: form.originalUrl.trim(),
         activeFromUtc: form.activeFromLocal ? new Date(form.activeFromLocal).toISOString() : null,
-        expiredAtUtc: new Date(form.expiredAtLocal).toISOString()
+        expiredAtUtc: new Date(form.expiredAtLocal).toISOString(),
+        maxClicks: form.maxClicksLocal.trim() ? Number(form.maxClicksLocal) : null
       });
 
       onCreated(createdLink);
@@ -148,6 +150,28 @@ export function CreateShortLinkForm({
           />
         </Label>
       </div>
+
+      <Label className="field">
+        <span className="field-label">
+          Click limit <span className="muted">(optional)</span>
+        </span>
+        <Input
+          type="number"
+          min="1"
+          step="1"
+          inputMode="numeric"
+          placeholder="Unlimited"
+          value={form.maxClicksLocal}
+          aria-invalid={fieldErrors.maxClicksLocal ? "true" : undefined}
+          aria-describedby={fieldErrors.maxClicksLocal ? "create-max-clicks-error" : undefined}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, maxClicksLocal: event.target.value }))
+          }
+        />
+        {fieldErrors.maxClicksLocal ? (
+          <span id="create-max-clicks-error" className="field-error">{fieldErrors.maxClicksLocal}</span>
+        ) : null}
+      </Label>
 
       {errorMessage ? <p className="feedback feedback-error">{errorMessage}</p> : null}
       </CardContent>

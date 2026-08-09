@@ -53,6 +53,18 @@ internal sealed class PostgresSchemaDialect : IDatabaseSchemaDialect
             "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"ActiveFrom\" timestamp with time zone NULL;",
             cancellationToken);
 
+    public async Task EnsureClickLimitSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"MaxClicks\" integer NULL;",
+            cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"ClickCount\" integer NOT NULL DEFAULT 0;",
+            cancellationToken);
+    }
+
     private const string AuditEventsSchema = """
         CREATE TABLE IF NOT EXISTS "short_link_audit_events" (
             "Id" uuid NOT NULL CONSTRAINT "PK_short_link_audit_events" PRIMARY KEY,

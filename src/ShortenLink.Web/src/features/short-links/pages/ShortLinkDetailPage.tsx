@@ -122,6 +122,10 @@ export function ShortLinkDetailPage({ code, onBackHome }: ShortLinkDetailPagePro
             })()}
           </dd>
         </div>
+        <div>
+          <dt>Clicks</dt>
+          <dd>{details.clickCount} / {details.maxClicks ?? "Unlimited"}</dd>
+        </div>
       </dl>
 
       {errorMessage ? <p className="feedback feedback-error">{errorMessage}</p> : null}

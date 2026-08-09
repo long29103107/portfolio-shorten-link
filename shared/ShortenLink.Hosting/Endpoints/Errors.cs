@@ -76,6 +76,14 @@ internal sealed class ShortenLinkExceptionEndpointFilter : IEndpointFilter
             };
         }
 
+        if (errorCode == ShortLinkErrorCodes.InvalidMaxClicks)
+        {
+            return new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["maxClicks"] = [message]
+            };
+        }
+
         var field = errorCode switch
         {
             ShortLinkErrorCodes.InvalidUrl => "originalUrl",

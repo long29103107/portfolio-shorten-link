@@ -17,7 +17,9 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         string? idempotencyKey = null,
         string? tenantId = null,
         ShortLinkSharingMode sharingMode = ShortLinkSharingMode.AllowList,
-        DateTimeOffset? activeFrom = null)
+        DateTimeOffset? activeFrom = null,
+        int? maxClicks = null,
+        int clickCount = 0)
         : base(createdAt, technicalId ?? Guid.CreateVersion7())
     {
         ShortCodeValidator.ValidateCodeOrThrow(code);
@@ -26,6 +28,16 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         if (!ShortLinkUrlValidator.IsValid(originalUrl.AbsoluteUri))
         {
             throw new ArgumentException("Original URL must be an absolute HTTP or HTTPS URL.", nameof(originalUrl));
+        }
+
+        if (maxClicks is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxClicks), "MaxClicks must be a positive integer.");
+        }
+
+        if (clickCount < 0 || maxClicks is not null && clickCount > maxClicks)
+        {
+            throw new ArgumentOutOfRangeException(nameof(clickCount), "ClickCount must be within the configured click limit.");
         }
 
         Code = code;
@@ -46,6 +58,8 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         TenantId = ShortLinkTenantId.Normalize(tenantId);
         SharingMode = sharingMode;
         ActiveFrom = activeFrom;
+        MaxClicks = maxClicks;
+        ClickCount = clickCount;
     }
 
     public string Code { get; }
@@ -55,6 +69,10 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
     public DateTimeOffset? ExpiresAt { get; }
 
     public DateTimeOffset? ActiveFrom { get; }
+
+    public int? MaxClicks { get; }
+
+    public int ClickCount { get; }
 
     public bool IsActive { get; private set; }
 
@@ -73,6 +91,8 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
     public bool IsExpired(DateTimeOffset now) => ExpiresAt is not null && ExpiresAt <= now;
 
     public bool IsScheduled(DateTimeOffset now) => ActiveFrom is not null && ActiveFrom > now;
+
+    public bool IsClickLimitReached => MaxClicks is not null && ClickCount >= MaxClicks;
 
     public bool CanResolve(DateTimeOffset now) => IsActive && !IsScheduled(now) && !IsExpired(now);
 

@@ -8,8 +8,8 @@ describe("short-link CSV export", () => {
       originalUrl: "https://example.test/a,b\"c\nd",
       createdByDisplayName: "Ada, \"Admin\""
     })])).toBe([
-      "Code,Short URL,Destination URL,Created At (UTC),Starts At (UTC),Expires At (UTC),Status,Access,Created By",
-      "abc1234,https://short.test/abc1234,\"https://example.test/a,b\"\"c\nd\",2026-07-29T00:00:00Z,,2026-08-01T00:00:00Z,Active,Owner,\"Ada, \"\"Admin\"\"\"",
+      "Code,Short URL,Destination URL,Created At (UTC),Starts At (UTC),Expires At (UTC),Click Count,Max Clicks,Status,Access,Created By",
+      "abc1234,https://short.test/abc1234,\"https://example.test/a,b\"\"c\nd\",2026-07-29T00:00:00Z,,2026-08-01T00:00:00Z,0,Unlimited,Active,Owner,\"Ada, \"\"Admin\"\"\"",
       ""
     ].join("\r\n"));
   });
@@ -36,6 +36,8 @@ function link(overrides: Partial<ShortLinkAdminItem> = {}): ShortLinkAdminItem {
     activeFromUtc: null,
     expiredAtUtc: "2026-08-01T00:00:00Z",
     isActive: true,
+    maxClicks: null,
+    clickCount: 0,
     createdByUserId: "user-1",
     createdByDisplayName: null,
     createdByUsername: "admin",

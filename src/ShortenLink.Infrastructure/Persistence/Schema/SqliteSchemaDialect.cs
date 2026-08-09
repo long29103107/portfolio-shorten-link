@@ -87,6 +87,24 @@ internal sealed class SqliteSchemaDialect : IDatabaseSchemaDialect
             "ALTER TABLE \"short_links\" ADD COLUMN \"ActiveFrom\" TEXT NULL;",
             cancellationToken);
 
+    public async Task EnsureClickLimitSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        await EnsureColumnAsync(
+            dbContext,
+            "short_links",
+            "MaxClicks",
+            "ALTER TABLE \"short_links\" ADD COLUMN \"MaxClicks\" INTEGER NULL;",
+            cancellationToken);
+        await EnsureColumnAsync(
+            dbContext,
+            "short_links",
+            "ClickCount",
+            "ALTER TABLE \"short_links\" ADD COLUMN \"ClickCount\" INTEGER NOT NULL DEFAULT 0;",
+            cancellationToken);
+    }
+
     private static string CreateTimestampNormalizationSql(
         string table,
         string column) =>

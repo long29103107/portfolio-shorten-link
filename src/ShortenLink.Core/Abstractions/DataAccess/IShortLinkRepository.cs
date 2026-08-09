@@ -69,3 +69,28 @@ public interface IShortLinkTenantRepository
         string idempotencyKey,
         CancellationToken cancellationToken = default);
 }
+
+public enum ShortLinkClickConsumptionResult
+{
+    Consumed,
+    NotLimited,
+    NotFound,
+    Inactive,
+    Scheduled,
+    Expired,
+    LimitReached
+}
+
+/// <summary>
+/// Optional provider capability for atomically consuming a limited redirect.
+/// Providers implementing this contract must enforce the click budget in the
+/// same durable update that increments the current count.
+/// </summary>
+public interface IShortLinkClickLimitRepository
+{
+    Task<ShortLinkClickConsumptionResult> TryConsumeClickAsync(
+        string code,
+        string? tenantId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken = default);
+}

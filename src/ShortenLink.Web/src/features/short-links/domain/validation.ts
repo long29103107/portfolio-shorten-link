@@ -41,6 +41,13 @@ export function validateShortLinkForm(
     }
   }
 
+  if (form.maxClicksLocal.trim()) {
+    const maxClicks = Number(form.maxClicksLocal);
+    if (!Number.isInteger(maxClicks) || maxClicks <= 0) {
+      errors.maxClicksLocal = "Enter a positive whole-number click limit, or leave it blank for unlimited clicks.";
+    }
+  }
+
   if (form.activeFromLocal && !errors.activeFromLocal) {
     const activeFrom = new Date(form.activeFromLocal);
     if (Number.isNaN(activeFrom.getTime())) {
@@ -68,9 +75,13 @@ export function mapShortLinkApiFieldErrors(
     errors.activeFromLocal = fieldErrors.activeFromUtc;
   }
 
+  if (fieldErrors.maxClicks) {
+    errors.maxClicksLocal = fieldErrors.maxClicks;
+  }
+
   return errors;
 }
 
 export function hasShortLinkFieldErrors(errors: ShortLinkFieldErrors): boolean {
-  return Boolean(errors.originalUrl || errors.activeFromLocal || errors.expiredAtLocal);
+  return Boolean(errors.originalUrl || errors.activeFromLocal || errors.expiredAtLocal || errors.maxClicksLocal);
 }

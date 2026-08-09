@@ -12,6 +12,10 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
 
     public DateTimeOffset? ActiveFrom { get; set; }
 
+    public int? MaxClicks { get; set; }
+
+    public int ClickCount { get; set; }
+
     public bool IsActive { get; set; }
 
     public string? CreatedByUserId { get; set; }
@@ -38,6 +42,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             CreatedAt = shortLink.CreatedAt,
             ExpiresAt = shortLink.ExpiresAt,
             ActiveFrom = shortLink.ActiveFrom,
+            MaxClicks = shortLink.MaxClicks,
+            ClickCount = shortLink.ClickCount,
             IsActive = shortLink.IsActive,
             CreatedByUserId = shortLink.CreatedByUserId,
             CreatedByDisplayName = shortLink.CreatedByDisplayName,
@@ -62,7 +68,9 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             IdempotencyKey,
             TenantId,
             sharingMode: SharingMode,
-            activeFrom: ActiveFrom);
+            activeFrom: ActiveFrom,
+            maxClicks: MaxClicks,
+            clickCount: ClickCount);
 
     public void UpdateFromDomain(ShortLink shortLink)
     {
@@ -72,6 +80,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
         CreatedAt = shortLink.CreatedAt;
         ExpiresAt = shortLink.ExpiresAt;
         ActiveFrom = shortLink.ActiveFrom;
+        MaxClicks = shortLink.MaxClicks;
+        ClickCount = shortLink.ClickCount;
         IsActive = shortLink.IsActive;
         CreatedByUserId = shortLink.CreatedByUserId;
         CreatedByDisplayName = shortLink.CreatedByDisplayName;

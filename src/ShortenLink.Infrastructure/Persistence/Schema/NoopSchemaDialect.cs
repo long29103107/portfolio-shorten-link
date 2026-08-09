@@ -16,6 +16,10 @@ internal sealed class NoopSchemaDialect : IDatabaseSchemaDialect
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task EnsureClickLimitSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task EnsureAuditEventsTableAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken) => Task.CompletedTask;

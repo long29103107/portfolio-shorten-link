@@ -26,6 +26,7 @@ internal sealed class DatabaseInit : IHostedService
         await ShortLinkDatabaseSchema.EnsureExpirationCheckpointsTableAsync(dbContext, cancellationToken);
         await ShortLinkDatabaseSchema.EnsureIdempotencySchemaAsync(dbContext, cancellationToken);
         await ShortLinkDatabaseSchema.EnsureScheduledActivationSchemaAsync(dbContext, cancellationToken);
+        await ShortLinkDatabaseSchema.EnsureClickLimitSchemaAsync(dbContext, cancellationToken);
         await ShortLinkDatabaseSchema.EnsureUtcTimestampSchemaAsync(dbContext, cancellationToken);
 
         if (initializeSecurity)

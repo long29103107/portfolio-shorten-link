@@ -484,6 +484,28 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal(ShortLinkErrorCodes.Scheduled, redirectPayload.ErrorCode);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task PostCreate_RejectsInvalidMaxClicks(int maxClicks)
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/short-links", new
+        {
+            originalUrl = "https://example.com/invalid-click-limit",
+            expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+            maxClicks
+        });
+        var payload = await response.Content.ReadFromJsonAsync<ShortLinkErrorResponse>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.NotNull(payload);
+        Assert.Equal(ShortLinkErrorCodes.InvalidMaxClicks, payload.ErrorCode);
+        Assert.Contains("maxClicks", payload.FieldErrors?.Keys ?? []);
+    }
+
     [Fact]
     public async Task PostCreate_GeneratesRandomCodesForRepeatedCreates()
     {
@@ -2031,6 +2053,12 @@ public sealed class ShortLinkEndpointsTests
             new DateTimeOffset(2026, 7, 15, 8, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero),
             isActive: false);
+        await factory.SeedShortLinkAsync(
+            "future1",
+            "https://example.com/scheduled",
+            new DateTimeOffset(2026, 7, 15, 8, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero),
+            activeFrom: new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false
@@ -2040,11 +2068,13 @@ public sealed class ShortLinkEndpointsTests
         var inactive = await GetListCodesAsync(client, "inactive");
         var expiringSoon = await GetListCodesAsync(client, "expiring-soon");
         var active = await GetListCodesAsync(client, "active");
+        var scheduled = await GetListCodesAsync(client, "scheduled");
 
         Assert.Equal(new[] { "expired" }, expired);
         Assert.Equal(new[] { "off0001" }, inactive);
         Assert.Equal(new[] { "soon001" }, expiringSoon);
         Assert.Equal(new[] { "active1", "soon001" }, active.OrderBy(code => code, StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "future1" }, scheduled);
     }
 
     [Theory]
@@ -2402,6 +2432,64 @@ public sealed class ShortLinkEndpointsTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal("https://example.com/redirect", response.Headers.Location?.AbsoluteUri);
+    }
+
+    [Fact]
+    public async Task Redirect_EnforcesClickLimitAndDeactivatesLink()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false, cacheEnabled: true);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var created = await CreateShortLinkAsync(client, "https://example.com/limited", maxClicks: 2);
+
+        using var first = await client.GetAsync($"/{created.Code}");
+        using var second = await client.GetAsync($"/{created.Code}");
+        using var third = await client.GetAsync($"/{created.Code}");
+        var error = await third.Content.ReadFromJsonAsync<ShortLinkErrorResponse>();
+
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        Assert.Equal(HttpStatusCode.Gone, third.StatusCode);
+        Assert.NotNull(error);
+        Assert.Equal(ShortLinkErrorCodes.ClickLimitReached, error.ErrorCode);
+
+        using var detailsResponse = await client.GetAsync($"/api/short-links/{created.Code}");
+        var details = await detailsResponse.Content.ReadFromJsonAsync<ShortLinkDetailsResponse>();
+        Assert.Equal(HttpStatusCode.OK, detailsResponse.StatusCode);
+        Assert.NotNull(details);
+        Assert.False(details.IsActive);
+        Assert.Equal(2, details.MaxClicks);
+        Assert.Equal(2, details.ClickCount);
+    }
+
+    [Fact]
+    public async Task Redirect_ConcurrentRequestsCannotExceedClickLimit()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false, cacheEnabled: true);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var created = await CreateShortLinkAsync(client, "https://example.com/concurrent-limit", maxClicks: 3);
+        var responses = await Task.WhenAll(
+            Enumerable.Range(0, 10).Select(_ => client.GetAsync($"/{created.Code}")));
+
+        Assert.Equal(3, responses.Count(response => response.StatusCode == HttpStatusCode.Redirect));
+        Assert.Equal(7, responses.Count(response => response.StatusCode == HttpStatusCode.Gone));
+        foreach (var response in responses)
+        {
+            response.Dispose();
+        }
+
+        var details = await client.GetFromJsonAsync<ShortLinkDetailsResponse>(
+            $"/api/short-links/{created.Code}");
+        Assert.NotNull(details);
+        Assert.False(details.IsActive);
+        Assert.Equal(3, details.ClickCount);
     }
 
     [Fact]
@@ -3145,7 +3233,8 @@ public sealed class ShortLinkEndpointsTests
             string originalUrl,
             DateTimeOffset createdAt,
             DateTimeOffset expiresAt,
-            bool isActive = true)
+            bool isActive = true,
+            DateTimeOffset? activeFrom = null)
         {
             using var scope = Services.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ShortLinkDbContext>();
@@ -3157,7 +3246,8 @@ public sealed class ShortLinkEndpointsTests
                 new Uri(originalUrl),
                 createdAt,
                 expiresAt,
-                isActive));
+                isActive,
+                activeFrom: activeFrom));
         }
 
         public new ValueTask DisposeAsync()
@@ -3244,14 +3334,16 @@ public sealed class ShortLinkEndpointsTests
     private static async Task<ShortLinkCreatedResponse> CreateShortLinkAsync(
         HttpClient client,
         string originalUrl,
-        DateTimeOffset? expiredAtUtc = null)
+        DateTimeOffset? expiredAtUtc = null,
+        int? maxClicks = null)
     {
         expiredAtUtc ??= new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero);
 
         using var response = await client.PostAsJsonAsync("/api/short-links", new
         {
             originalUrl,
-            expiredAtUtc
+            expiredAtUtc,
+            maxClicks
         });
         var payload = await response.Content.ReadFromJsonAsync<ShortLinkCreatedResponse>();
 
@@ -3269,7 +3361,8 @@ public sealed class ShortLinkEndpointsTests
             "expired" => $"(IsActive eq `true`) & (ExpiresAt le `{now:O}`)",
             "inactive" => "(IsActive eq `false`)",
             "expiring-soon" => $"(IsActive eq `true`) & (ExpiresAt gt `{now:O}`) & (ExpiresAt le `{now.AddDays(7):O}`)",
-            "active" => $"(IsActive eq `true`) & ((ExpiresAt eq `null`) | (ExpiresAt gt `{now:O}`))",
+            "active" => $"(IsActive eq `true`) & ((ExpiresAt eq `null`) | (ExpiresAt gt `{now:O}`)) & ((ActiveFrom eq `null`) | (ActiveFrom le `{now:O}`))",
+            "scheduled" => $"(IsActive eq `true`) & (ActiveFrom gt `{now:O}`) & ((ExpiresAt eq `null`) | (ExpiresAt gt `{now:O}`))",
             _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
         };
         using var response = await client.GetAsync(
@@ -3345,14 +3438,19 @@ public sealed class ShortLinkEndpointsTests
         string OriginalUrl,
         DateTimeOffset CreatedAtUtc,
         DateTimeOffset? ActiveFromUtc = null,
-        DateTimeOffset? ExpiredAtUtc = null);
+        DateTimeOffset? ExpiredAtUtc = null,
+        int? MaxClicks = null,
+        int ClickCount = 0);
 
     private sealed record ShortLinkDetailsResponse(
         string Code,
         string OriginalUrl,
         DateTimeOffset CreatedAtUtc,
         DateTimeOffset? ExpiredAtUtc,
-        bool IsActive);
+        bool IsActive,
+        DateTimeOffset? ActiveFromUtc = null,
+        int? MaxClicks = null,
+        int ClickCount = 0);
 
     private sealed record ShortLinkAnalyticsResponse(
         string Code,

@@ -55,6 +55,13 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         if (shortLink is not null)
         {
             var cachedResult = await ResolveCachedAsync(shortLink, now, cancellationToken);
+            if (cachedResult.Succeeded && cachedResult.ShortLink is not null)
+            {
+                cachedResult = await ConsumeClickBudgetAsync(
+                    cachedResult.ShortLink,
+                    now,
+                    cancellationToken);
+            }
             CompleteRedirectDiagnostics(activity, cacheHit: true, cachedResult.Succeeded);
             if (cachedResult.Succeeded && cachedResult.ShortLink is not null)
             {
@@ -82,6 +89,14 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             return ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found.");
         }
 
+        if (shortLink.IsClickLimitReached)
+        {
+            CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
+            return ResolveShortLinkResponse.Failure(
+                ShortLinkErrorCodes.ClickLimitReached,
+                "Short link click limit has been reached.");
+        }
+
         if (!shortLink.IsActive)
         {
             CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
@@ -100,7 +115,17 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             return ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Expired, "Short link has expired.");
         }
 
-        await SetCachedAsync(shortLink, tenantId, cancellationToken);
+        var budgetResult = await ConsumeClickBudgetAsync(shortLink, now, cancellationToken);
+        if (!budgetResult.Succeeded || budgetResult.ShortLink is null)
+        {
+            CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
+            return budgetResult;
+        }
+
+        if (shortLink.MaxClicks is null)
+        {
+            await SetCachedAsync(shortLink, tenantId, cancellationToken);
+        }
         CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: true);
         PublishEvent(ShortLinkEventTypes.Redirected, shortLink, cancellationToken);
 
@@ -176,6 +201,14 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        if (shortLink.IsClickLimitReached)
+        {
+            await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
+            return ResolveShortLinkResponse.Failure(
+                ShortLinkErrorCodes.ClickLimitReached,
+                "Short link click limit has been reached.");
+        }
+
         if (!shortLink.IsActive)
         {
             await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
@@ -195,6 +228,54 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         }
 
         return ResolveShortLinkResponse.Success(shortLink);
+    }
+
+    private async Task<ResolveShortLinkResponse> ConsumeClickBudgetAsync(
+        ShortLink shortLink,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (shortLink.MaxClicks is null)
+        {
+            return ResolveShortLinkResponse.Success(shortLink);
+        }
+
+        if (repository is not IShortLinkClickLimitRepository limitRepository)
+        {
+            return ResolveShortLinkResponse.Failure(
+                ShortLinkErrorCodes.ClickLimitNotSupported,
+                "The configured persistence provider does not support click limits.");
+        }
+
+        var result = await limitRepository.TryConsumeClickAsync(
+            shortLink.Code,
+            shortLink.TenantId,
+            now,
+            cancellationToken);
+        if (result is ShortLinkClickConsumptionResult.Consumed
+            or ShortLinkClickConsumptionResult.NotLimited)
+        {
+            await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
+            return ResolveShortLinkResponse.Success(shortLink);
+        }
+
+        await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
+        return result switch
+        {
+            ShortLinkClickConsumptionResult.NotFound =>
+                ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.NotFound, "Short link was not found."),
+            ShortLinkClickConsumptionResult.Inactive =>
+                ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Inactive, "Short link is inactive."),
+            ShortLinkClickConsumptionResult.Scheduled =>
+                ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Scheduled, "Short link is not active yet."),
+            ShortLinkClickConsumptionResult.Expired =>
+                ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Expired, "Short link has expired."),
+            ShortLinkClickConsumptionResult.LimitReached =>
+                ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.ClickLimitReached, "Short link click limit has been reached."),
+            _ => ResolveShortLinkResponse.Failure(
+                ShortLinkErrorCodes.ClickLimitNotSupported,
+                "The configured persistence provider does not support click limits.")
+        };
     }
 
     private static (string ErrorCode, string ErrorMessage)? ValidateCode(string code)
