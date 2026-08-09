@@ -9,10 +9,12 @@ public sealed record ShortLinkCreatedResponse(
     string Code,
     string ShortUrl,
     string OriginalUrl,
-    DateTimeOffset CreatedAtUtc)
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset? ActiveFromUtc = null,
+    DateTimeOffset? ExpiredAtUtc = null)
 {
     public static ShortLinkCreatedResponse FromDomain(ShortLink shortLink, string shortUrl) =>
-        new(shortLink.Code, shortUrl, shortLink.OriginalUrl.AbsoluteUri, shortLink.CreatedAt);
+        new(shortLink.Code, shortUrl, shortLink.OriginalUrl.AbsoluteUri, shortLink.CreatedAt, shortLink.ActiveFrom, shortLink.ExpiresAt);
 }
 
 public sealed record ShortLinkAdminListItemResponse(
@@ -25,7 +27,8 @@ public sealed record ShortLinkAdminListItemResponse(
     string? CreatedByUserId,
     string? CreatedByDisplayName,
     string? CreatedByUsername,
-    string? AccessLevel)
+    string? AccessLevel,
+    DateTimeOffset? ActiveFromUtc = null)
 {
     public static ShortLinkAdminListItemResponse FromDomain(
         ShortLink shortLink,
@@ -41,7 +44,8 @@ public sealed record ShortLinkAdminListItemResponse(
             shortLink.CreatedByUserId,
             shortLink.CreatedByDisplayName,
             shortLink.CreatedByUsername,
-            accessLevel);
+            accessLevel,
+            shortLink.ActiveFrom);
 }
 
 public sealed record ShortLinkAdminListResponse(
@@ -81,7 +85,8 @@ public sealed record ShortLinkDetailsResponse(
     string OriginalUrl,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? ExpiredAtUtc,
-    bool IsActive)
+    bool IsActive,
+    DateTimeOffset? ActiveFromUtc = null)
 {
     public static ShortLinkDetailsResponse FromDomain(ShortLink shortLink) =>
         new(
@@ -89,7 +94,8 @@ public sealed record ShortLinkDetailsResponse(
             shortLink.OriginalUrl.AbsoluteUri,
             shortLink.CreatedAt,
             shortLink.ExpiresAt,
-            shortLink.IsActive);
+            shortLink.IsActive,
+            shortLink.ActiveFrom);
 }
 
 public sealed record ShortLinkAnalyticsResponse(

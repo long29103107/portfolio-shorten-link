@@ -22,6 +22,7 @@ internal sealed class ShortLinkConfiguration : IEntityTypeConfiguration<ShortLin
         entity.Property(link => link.SharingMode).HasConversion<int>().IsRequired();
         entity.HasIndex(link => link.CreatedAt);
         entity.HasIndex(link => link.ExpiresAt);
+        entity.HasIndex(link => link.ActiveFrom);
         entity.HasIndex(link => link.IsActive);
         entity.HasIndex(link => new { link.TenantId, link.CreatedAt, link.Code })
             .HasDatabaseName("IX_short_links_TenantId_CreatedAt_Code");

@@ -5,6 +5,7 @@ export const shortLinkCsvHeaders = [
   "Short URL",
   "Destination URL",
   "Created At (UTC)",
+  "Starts At (UTC)",
   "Expires At (UTC)",
   "Status",
   "Access",
@@ -17,8 +18,9 @@ export function serializeShortLinksCsv(items: readonly ShortLinkAdminItem[]): st
     link.shortUrl,
     link.originalUrl,
     link.createdAtUtc,
+    link.activeFromUtc ?? "",
     link.expiredAtUtc ?? "",
-    link.isActive ? "Active" : "Inactive",
+    link.activeFromUtc && new Date(link.activeFromUtc) > new Date() && link.isActive ? "Scheduled" : link.isActive ? "Active" : "Inactive",
     link.accessLevel ?? "",
     link.createdByDisplayName ?? link.createdByUsername ?? link.createdByUserId ?? ""
   ]);

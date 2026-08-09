@@ -2,11 +2,13 @@ namespace ShortenLink.Core.Contracts.Requests;
 
 public sealed record ShortLinkCreateRequest(
     string OriginalUrl,
-    DateTimeOffset? ExpiredAtUtc);
+    DateTimeOffset? ExpiredAtUtc,
+    DateTimeOffset? ActiveFromUtc = null);
 
 public sealed record ShortLinkUpdateRequest(
     string OriginalUrl,
-    DateTimeOffset? ExpiredAtUtc);
+    DateTimeOffset? ExpiredAtUtc,
+    DateTimeOffset? ActiveFromUtc = null);
 
 public sealed record ShortLinkShareUpsertRequest(
     string Username,

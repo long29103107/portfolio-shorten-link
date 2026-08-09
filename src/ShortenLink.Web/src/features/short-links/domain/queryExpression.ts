@@ -1,7 +1,7 @@
 import { filter, type FilterExpression, type SortExpression } from "@/shared/queryExpression";
 import type { ShortLinkDiscoveryQuery } from "../types";
 
-export type ShortLinkQueryField = "Code" | "OriginalUrl" | "CreatedAt" | "ExpiresAt" | "IsActive";
+export type ShortLinkQueryField = "Code" | "OriginalUrl" | "CreatedAt" | "ExpiresAt" | "ActiveFrom" | "IsActive";
 
 const sortFields: Record<Exclude<ShortLinkDiscoveryQuery["sortBy"], "status">, ShortLinkQueryField> = {
   created: "CreatedAt",
@@ -27,6 +27,19 @@ export function buildShortLinkFilterExpression(
   } else if (query.status === "active") {
     expressions.push(filter.and(
       filter.condition("IsActive", "eq", true),
+      filter.or(
+        filter.condition("ExpiresAt", "eq", "null"),
+        filter.condition("ExpiresAt", "gt", now)
+      ),
+      filter.or(
+        filter.condition("ActiveFrom", "eq", "null"),
+        filter.condition("ActiveFrom", "le", now)
+      )
+    ));
+  } else if (query.status === "scheduled") {
+    expressions.push(filter.and(
+      filter.condition("IsActive", "eq", true),
+      filter.condition("ActiveFrom", "gt", now),
       filter.or(
         filter.condition("ExpiresAt", "eq", "null"),
         filter.condition("ExpiresAt", "gt", now)

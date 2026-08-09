@@ -7,4 +7,5 @@ public sealed record CreateShortLinkRequest(
     string? CreatedByDisplayName = null,
     string? CreatedByUsername = null,
     string? IdempotencyKey = null,
-    string? TenantId = null);
+    string? TenantId = null,
+    DateTimeOffset? ActiveFrom = null);

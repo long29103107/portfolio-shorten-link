@@ -334,6 +334,45 @@ public sealed class ShortLinkServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_RejectsActivationAtOrAfterExpiration()
+    {
+        var now = new DateTimeOffset(2026, 7, 11, 0, 0, 0, TimeSpan.Zero);
+        var service = CreateService(timeProvider: new FixedTimeProvider(now));
+
+        var result = await service.CreateAsync(new CreateShortLinkRequest(
+            "https://openai.com",
+            now.AddHours(2),
+            ActiveFrom: now.AddHours(2)));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(ShortLinkErrorCodes.InvalidActivationWindow, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_RejectsScheduledLinkUntilActivationTime()
+    {
+        var now = new DateTimeOffset(2026, 7, 11, 0, 0, 0, TimeSpan.Zero);
+        var repository = new InMemoryShortLinkRepository();
+        await repository.AddAsync(new ShortLink(
+            "scheduled",
+            new Uri("https://example.com/scheduled"),
+            now,
+            now.AddDays(1),
+            activeFrom: now.AddHours(1)));
+
+        var beforeActivation = await CreateService(
+            repository,
+            timeProvider: new FixedTimeProvider(now)).ResolveAsync("scheduled");
+        var afterActivation = await CreateService(
+            repository,
+            timeProvider: new FixedTimeProvider(now.AddHours(1))).ResolveAsync("scheduled");
+
+        Assert.False(beforeActivation.Succeeded);
+        Assert.Equal(ShortLinkErrorCodes.Scheduled, beforeActivation.ErrorCode);
+        Assert.True(afterActivation.Succeeded);
+    }
+
+    [Fact]
     public async Task ResolveAsync_RejectsExpiredLink()
     {
         var now = new DateTimeOffset(2026, 7, 11, 0, 0, 0, TimeSpan.Zero);

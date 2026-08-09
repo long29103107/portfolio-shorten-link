@@ -36,11 +36,12 @@ type UseShortLinkMutationsOptions = {
   onAnalyticsClose: () => void;
 };
 
-const emptyEditForm: ShortLinkFormInput = { originalUrl: "", expiredAtLocal: "" };
+const emptyEditForm: ShortLinkFormInput = { originalUrl: "", activeFromLocal: "", expiredAtLocal: "" };
 
 export function buildShortLinkMutationPayload(form: ShortLinkFormInput) {
   return {
     originalUrl: form.originalUrl.trim(),
+    activeFromUtc: form.activeFromLocal ? new Date(form.activeFromLocal).toISOString() : null,
     expiredAtUtc: new Date(form.expiredAtLocal).toISOString()
   };
 }
@@ -73,6 +74,7 @@ export function useShortLinkMutations({
   const isEditorOpen = isCreating || editingLink !== null;
   const hasEditChanges = isEditorOpen
     && (editForm.originalUrl !== initialEditForm.originalUrl
+      || editForm.activeFromLocal !== initialEditForm.activeFromLocal
       || editForm.expiredAtLocal !== initialEditForm.expiredAtLocal);
 
   const handleDeactivate = async (code: string) => {
@@ -136,6 +138,7 @@ export function useShortLinkMutations({
     setFieldErrors({});
     const nextForm = {
       originalUrl: link.originalUrl,
+      activeFromLocal: toEditorExpiryValue(link.activeFromUtc),
       expiredAtLocal: toEditorExpiryValue(link.expiredAtUtc)
     };
     setEditForm(nextForm);

@@ -12,6 +12,10 @@ internal interface IDatabaseSchemaDialect
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken);
 
+    Task EnsureScheduledActivationSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken);
+
     Task EnsureAuditEventsTableAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken);

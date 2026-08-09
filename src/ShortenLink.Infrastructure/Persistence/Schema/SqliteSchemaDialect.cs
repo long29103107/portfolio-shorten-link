@@ -77,6 +77,16 @@ internal sealed class SqliteSchemaDialect : IDatabaseSchemaDialect
         CancellationToken cancellationToken) =>
         dbContext.Database.ExecuteSqlRawAsync(ExpirationCheckpointsSchema, cancellationToken);
 
+    public Task EnsureScheduledActivationSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken) =>
+        EnsureColumnAsync(
+            dbContext,
+            "short_links",
+            "ActiveFrom",
+            "ALTER TABLE \"short_links\" ADD COLUMN \"ActiveFrom\" TEXT NULL;",
+            cancellationToken);
+
     private static string CreateTimestampNormalizationSql(
         string table,
         string column) =>
@@ -184,7 +194,7 @@ internal sealed class SqliteSchemaDialect : IDatabaseSchemaDialect
     private static readonly IReadOnlyDictionary<string, string[]> TimestampColumns =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["short_links"] = ["CreatedAt", "UpdatedAt", "ExpiresAt"],
+            ["short_links"] = ["CreatedAt", "UpdatedAt", "ExpiresAt", "ActiveFrom"],
             ["short_link_clicks"] = ["CreatedAt", "UpdatedAt", "ClickedAtUtc"],
             ["short_link_shares"] = ["CreatedAt", "UpdatedAt"],
             ["short_link_audit_events"] = ["CreatedAt", "UpdatedAt", "OccurredAt"],

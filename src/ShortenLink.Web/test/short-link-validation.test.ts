@@ -8,12 +8,13 @@ const now = new Date("2026-07-21T00:00:00.000Z");
 
 describe("short-link validation parity", () => {
   test("requires an absolute HTTP(S) destination and future expiration", () => {
-    expect(validateShortLinkForm({ originalUrl: "", expiredAtLocal: "" }, now)).toEqual({
+    expect(validateShortLinkForm({ originalUrl: "", activeFromLocal: "", expiredAtLocal: "" }, now)).toEqual({
       originalUrl: "Paste a full destination URL to shorten.",
       expiredAtLocal: "Choose an expiry time."
     });
     expect(validateShortLinkForm({
       originalUrl: "ftp://example.com/file",
+      activeFromLocal: "",
       expiredAtLocal: "2026-07-20T23:59:59.000Z"
     }, now)).toEqual({
       originalUrl: "Use an http:// or https:// link.",
@@ -24,6 +25,7 @@ describe("short-link validation parity", () => {
   test("accepts deterministic values accepted by the backend", () => {
     expect(validateShortLinkForm({
       originalUrl: " https://example.com/docs ",
+      activeFromLocal: "",
       expiredAtLocal: "2026-07-21T00:00:01.000Z"
     }, now)).toEqual({});
   });

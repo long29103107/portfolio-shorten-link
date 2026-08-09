@@ -97,6 +97,13 @@ public sealed class ShortLinkImportValidator(TimeProvider timeProvider) : IShort
                 "Expiration must be in the future.");
         }
 
+        if (item.ActiveFromUtc is not null && item.ActiveFromUtc >= item.ExpiredAtUtc)
+        {
+            return (
+                ShortLinkImportErrorCodes.InvalidActivationWindow,
+                "Activation must be earlier than expiration.");
+        }
+
         if (!ShortLinkIdempotencyKey.IsValid(item.IdempotencyKey))
         {
             return (

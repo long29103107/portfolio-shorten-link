@@ -11,7 +11,8 @@ namespace ShortenLink.Application.Features.ShortLinks.Create;
 public sealed record CreateShortLinkCommand(
     string OriginalUrl,
     DateTimeOffset? ExpiresAt,
-    string? IdempotencyKey = null) : IRequest<CreateShortLinkResponse>;
+    string? IdempotencyKey = null,
+    DateTimeOffset? ActiveFromUtc = null) : IRequest<CreateShortLinkResponse>;
 
 internal sealed class CreateShortLinkCommandHandler(
     IShortLinkService shortLinkService,
@@ -38,7 +39,8 @@ internal sealed class CreateShortLinkCommandHandler(
                 creator?.DisplayName,
                 creator?.Username,
                 request.IdempotencyKey,
-                actor.TenantId),
+                actor.TenantId,
+                request.ActiveFromUtc),
             cancellationToken);
 
         if (!result.Succeeded || result.ShortLink is null)
@@ -66,6 +68,7 @@ internal sealed class CreateShortLinkCommandHandler(
         {
             ShortLinkErrorCodes.InvalidUrl
                 or ShortLinkErrorCodes.InvalidExpiration
+                or ShortLinkErrorCodes.InvalidActivationWindow
                 or ShortLinkErrorCodes.InvalidIdempotencyKey
                 or ShortLinkErrorCodes.InvalidTenantId =>
                 new RequestValidationException(errorCode, message),

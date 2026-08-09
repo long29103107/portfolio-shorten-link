@@ -20,6 +20,7 @@ export function toDateTimeLocalValue(date: Date): string {
 export type ExpiryLifecycleState =
   | "deleted"
   | "inactive"
+  | "scheduled"
   | "expired"
   | "expiring-soon"
   | "active"
@@ -27,6 +28,7 @@ export type ExpiryLifecycleState =
 
 export type ExpiryPresentationInput = {
   expiredAtUtc: string | null;
+  activeFromUtc?: string | null;
   isActive: boolean;
   isDeleted?: boolean;
 };
@@ -53,12 +55,22 @@ export function getExpiryPresentation(
     return { state: "inactive", label: "Inactive", detail: "This link is inactive.", dateTime };
   }
 
+  const activeFrom = input.activeFromUtc ? new Date(input.activeFromUtc) : null;
+  const reference = referenceTime.getTime();
+  if (activeFrom && !Number.isNaN(activeFrom.getTime()) && activeFrom.getTime() > reference) {
+    return {
+      state: "scheduled",
+      label: "Scheduled",
+      detail: `Starts at ${formatExpiryDateTime(input.activeFromUtc ?? null)}.`,
+      dateTime
+    };
+  }
+
   if (!input.expiredAtUtc) {
     return { state: "unknown", label: "No expiry", detail: "No expiry is configured.", dateTime };
   }
 
   const expiry = new Date(input.expiredAtUtc);
-  const reference = referenceTime.getTime();
   if (Number.isNaN(expiry.getTime()) || Number.isNaN(reference)) {
     return { state: "unknown", label: "Expiry unavailable", detail: "The expiry time could not be read.", dateTime };
   }

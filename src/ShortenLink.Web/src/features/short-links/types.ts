@@ -14,16 +14,19 @@ export type SecuritySection = "users" | "roles";
 
 export type ShortLinkFormInput = {
   originalUrl: string;
+  activeFromLocal: string;
   expiredAtLocal: string;
 };
 
 export type CreateShortLinkRequest = {
   originalUrl: string;
+  activeFromUtc: string | null;
   expiredAtUtc: string;
 };
 
 export type UpdateShortLinkRequest = {
   originalUrl: string;
+  activeFromUtc: string | null;
   expiredAtUtc: string;
 };
 
@@ -32,6 +35,8 @@ export type CreatedShortLink = {
   shortUrl: string;
   originalUrl: string;
   createdAtUtc: string;
+  activeFromUtc: string | null;
+  expiredAtUtc: string | null;
 };
 
 export type ShortLinkDetails = {
@@ -39,6 +44,7 @@ export type ShortLinkDetails = {
   originalUrl: string;
   createdAtUtc: string;
   expiredAtUtc: string | null;
+  activeFromUtc: string | null;
   isActive: boolean;
 };
 
@@ -48,6 +54,7 @@ export type ShortLinkAdminItem = {
   originalUrl: string;
   createdAtUtc: string;
   expiredAtUtc: string | null;
+  activeFromUtc: string | null;
   isActive: boolean;
   createdByUserId: string | null;
   createdByDisplayName: string | null;
@@ -184,7 +191,7 @@ export type SecurityAssignmentDisabled = {
   isEnabled: boolean;
 };
 
-export type ShortLinkStatusFilter = "all" | "active" | "inactive" | "expired" | "expiring-soon";
+export type ShortLinkStatusFilter = "all" | "active" | "inactive" | "scheduled" | "expired" | "expiring-soon";
 
 export type ShortLinkSortField = "created" | "expiry" | "destination" | "code" | "status";
 
@@ -326,12 +333,16 @@ export function toFriendlyErrorMessage(errorCode: string, fallbackMessage: strin
       return "Enter a valid short-link code.";
     case "invalid_expiration":
       return "Expiry needs to be in the future.";
+    case "invalid_activation_window":
+      return "Start time must be earlier than expiry.";
     case "invalid_url":
       return "Paste a full http:// or https:// URL.";
     case "inactive":
       return "This link has already been deactivated.";
     case "expired":
       return "This link has expired.";
+    case "scheduled":
+      return "This link is not active yet.";
     case "not_found":
       return "We could not find that short link.";
     case "invalid_role":

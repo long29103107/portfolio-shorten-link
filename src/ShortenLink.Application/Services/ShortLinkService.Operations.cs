@@ -73,6 +73,13 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 "Expiration must be in the future.");
         }
 
+        if (request.ActiveFrom is not null && request.ActiveFrom >= request.ExpiresAt)
+        {
+            return CreateShortLinkResponse.Failure(
+                ShortLinkErrorCodes.InvalidActivationWindow,
+                "Activation must be earlier than expiration.");
+        }
+
         if (idempotencyKey is not null)
         {
             var existing = tenantId is null
@@ -84,6 +91,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 existing,
                 originalUrl,
                 request.ExpiresAt.Value,
+                request.ActiveFrom,
                 request.CreatedByUserId,
                 tenantId);
             if (replay is not null)
@@ -110,7 +118,8 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 createdByDisplayName: request.CreatedByDisplayName,
                 createdByUsername: request.CreatedByUsername,
                 idempotencyKey: idempotencyKey,
-                tenantId: tenantId);
+                tenantId: tenantId,
+                activeFrom: request.ActiveFrom);
 
             try
             {
@@ -134,6 +143,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                     existing,
                     originalUrl,
                     request.ExpiresAt.Value,
+                    request.ActiveFrom,
                     request.CreatedByUserId,
                     tenantId);
                 return replay
@@ -152,6 +162,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         ShortLink? existing,
         Uri originalUrl,
         DateTimeOffset expiresAt,
+        DateTimeOffset? activeFrom,
         string? createdByUserId,
         string? tenantId)
     {
@@ -162,6 +173,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
 
         return string.Equals(existing.OriginalUrl.AbsoluteUri, originalUrl.AbsoluteUri, StringComparison.Ordinal)
             && existing.ExpiresAt == expiresAt
+            && existing.ActiveFrom == activeFrom
             && string.Equals(existing.CreatedByUserId, NormalizeIdentity(createdByUserId), StringComparison.Ordinal)
             && string.Equals(existing.TenantId, tenantId, StringComparison.Ordinal)
             ? CreateShortLinkResponse.Replay(existing)
@@ -208,6 +220,13 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 "Expiration must be in the future.");
         }
 
+        if (request.ActiveFrom is not null && request.ActiveFrom >= request.ExpiresAt)
+        {
+            return ShortLinkDetailsResponse.Failure(
+                ShortLinkErrorCodes.InvalidActivationWindow,
+                "Activation must be earlier than expiration.");
+        }
+
         var existing = await repository.FindByCodeAsync(code.Trim(), cancellationToken);
         if (existing is null)
         {
@@ -226,7 +245,8 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             technicalId: existing.Id,
             idempotencyKey: existing.IdempotencyKey,
             tenantId: existing.TenantId,
-            sharingMode: existing.SharingMode);
+            sharingMode: existing.SharingMode,
+            activeFrom: request.ActiveFrom);
 
         await repository.UpdateAsync(updated, cancellationToken);
         await RemoveCachedAsync(updated.Code, updated.TenantId, cancellationToken);

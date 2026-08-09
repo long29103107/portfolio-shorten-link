@@ -29,6 +29,23 @@ export function validateShortLinkForm(
     if (Number.isNaN(expiry.getTime()) || expiry.getTime() <= now.getTime()) {
       errors.expiredAtLocal = "Choose an expiry time in the future.";
     }
+
+    if (form.activeFromLocal) {
+      const activeFrom = new Date(form.activeFromLocal);
+      if (Number.isNaN(activeFrom.getTime())) {
+        errors.activeFromLocal = "Choose a valid start time.";
+      } else if (!errors.expiredAtLocal && activeFrom.getTime() >= expiry.getTime()) {
+        errors.activeFromLocal = "Start time must be earlier than expiry.";
+        errors.expiredAtLocal = "Expiry must be later than the start time.";
+      }
+    }
+  }
+
+  if (form.activeFromLocal && !errors.activeFromLocal) {
+    const activeFrom = new Date(form.activeFromLocal);
+    if (Number.isNaN(activeFrom.getTime())) {
+      errors.activeFromLocal = "Choose a valid start time.";
+    }
   }
 
   return errors;
@@ -47,9 +64,13 @@ export function mapShortLinkApiFieldErrors(
     errors.expiredAtLocal = fieldErrors.expiredAtUtc;
   }
 
+  if (fieldErrors.activeFromUtc) {
+    errors.activeFromLocal = fieldErrors.activeFromUtc;
+  }
+
   return errors;
 }
 
 export function hasShortLinkFieldErrors(errors: ShortLinkFieldErrors): boolean {
-  return Boolean(errors.originalUrl || errors.expiredAtLocal);
+  return Boolean(errors.originalUrl || errors.activeFromLocal || errors.expiredAtLocal);
 }

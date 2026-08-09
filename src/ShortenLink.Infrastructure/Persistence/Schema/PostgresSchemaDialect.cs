@@ -46,6 +46,13 @@ internal sealed class PostgresSchemaDialect : IDatabaseSchemaDialect
         CancellationToken cancellationToken) =>
         dbContext.Database.ExecuteSqlRawAsync(ExpirationCheckpointsSchema, cancellationToken);
 
+    public Task EnsureScheduledActivationSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"ActiveFrom\" timestamp with time zone NULL;",
+            cancellationToken);
+
     private const string AuditEventsSchema = """
         CREATE TABLE IF NOT EXISTS "short_link_audit_events" (
             "Id" uuid NOT NULL CONSTRAINT "PK_short_link_audit_events" PRIMARY KEY,

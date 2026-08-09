@@ -4,8 +4,10 @@ public static class ShortLinkErrorCodes
 {
     public const string Expired = "expired";
     public const string Inactive = "inactive";
+    public const string Scheduled = "scheduled";
     public const string InvalidCode = "invalid_code";
     public const string InvalidExpiration = "invalid_expiration";
+    public const string InvalidActivationWindow = "invalid_activation_window";
     public const string InvalidUrl = "invalid_url";
     public const string InvalidIdempotencyKey = "invalid_idempotency_key";
     public const string InvalidTenantId = "invalid_tenant_id";

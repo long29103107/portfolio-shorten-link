@@ -85,8 +85,8 @@ export function ShortLinkDetailPage({ code, onBackHome }: ShortLinkDetailPagePro
           <p className="eyebrow">Details</p>
           <CardTitle>{details.code}</CardTitle>
         </div>
-        <Badge variant={details.isActive ? "default" : "destructive"}>
-          {details.isActive ? "Active" : "Deactivated"}
+        <Badge variant={details.activeFromUtc && new Date(details.activeFromUtc) > new Date() && details.isActive ? "secondary" : details.isActive ? "default" : "destructive"}>
+          {details.activeFromUtc && new Date(details.activeFromUtc) > new Date() && details.isActive ? "Scheduled" : details.isActive ? "Active" : "Deactivated"}
         </Badge>
       </CardHeader>
 
@@ -103,6 +103,10 @@ export function ShortLinkDetailPage({ code, onBackHome }: ShortLinkDetailPagePro
         <div>
           <dt>Created</dt>
           <dd>{formatDateTime(details.createdAtUtc)}</dd>
+        </div>
+        <div>
+          <dt>Starts</dt>
+          <dd>{details.activeFromUtc ? formatDateTime(details.activeFromUtc) : "Immediately"}</dd>
         </div>
         <div>
           <dt>Expiry</dt>

@@ -22,6 +22,7 @@ type CreateShortLinkFormProps = {
 
 const initialForm: ShortLinkFormInput = {
   originalUrl: "",
+  activeFromLocal: "",
   expiredAtLocal: ""
 };
 
@@ -50,6 +51,7 @@ export function CreateShortLinkForm({
     try {
       const createdLink = await createShortLink({
         originalUrl: form.originalUrl.trim(),
+        activeFromUtc: form.activeFromLocal ? new Date(form.activeFromLocal).toISOString() : null,
         expiredAtUtc: new Date(form.expiredAtLocal).toISOString()
       });
 
@@ -105,6 +107,23 @@ export function CreateShortLinkForm({
       </Label>
 
       <div className="field-grid">
+        <Label className="field">
+          <span className="field-label">
+            Start at <span className="muted">(optional)</span>
+          </span>
+          <Input
+            type="datetime-local"
+            value={form.activeFromLocal}
+            aria-invalid={fieldErrors.activeFromLocal ? "true" : undefined}
+            aria-describedby={fieldErrors.activeFromLocal ? "create-active-from-error" : undefined}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, activeFromLocal: event.target.value }))
+            }
+          />
+          {fieldErrors.activeFromLocal ? (
+            <span id="create-active-from-error" className="field-error">{fieldErrors.activeFromLocal}</span>
+          ) : null}
+        </Label>
         <Label className="field">
           <span className="field-label">
             Expiry <span className="required-marker">*</span>

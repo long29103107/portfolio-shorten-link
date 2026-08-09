@@ -494,18 +494,29 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
                     <time dateTime={link.expiredAtUtc ?? undefined}>{expiry.dateTime}</time>
                     {expiry.state !== "active" && expiry.state !== "unknown" ? (
                       <Badge
-                        variant={expiry.state === "expiring-soon" ? "secondary" : "destructive"}
+                        variant={expiry.state === "expiring-soon" || expiry.state === "scheduled" ? "secondary" : "destructive"}
                         className={`expiry-badge expiry-badge-${expiry.state}`}
                       >
                         {expiry.label}
                       </Badge>
                     ) : null}
-                    {expiry.state === "expiring-soon" ? <small>{expiry.detail}</small> : null}
+                    {expiry.state === "expiring-soon" || expiry.state === "scheduled" ? <small>{expiry.detail}</small> : null}
                   </div>
                 );
               }
             },
-            { id: "status", header: "Status", cell: (link) => <Badge variant={link.isActive ? "default" : "destructive"}>{link.isActive ? "Active" : "Inactive"}</Badge> },
+            {
+              id: "status",
+              header: "Status",
+              cell: (link) => {
+                const lifecycle = getExpiryPresentation(link, new Date());
+                return (
+                  <Badge variant={lifecycle.state === "scheduled" ? "secondary" : link.isActive ? "default" : "destructive"}>
+                    {lifecycle.state === "scheduled" ? "Scheduled" : link.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                );
+              }
+            },
             { id: "actions", header: "Actions", cell: renderActions }
           ]}
         />
@@ -570,6 +581,33 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
               {fieldErrors.originalUrl ? (
                 <span id="editor-original-url-error" className="field-error">
                   {fieldErrors.originalUrl}
+                </span>
+              ) : null}
+            </Label>
+            <Label className="field">
+              <span className="field-label">
+                Start at <span className="muted">(optional)</span>
+              </span>
+              <Input
+                type="datetime-local"
+                aria-invalid={fieldErrors.activeFromLocal ? "true" : undefined}
+                aria-describedby={fieldErrors.activeFromLocal ? "editor-active-from-error" : undefined}
+                value={editForm.activeFromLocal}
+                onChange={(event) => {
+                  const { value } = event.target;
+                  setEditForm((current) => ({
+                    ...current,
+                    activeFromLocal: value
+                  }));
+                  setFieldErrors((current) => ({
+                    ...current,
+                    activeFromLocal: undefined
+                  }));
+                }}
+              />
+              {fieldErrors.activeFromLocal ? (
+                <span id="editor-active-from-error" className="field-error">
+                  {fieldErrors.activeFromLocal}
                 </span>
               ) : null}
             </Label>

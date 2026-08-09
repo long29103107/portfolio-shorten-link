@@ -31,9 +31,13 @@ public sealed class UtcTimestampPersistenceTests
         var expiresAtConverter = entityType?
             .FindProperty(nameof(ShortLinkPersistenceEntity.ExpiresAt))?
             .GetValueConverter();
+        var activeFromConverter = entityType?
+            .FindProperty(nameof(ShortLinkPersistenceEntity.ActiveFrom))?
+            .GetValueConverter();
 
         Assert.Equal(typeof(DateTime), createdAtConverter?.ProviderClrType);
         Assert.Equal(typeof(DateTime), expiresAtConverter?.ProviderClrType);
+        Assert.Equal(typeof(DateTime), activeFromConverter?.ProviderClrType);
     }
 
     [Fact]
@@ -48,13 +52,14 @@ public sealed class UtcTimestampPersistenceTests
         await dbContext.Database.EnsureCreatedAsync();
         await dbContext.Database.ExecuteSqlRawAsync("""
             INSERT INTO "short_links"
-                ("Id", "CreatedAt", "Code", "OriginalUrl", "ExpiresAt", "IsActive", "TenantId", "SharingMode")
+                ("Id", "CreatedAt", "Code", "OriginalUrl", "ExpiresAt", "ActiveFrom", "IsActive", "TenantId", "SharingMode")
             VALUES
                 ('00000000-0000-0000-0000-000000000001',
                  '2026-08-04 12:00:00+07:00',
                  'legacy1',
                  'https://example.com/legacy',
                  '2026-08-04 13:00:00+07:00',
+                 '2026-08-04 12:30:00+07:00',
                  1,
                  '',
                  1);
@@ -71,6 +76,9 @@ public sealed class UtcTimestampPersistenceTests
         Assert.Equal(
             new DateTimeOffset(2026, 8, 4, 6, 0, 0, TimeSpan.Zero),
             stored.ExpiresAt);
+        Assert.Equal(
+            new DateTimeOffset(2026, 8, 4, 5, 30, 0, TimeSpan.Zero),
+            stored.ActiveFrom);
     }
 
     [Fact]

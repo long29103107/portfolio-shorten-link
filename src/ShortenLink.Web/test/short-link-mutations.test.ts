@@ -8,11 +8,13 @@ import { toDateTimeLocalValue } from "../src/features/short-links/domain/expiryP
 test("builds the API payload from normalized editor values", () => {
   const form = {
     originalUrl: "  https://example.com/docs  ",
+    activeFromLocal: "",
     expiredAtLocal: "2026-08-08T14:30"
   };
 
   expect(buildShortLinkMutationPayload(form)).toEqual({
     originalUrl: "https://example.com/docs",
+    activeFromUtc: null,
     expiredAtUtc: new Date(form.expiredAtLocal).toISOString()
   });
 });

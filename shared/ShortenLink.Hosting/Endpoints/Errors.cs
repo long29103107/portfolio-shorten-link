@@ -67,6 +67,15 @@ internal sealed class ShortenLinkExceptionEndpointFilter : IEndpointFilter
         string errorCode,
         string message)
     {
+        if (errorCode == ShortLinkErrorCodes.InvalidActivationWindow)
+        {
+            return new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["activeFromUtc"] = [message],
+                ["expiredAtUtc"] = [message]
+            };
+        }
+
         var field = errorCode switch
         {
             ShortLinkErrorCodes.InvalidUrl => "originalUrl",

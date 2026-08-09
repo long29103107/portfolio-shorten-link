@@ -8,7 +8,8 @@ public sealed record ShortLinkExportRecord(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? ExpiredAtUtc,
     bool IsActive,
-    string AccessLevel)
+    string AccessLevel,
+    DateTimeOffset? ActiveFromUtc = null)
 {
     public static ShortLinkExportRecord FromDomain(ShortLink shortLink, string accessLevel) =>
         new(
@@ -17,5 +18,6 @@ public sealed record ShortLinkExportRecord(
             shortLink.CreatedAt,
             shortLink.ExpiresAt,
             shortLink.IsActive,
-            accessLevel);
+            accessLevel,
+            shortLink.ActiveFrom);
 }

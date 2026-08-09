@@ -10,6 +10,7 @@ internal sealed record ShortLinkPersistenceReadModel(
     string OriginalUrl,
     DateTimeOffset CreatedAt,
     DateTimeOffset? ExpiresAt,
+    DateTimeOffset? ActiveFrom,
     bool IsActive,
     string? CreatedByUserId,
     string? CreatedByDisplayName,
@@ -24,6 +25,7 @@ internal sealed record ShortLinkPersistenceReadModel(
             entity.OriginalUrl,
             entity.CreatedAt,
             entity.ExpiresAt,
+            entity.ActiveFrom,
             entity.IsActive,
             entity.CreatedByUserId,
             entity.CreatedByDisplayName,
@@ -43,7 +45,8 @@ internal sealed record ShortLinkPersistenceReadModel(
             CreatedByUsername,
             Id,
             tenantId: TenantId,
-            sharingMode: SharingMode);
+            sharingMode: SharingMode,
+            activeFrom: ActiveFrom);
 }
 
 internal sealed record ShortLinkClickPersistenceReadModel(

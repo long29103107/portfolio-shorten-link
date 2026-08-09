@@ -10,6 +10,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
 
     public DateTimeOffset? ExpiresAt { get; set; }
 
+    public DateTimeOffset? ActiveFrom { get; set; }
+
     public bool IsActive { get; set; }
 
     public string? CreatedByUserId { get; set; }
@@ -35,6 +37,7 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             OriginalUrl = shortLink.OriginalUrl.AbsoluteUri,
             CreatedAt = shortLink.CreatedAt,
             ExpiresAt = shortLink.ExpiresAt,
+            ActiveFrom = shortLink.ActiveFrom,
             IsActive = shortLink.IsActive,
             CreatedByUserId = shortLink.CreatedByUserId,
             CreatedByDisplayName = shortLink.CreatedByDisplayName,
@@ -58,7 +61,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             Id,
             IdempotencyKey,
             TenantId,
-            sharingMode: SharingMode);
+            sharingMode: SharingMode,
+            activeFrom: ActiveFrom);
 
     public void UpdateFromDomain(ShortLink shortLink)
     {
@@ -67,6 +71,7 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
         OriginalUrl = shortLink.OriginalUrl.AbsoluteUri;
         CreatedAt = shortLink.CreatedAt;
         ExpiresAt = shortLink.ExpiresAt;
+        ActiveFrom = shortLink.ActiveFrom;
         IsActive = shortLink.IsActive;
         CreatedByUserId = shortLink.CreatedByUserId;
         CreatedByDisplayName = shortLink.CreatedByDisplayName;

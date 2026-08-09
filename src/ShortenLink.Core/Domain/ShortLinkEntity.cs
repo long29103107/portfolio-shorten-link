@@ -16,7 +16,8 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         Guid? technicalId = null,
         string? idempotencyKey = null,
         string? tenantId = null,
-        ShortLinkSharingMode sharingMode = ShortLinkSharingMode.AllowList)
+        ShortLinkSharingMode sharingMode = ShortLinkSharingMode.AllowList,
+        DateTimeOffset? activeFrom = null)
         : base(createdAt, technicalId ?? Guid.CreateVersion7())
     {
         ShortCodeValidator.ValidateCodeOrThrow(code);
@@ -44,6 +45,7 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
 
         TenantId = ShortLinkTenantId.Normalize(tenantId);
         SharingMode = sharingMode;
+        ActiveFrom = activeFrom;
     }
 
     public string Code { get; }
@@ -51,6 +53,8 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
     public Uri OriginalUrl { get; }
 
     public DateTimeOffset? ExpiresAt { get; }
+
+    public DateTimeOffset? ActiveFrom { get; }
 
     public bool IsActive { get; private set; }
 
@@ -68,7 +72,9 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
 
     public bool IsExpired(DateTimeOffset now) => ExpiresAt is not null && ExpiresAt <= now;
 
-    public bool CanResolve(DateTimeOffset now) => IsActive && !IsExpired(now);
+    public bool IsScheduled(DateTimeOffset now) => ActiveFrom is not null && ActiveFrom > now;
+
+    public bool CanResolve(DateTimeOffset now) => IsActive && !IsScheduled(now) && !IsExpired(now);
 
     public void Activate() => IsActive = true;
 

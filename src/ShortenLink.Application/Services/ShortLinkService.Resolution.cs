@@ -88,6 +88,12 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             return ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Inactive, "Short link is inactive.");
         }
 
+        if (shortLink.IsScheduled(now))
+        {
+            CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
+            return ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Scheduled, "Short link is not active yet.");
+        }
+
         if (shortLink.IsExpired(now))
         {
             CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
@@ -174,6 +180,12 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         {
             await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
             return ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Inactive, "Short link is inactive.");
+        }
+
+        if (shortLink.IsScheduled(now))
+        {
+            await RemoveCachedAsync(shortLink.Code, shortLink.TenantId, cancellationToken);
+            return ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Scheduled, "Short link is not active yet.");
         }
 
         if (shortLink.IsExpired(now))

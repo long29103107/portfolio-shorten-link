@@ -49,6 +49,7 @@ public sealed class ShortLinkDatabaseSchemaTests
             await ShortLinkDatabaseSchema.EnsureAuditEventsTableAsync(dbContext);
             await ShortLinkDatabaseSchema.EnsureExpirationCheckpointsTableAsync(dbContext);
             await ShortLinkDatabaseSchema.EnsureIdempotencySchemaAsync(dbContext);
+            await ShortLinkDatabaseSchema.EnsureScheduledActivationSchemaAsync(dbContext);
             await ShortLinkDatabaseSchema.EnsureUtcTimestampSchemaAsync(dbContext);
         }
 

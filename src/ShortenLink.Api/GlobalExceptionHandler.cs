@@ -61,6 +61,15 @@ internal sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> log
         string errorCode,
         string message)
     {
+        if (errorCode == ShortLinkErrorCodes.InvalidActivationWindow)
+        {
+            return new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["activeFromUtc"] = [message],
+                ["expiredAtUtc"] = [message]
+            };
+        }
+
         var field = errorCode switch
         {
             ShortLinkErrorCodes.InvalidUrl => "originalUrl",

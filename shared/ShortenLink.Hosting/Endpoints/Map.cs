@@ -125,7 +125,8 @@ public static class ShortenLinkEndpointMappings
             new CreateShortLinkCommand(
                 request.OriginalUrl,
                 request.ExpiredAtUtc,
-                GetIdempotencyKey(httpContext)), cancellationToken);
+                GetIdempotencyKey(httpContext),
+                request.ActiveFromUtc), cancellationToken);
         var shortLink = result.ShortLink!;
         var response = ShortLinkCreatedResponse.FromDomain(
             shortLink, BuildShortUrl(shortLink.Code, options.Value, httpContext));
@@ -165,7 +166,7 @@ public static class ShortenLinkEndpointMappings
         string code, ShortLinkUpdateRequest request, ISender sender, IOptions<ShortenLinkOptions> options,
         HttpContext httpContext, CancellationToken cancellationToken) =>
         sender.Send(new UpdateShortLinkCommand(
-            code, request.OriginalUrl, request.ExpiredAtUtc, GetBaseUrl(options.Value, httpContext)), cancellationToken);
+            code, request.OriginalUrl, request.ExpiredAtUtc, GetBaseUrl(options.Value, httpContext), request.ActiveFromUtc), cancellationToken);
 
     private static async Task<IResult> DeleteShortLinkShareAsync(
         string code, string userId, ISender sender, CancellationToken cancellationToken)

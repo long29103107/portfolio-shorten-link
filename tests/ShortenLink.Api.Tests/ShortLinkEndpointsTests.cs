@@ -454,6 +454,37 @@ public sealed class ShortLinkEndpointsTests
     }
 
     [Fact]
+    public async Task PostCreate_ScheduledLinkIsExposedAndCannotRedirectBeforeActivation()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var createResponse = await client.PostAsJsonAsync("/api/short-links", new
+        {
+            originalUrl = "https://example.com/scheduled",
+            activeFromUtc = new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero),
+            expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero)
+        });
+        var payload = await createResponse.Content.ReadFromJsonAsync<ShortLinkCreatedResponse>();
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        Assert.NotNull(payload);
+        Assert.Equal(
+            new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero),
+            payload.ActiveFromUtc);
+
+        using var redirectResponse = await client.GetAsync($"/{payload.Code}");
+        var redirectPayload = await redirectResponse.Content.ReadFromJsonAsync<ShortLinkErrorResponse>();
+
+        Assert.Equal(HttpStatusCode.Gone, redirectResponse.StatusCode);
+        Assert.NotNull(redirectPayload);
+        Assert.Equal(ShortLinkErrorCodes.Scheduled, redirectPayload.ErrorCode);
+    }
+
+    [Fact]
     public async Task PostCreate_GeneratesRandomCodesForRepeatedCreates()
     {
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
@@ -3312,7 +3343,9 @@ public sealed class ShortLinkEndpointsTests
         string Code,
         string ShortUrl,
         string OriginalUrl,
-        DateTimeOffset CreatedAtUtc);
+        DateTimeOffset CreatedAtUtc,
+        DateTimeOffset? ActiveFromUtc = null,
+        DateTimeOffset? ExpiredAtUtc = null);
 
     private sealed record ShortLinkDetailsResponse(
         string Code,

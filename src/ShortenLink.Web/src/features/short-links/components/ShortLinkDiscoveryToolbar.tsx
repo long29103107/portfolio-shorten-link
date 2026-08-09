@@ -64,6 +64,7 @@ export function ShortLinkDiscoveryToolbar({
           <option value="all">All</option>
           <option value="active">Active</option>
           <option value="inactive">Deactive</option>
+          <option value="scheduled">Scheduled</option>
       </DiscoverySelect>
 
       {action ? <div className="admin-discovery-action">{action}</div> : null}

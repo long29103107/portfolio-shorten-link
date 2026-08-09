@@ -18,6 +18,11 @@ public static class ShortLinkDatabaseSchema
         CancellationToken cancellationToken = default) =>
         GetDialect(dbContext).EnsureIdempotencySchemaAsync(dbContext, cancellationToken);
 
+    public static Task EnsureScheduledActivationSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken = default) =>
+        GetDialect(dbContext).EnsureScheduledActivationSchemaAsync(dbContext, cancellationToken);
+
     public static Task EnsureAuditEventsTableAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken = default) =>
