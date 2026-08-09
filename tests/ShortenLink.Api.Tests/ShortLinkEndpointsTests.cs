@@ -484,6 +484,85 @@ public sealed class ShortLinkEndpointsTests
         Assert.Equal(ShortLinkErrorCodes.Scheduled, redirectPayload.ErrorCode);
     }
 
+    [Fact]
+    public async Task PasswordProtectedLink_RequiresCredentialBeforeConsumingClickBudget()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false, cacheEnabled: true);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var createResponse = await client.PostAsJsonAsync("/api/short-links", new
+        {
+            originalUrl = "https://example.com/password-protected",
+            expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+            maxClicks = 1,
+            password = "secret-link-password"
+        });
+        var createdPayload = await createResponse.Content.ReadFromJsonAsync<ShortLinkCreatedResponse>();
+        var createJson = await createResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        Assert.NotNull(createdPayload);
+        Assert.True(createdPayload.IsPasswordProtected);
+        Assert.DoesNotContain("secret-link-password", createJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("PasswordHash", createJson, StringComparison.OrdinalIgnoreCase);
+
+        using var missingResponse = await client.GetAsync($"/{createdPayload.Code}");
+        var missingPayload = await missingResponse.Content.ReadFromJsonAsync<ShortLinkErrorResponse>();
+
+        using var wrongRequest = new HttpRequestMessage(HttpMethod.Get, $"/{createdPayload.Code}");
+        wrongRequest.Headers.Add("X-Short-Link-Password", "wrong-password");
+        using var wrongResponse = await client.SendAsync(wrongRequest);
+        var wrongPayload = await wrongResponse.Content.ReadFromJsonAsync<ShortLinkErrorResponse>();
+
+        using var correctRequest = new HttpRequestMessage(HttpMethod.Get, $"/{createdPayload.Code}");
+        correctRequest.Headers.Add("X-Short-Link-Password", "secret-link-password");
+        using var correctResponse = await client.SendAsync(correctRequest);
+
+        using var exhaustedResponse = await client.GetAsync($"/{createdPayload.Code}?password=secret-link-password");
+        var exhaustedPayload = await exhaustedResponse.Content.ReadFromJsonAsync<ShortLinkErrorResponse>();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, missingResponse.StatusCode);
+        Assert.Equal(ShortLinkErrorCodes.PasswordRequired, missingPayload?.ErrorCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongResponse.StatusCode);
+        Assert.Equal(ShortLinkErrorCodes.InvalidLinkPassword, wrongPayload?.ErrorCode);
+        Assert.Equal(HttpStatusCode.Redirect, correctResponse.StatusCode);
+        Assert.Equal("https://example.com/password-protected", correctResponse.Headers.Location?.AbsoluteUri);
+        Assert.Equal(HttpStatusCode.Gone, exhaustedResponse.StatusCode);
+        Assert.Equal(ShortLinkErrorCodes.ClickLimitReached, exhaustedPayload?.ErrorCode);
+    }
+
+    [Fact]
+    public async Task PasswordProtectedLink_CanBeClearedByUpdate()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var created = await CreateShortLinkAsync(
+            client,
+            "https://example.com/password-clear",
+            password: "clear-me");
+
+        using var updateResponse = await client.PutAsJsonAsync($"/api/short-links/{created.Code}", new
+        {
+            originalUrl = "https://example.com/password-clear",
+            expiredAtUtc = new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero),
+            clearPassword = true
+        });
+        var updated = await updateResponse.Content.ReadFromJsonAsync<ShortLinkAdminListItemResponse>();
+        using var redirectResponse = await client.GetAsync($"/{created.Code}");
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        Assert.NotNull(updated);
+        Assert.False(updated.IsPasswordProtected);
+        Assert.Equal(HttpStatusCode.Redirect, redirectResponse.StatusCode);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -3335,7 +3414,8 @@ public sealed class ShortLinkEndpointsTests
         HttpClient client,
         string originalUrl,
         DateTimeOffset? expiredAtUtc = null,
-        int? maxClicks = null)
+        int? maxClicks = null,
+        string? password = null)
     {
         expiredAtUtc ??= new DateTimeOffset(2026, 7, 20, 0, 0, 0, TimeSpan.Zero);
 
@@ -3343,7 +3423,8 @@ public sealed class ShortLinkEndpointsTests
         {
             originalUrl,
             expiredAtUtc,
-            maxClicks
+            maxClicks,
+            password
         });
         var payload = await response.Content.ReadFromJsonAsync<ShortLinkCreatedResponse>();
 
@@ -3440,7 +3521,8 @@ public sealed class ShortLinkEndpointsTests
         DateTimeOffset? ActiveFromUtc = null,
         DateTimeOffset? ExpiredAtUtc = null,
         int? MaxClicks = null,
-        int ClickCount = 0);
+        int ClickCount = 0,
+        bool IsPasswordProtected = false);
 
     private sealed record ShortLinkDetailsResponse(
         string Code,
@@ -3555,7 +3637,11 @@ public sealed class ShortLinkEndpointsTests
         DateTimeOffset CreatedAtUtc,
         DateTimeOffset? ExpiredAtUtc,
         bool IsActive,
-        string? AccessLevel = null);
+        string? AccessLevel = null,
+        DateTimeOffset? ActiveFromUtc = null,
+        int? MaxClicks = null,
+        int ClickCount = 0,
+        bool IsPasswordProtected = false);
 
     private sealed record ShortLinkAdminListResponse(
         IReadOnlyList<ShortLinkAdminListItemResponse> Items,

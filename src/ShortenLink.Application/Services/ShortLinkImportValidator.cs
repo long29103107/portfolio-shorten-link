@@ -3,6 +3,7 @@ using ShortenLink.Application.Abstractions;
 using ShortenLink.Core;
 using ShortenLink.Core.Contracts.Requests;
 using ShortenLink.Core.Contracts.Responses;
+using ShortenLink.Core.Security;
 using ShortenLink.Core.Services;
 
 namespace ShortenLink.Application.Services;
@@ -109,6 +110,13 @@ public sealed class ShortLinkImportValidator(TimeProvider timeProvider) : IShort
             return (
                 ShortLinkImportErrorCodes.InvalidMaxClicks,
                 "MaxClicks must be a positive integer.");
+        }
+
+        if (!ShortLinkPassword.IsValid(item.Password))
+        {
+            return (
+                ShortLinkImportErrorCodes.InvalidPassword,
+                $"Password must be non-empty and at most {ShortLinkPassword.MaxLength} characters.");
         }
 
         if (!ShortLinkIdempotencyKey.IsValid(item.IdempotencyKey))

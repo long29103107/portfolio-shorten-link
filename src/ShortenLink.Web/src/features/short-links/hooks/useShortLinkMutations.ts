@@ -40,15 +40,20 @@ const emptyEditForm: ShortLinkFormInput = {
   originalUrl: "",
   activeFromLocal: "",
   expiredAtLocal: "",
-  maxClicksLocal: ""
+  maxClicksLocal: "",
+  passwordLocal: "",
+  clearPassword: false
 };
 
 export function buildShortLinkMutationPayload(form: ShortLinkFormInput) {
+  const password = form.passwordLocal ?? "";
   return {
     originalUrl: form.originalUrl.trim(),
     activeFromUtc: form.activeFromLocal ? new Date(form.activeFromLocal).toISOString() : null,
     expiredAtUtc: new Date(form.expiredAtLocal).toISOString(),
-    maxClicks: form.maxClicksLocal.trim() ? Number(form.maxClicksLocal) : null
+    maxClicks: form.maxClicksLocal.trim() ? Number(form.maxClicksLocal) : null,
+    ...(password.trim() ? { password } : {}),
+    ...(form.clearPassword ? { clearPassword: true } : {})
   };
 }
 
@@ -82,7 +87,9 @@ export function useShortLinkMutations({
     && (editForm.originalUrl !== initialEditForm.originalUrl
       || editForm.activeFromLocal !== initialEditForm.activeFromLocal
       || editForm.expiredAtLocal !== initialEditForm.expiredAtLocal
-      || editForm.maxClicksLocal !== initialEditForm.maxClicksLocal);
+      || editForm.maxClicksLocal !== initialEditForm.maxClicksLocal
+      || editForm.passwordLocal !== initialEditForm.passwordLocal
+      || editForm.clearPassword !== initialEditForm.clearPassword);
 
   const handleDeactivate = async (code: string) => {
     setBusyCode(code);
@@ -147,7 +154,9 @@ export function useShortLinkMutations({
       originalUrl: link.originalUrl,
       activeFromLocal: toEditorExpiryValue(link.activeFromUtc),
       expiredAtLocal: toEditorExpiryValue(link.expiredAtUtc),
-      maxClicksLocal: link.maxClicks === null ? "" : String(link.maxClicks)
+      maxClicksLocal: link.maxClicks === null ? "" : String(link.maxClicks),
+      passwordLocal: "",
+      clearPassword: false
     };
     setEditForm(nextForm);
     setInitialEditForm(nextForm);
@@ -195,7 +204,10 @@ export function useShortLinkMutations({
     setEditorRequestError(null);
 
     try {
-      const created = await createShortLink(payload);
+      const created = await createShortLink({
+        ...payload,
+        password: payload.password ?? null
+      });
       closeEditor();
       await loadLinks(1);
       showToast({
@@ -237,7 +249,11 @@ export function useShortLinkMutations({
     setEditorRequestError(null);
 
     try {
-      const updated = await updateShortLink(code, payload);
+      const updated = await updateShortLink(code, {
+        ...payload,
+        password: payload.password ?? null,
+        clearPassword: payload.clearPassword ?? false
+      });
       setLinks((current) =>
         current.map((link) => (
           link.code === updated.code

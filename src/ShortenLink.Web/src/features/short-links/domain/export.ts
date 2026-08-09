@@ -9,6 +9,7 @@ export const shortLinkCsvHeaders = [
   "Expires At (UTC)",
   "Click Count",
   "Max Clicks",
+  "Password Protected",
   "Status",
   "Access",
   "Created By"
@@ -24,6 +25,7 @@ export function serializeShortLinksCsv(items: readonly ShortLinkAdminItem[]): st
     link.expiredAtUtc ?? "",
     String(link.clickCount),
     link.maxClicks === null ? "Unlimited" : String(link.maxClicks),
+    link.isPasswordProtected ? "Yes" : "No",
     link.activeFromUtc && new Date(link.activeFromUtc) > new Date() && link.isActive ? "Scheduled" : link.isActive ? "Active" : "Inactive",
     link.accessLevel ?? "",
     link.createdByDisplayName ?? link.createdByUsername ?? link.createdByUserId ?? ""

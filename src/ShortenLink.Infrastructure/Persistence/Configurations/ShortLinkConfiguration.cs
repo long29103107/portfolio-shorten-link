@@ -15,6 +15,7 @@ internal sealed class ShortLinkConfiguration : IEntityTypeConfiguration<ShortLin
         entity.Property(link => link.CreatedAt).IsRequired();
         entity.Property(link => link.IsActive).IsRequired();
         entity.Property(link => link.ClickCount).IsRequired().HasDefaultValue(0);
+        entity.Property(link => link.PasswordHash).HasMaxLength(512);
         entity.Property(link => link.CreatedByUserId).HasMaxLength(128);
         entity.Property(link => link.CreatedByDisplayName).HasMaxLength(256);
         entity.Property(link => link.CreatedByUsername).HasMaxLength(256);

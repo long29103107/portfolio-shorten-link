@@ -5,7 +5,8 @@ public sealed record ShortLinkImportItemRequest(
     DateTimeOffset? ExpiredAtUtc,
     string? IdempotencyKey = null,
     DateTimeOffset? ActiveFromUtc = null,
-    int? MaxClicks = null);
+    int? MaxClicks = null,
+    string? Password = null);
 
 public sealed record ShortLinkImportRequest(
     IReadOnlyList<ShortLinkImportItemRequest>? Items);

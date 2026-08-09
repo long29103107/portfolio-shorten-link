@@ -70,6 +70,22 @@ internal sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> log
             };
         }
 
+        if (errorCode == ShortLinkErrorCodes.InvalidMaxClicks)
+        {
+            return new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["maxClicks"] = [message]
+            };
+        }
+
+        if (errorCode == ShortLinkErrorCodes.InvalidPassword)
+        {
+            return new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["password"] = [message]
+            };
+        }
+
         var field = errorCode switch
         {
             ShortLinkErrorCodes.InvalidUrl => "originalUrl",

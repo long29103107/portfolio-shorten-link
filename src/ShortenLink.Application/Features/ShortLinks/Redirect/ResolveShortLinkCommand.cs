@@ -12,7 +12,8 @@ public sealed record ResolveShortLinkCommand(
     string? UserAgent,
     string? Referrer,
     bool EnableFallback,
-    string? FallbackPath) : IRequest<ResolveShortLinkResponse>;
+    string? FallbackPath,
+    string? Password = null) : IRequest<ResolveShortLinkResponse>;
 
 public sealed record ResolveShortLinkResponse(string Location);
 
@@ -29,9 +30,9 @@ internal sealed class ResolveShortLinkCommandHandler(
     {
         var tenantId = await requestContext.GetCurrentTenantIdAsync(cancellationToken);
         var result = tenantId is null
-            ? await shortLinkService.ResolveAsync(request.Code, cancellationToken)
+            ? await shortLinkService.ResolveAsync(request.Code, cancellationToken, request.Password)
             : shortLinkService is ITenantAwareShortLinkService tenantAwareService
-                ? await tenantAwareService.ResolveAsync(request.Code, cancellationToken, tenantId)
+                ? await tenantAwareService.ResolveAsync(request.Code, cancellationToken, tenantId, request.Password)
                 : CoreResolveShortLinkResponse.Failure(
                     ShortLinkErrorCodes.TenantNotSupported,
                     "The configured resolve provider does not support tenant partitions.");

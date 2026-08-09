@@ -76,7 +76,8 @@ internal sealed class DistributedCache : IShortLinkCache, ITenantAwareShortLinkC
             shortLink.CreatedAt,
             shortLink.ExpiresAt,
             shortLink.IsActive,
-            shortLink.TenantId);
+            shortLink.TenantId,
+            shortLink.PasswordHash);
 
         await distributedCache.SetStringAsync(
             BuildKey(shortLink),
@@ -231,7 +232,8 @@ internal sealed class DistributedCache : IShortLinkCache, ITenantAwareShortLinkC
                 cached.CreatedAt,
                 cached.ExpiresAt,
                 cached.IsActive,
-                tenantId: cached.TenantId);
+                tenantId: cached.TenantId,
+                passwordHash: cached.PasswordHash);
     }
 
     private sealed record CachedShortLink(
@@ -240,5 +242,6 @@ internal sealed class DistributedCache : IShortLinkCache, ITenantAwareShortLinkC
         DateTimeOffset CreatedAt,
         DateTimeOffset? ExpiresAt,
         bool IsActive,
-        string? TenantId = null);
+        string? TenantId = null,
+        string? PasswordHash = null);
 }

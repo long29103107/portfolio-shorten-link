@@ -11,7 +11,8 @@ public sealed record ShortLinkExportRecord(
     string AccessLevel,
     DateTimeOffset? ActiveFromUtc = null,
     int? MaxClicks = null,
-    int ClickCount = 0)
+    int ClickCount = 0,
+    bool IsPasswordProtected = false)
 {
     public static ShortLinkExportRecord FromDomain(ShortLink shortLink, string accessLevel) =>
         new(
@@ -23,5 +24,6 @@ public sealed record ShortLinkExportRecord(
             accessLevel,
             shortLink.ActiveFrom,
             shortLink.MaxClicks,
-            shortLink.ClickCount);
+            shortLink.ClickCount,
+            shortLink.IsPasswordProtected);
 }

@@ -7,6 +7,7 @@ using ShortenLink.Core.Abstractions;
 using ShortenLink.Core.Exceptions;
 using ShortenLink.Core.Events;
 using ShortenLink.Core.Diagnostics;
+using ShortenLink.Core.Security;
 using ShortLinkDetailsResponse = ShortenLink.Core.Contracts.Responses.ShortLinkDetailsResponse;
 
 namespace ShortenLink.Application.Services;
@@ -39,6 +40,17 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 ShortLinkErrorCodes.ClickLimitNotSupported,
                 "The configured persistence provider does not support click limits.");
         }
+
+        if (!ShortLinkPassword.IsValid(request.Password))
+        {
+            return CreateShortLinkResponse.Failure(
+                ShortLinkErrorCodes.InvalidPassword,
+                $"Password must be non-empty and at most {ShortLinkPassword.MaxLength} characters.");
+        }
+
+        var passwordHash = request.Password is null
+            ? null
+            : ShortenLinkSecurityCredentialHasher.HashPassword(request.Password);
 
         if (!ShortLinkIdempotencyKey.IsValid(request.IdempotencyKey))
         {
@@ -107,6 +119,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 request.ExpiresAt.Value,
                 request.ActiveFrom,
                 request.MaxClicks,
+                request.Password,
                 request.CreatedByUserId,
                 tenantId);
             if (replay is not null)
@@ -135,7 +148,8 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 idempotencyKey: idempotencyKey,
                 tenantId: tenantId,
                 activeFrom: request.ActiveFrom,
-                maxClicks: request.MaxClicks);
+                maxClicks: request.MaxClicks,
+                passwordHash: passwordHash);
 
             try
             {
@@ -161,6 +175,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                     request.ExpiresAt.Value,
                     request.ActiveFrom,
                     request.MaxClicks,
+                    request.Password,
                     request.CreatedByUserId,
                     tenantId);
                 return replay
@@ -181,6 +196,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         DateTimeOffset expiresAt,
         DateTimeOffset? activeFrom,
         int? maxClicks,
+        string? password,
         string? createdByUserId,
         string? tenantId)
     {
@@ -193,6 +209,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             && existing.ExpiresAt == expiresAt
             && existing.ActiveFrom == activeFrom
             && existing.MaxClicks == maxClicks
+            && PasswordMatches(existing, password)
             && string.Equals(existing.CreatedByUserId, NormalizeIdentity(createdByUserId), StringComparison.Ordinal)
             && string.Equals(existing.TenantId, tenantId, StringComparison.Ordinal)
             ? CreateShortLinkResponse.Replay(existing)
@@ -200,6 +217,11 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 ShortLinkErrorCodes.IdempotencyConflict,
                 "The Idempotency-Key was already used for a different request.");
     }
+
+    private static bool PasswordMatches(ShortLink existing, string? password) =>
+        password is null
+            ? !existing.IsPasswordProtected
+            : existing.IsPasswordProtected && existing.VerifyPassword(password);
 
     private static string? NormalizeIdentity(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -238,6 +260,13 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 "The configured persistence provider does not support click limits.");
         }
 
+        if (request.Password is not null && !ShortLinkPassword.IsValid(request.Password))
+        {
+            return ShortLinkDetailsResponse.Failure(
+                ShortLinkErrorCodes.InvalidPassword,
+                $"Password must be non-empty and at most {ShortLinkPassword.MaxLength} characters.");
+        }
+
         var now = timeProvider.GetUtcNow();
         if (request.ExpiresAt is null)
         {
@@ -273,6 +302,16 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
                 "MaxClicks cannot be lower than the current click count.");
         }
 
+        var passwordHash = existing.PasswordHash;
+        if (request.ClearPassword)
+        {
+            passwordHash = null;
+        }
+        else if (request.Password is not null)
+        {
+            passwordHash = ShortenLinkSecurityCredentialHasher.HashPassword(request.Password);
+        }
+
         var updated = new ShortLink(
             existing.Code,
             originalUrl,
@@ -289,7 +328,8 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             sharingMode: existing.SharingMode,
             activeFrom: request.ActiveFrom,
             maxClicks: request.MaxClicks,
-            clickCount: existing.ClickCount);
+            clickCount: existing.ClickCount,
+            passwordHash: passwordHash);
 
         await repository.UpdateAsync(updated, cancellationToken);
         await RemoveCachedAsync(updated.Code, updated.TenantId, cancellationToken);

@@ -106,7 +106,8 @@ public static class ShortenLinkEndpointMappings
                 httpContext.Request.Headers.UserAgent.ToString(),
                 httpContext.Request.Headers.Referer.ToString(),
                 options.Value.Redirect.EnableFrontendFallback,
-                options.Value.Redirect.FrontendFallbackPath), cancellationToken);
+                options.Value.Redirect.FrontendFallbackPath,
+                GetRedirectPassword(httpContext)), cancellationToken);
             return TypedResults.Redirect(response.Location);
         }).WithName("RedirectShortenLinkEndpoint");
         redirectEndpoint.AddEndpointFilter(new ShortenLinkExceptionEndpointFilter());
@@ -127,7 +128,8 @@ public static class ShortenLinkEndpointMappings
                 request.ExpiredAtUtc,
                 GetIdempotencyKey(httpContext),
                 request.ActiveFromUtc,
-                request.MaxClicks), cancellationToken);
+                request.MaxClicks,
+                request.Password), cancellationToken);
         var shortLink = result.ShortLink!;
         var response = ShortLinkCreatedResponse.FromDomain(
             shortLink, BuildShortUrl(shortLink.Code, options.Value, httpContext));
@@ -167,7 +169,14 @@ public static class ShortenLinkEndpointMappings
         string code, ShortLinkUpdateRequest request, ISender sender, IOptions<ShortenLinkOptions> options,
         HttpContext httpContext, CancellationToken cancellationToken) =>
         sender.Send(new UpdateShortLinkCommand(
-            code, request.OriginalUrl, request.ExpiredAtUtc, GetBaseUrl(options.Value, httpContext), request.ActiveFromUtc, request.MaxClicks), cancellationToken);
+            code,
+            request.OriginalUrl,
+            request.ExpiredAtUtc,
+            GetBaseUrl(options.Value, httpContext),
+            request.ActiveFromUtc,
+            request.MaxClicks,
+            request.Password,
+            request.ClearPassword), cancellationToken);
 
     private static async Task<IResult> DeleteShortLinkShareAsync(
         string code, string userId, ISender sender, CancellationToken cancellationToken)
@@ -188,6 +197,14 @@ public static class ShortenLinkEndpointMappings
         httpContext.Request.Headers.TryGetValue("Idempotency-Key", out var value)
             ? value.ToString()
             : null;
+
+    private static string? GetRedirectPassword(HttpContext httpContext)
+    {
+        var header = httpContext.Request.Headers["X-Short-Link-Password"].ToString();
+        return string.IsNullOrWhiteSpace(header)
+            ? httpContext.Request.Query["password"].ToString()
+            : header;
+    }
 
     private static string NormalizePrefix(string value) =>
         string.IsNullOrWhiteSpace(value) ? string.Empty : "/" + value.Trim().Trim('/');

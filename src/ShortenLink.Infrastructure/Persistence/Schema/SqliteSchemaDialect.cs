@@ -105,6 +105,16 @@ internal sealed class SqliteSchemaDialect : IDatabaseSchemaDialect
             cancellationToken);
     }
 
+    public Task EnsurePasswordProtectionSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken) =>
+        EnsureColumnAsync(
+            dbContext,
+            "short_links",
+            "PasswordHash",
+            "ALTER TABLE \"short_links\" ADD COLUMN \"PasswordHash\" TEXT NULL;",
+            cancellationToken);
+
     private static string CreateTimestampNormalizationSql(
         string table,
         string column) =>

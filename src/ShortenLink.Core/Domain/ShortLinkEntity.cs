@@ -19,7 +19,8 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         ShortLinkSharingMode sharingMode = ShortLinkSharingMode.AllowList,
         DateTimeOffset? activeFrom = null,
         int? maxClicks = null,
-        int clickCount = 0)
+        int clickCount = 0,
+        string? passwordHash = null)
         : base(createdAt, technicalId ?? Guid.CreateVersion7())
     {
         ShortCodeValidator.ValidateCodeOrThrow(code);
@@ -60,6 +61,7 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
         ActiveFrom = activeFrom;
         MaxClicks = maxClicks;
         ClickCount = clickCount;
+        PasswordHash = Normalize(passwordHash);
     }
 
     public string Code { get; }
@@ -73,6 +75,10 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
     public int? MaxClicks { get; }
 
     public int ClickCount { get; }
+
+    public string? PasswordHash { get; }
+
+    public bool IsPasswordProtected => PasswordHash is not null;
 
     public bool IsActive { get; private set; }
 
@@ -93,6 +99,10 @@ public sealed class ShortLinkEntity : BaseEntity<Guid>
     public bool IsScheduled(DateTimeOffset now) => ActiveFrom is not null && ActiveFrom > now;
 
     public bool IsClickLimitReached => MaxClicks is not null && ClickCount >= MaxClicks;
+
+    public bool VerifyPassword(string password) =>
+        PasswordHash is not null
+        && ShortenLinkSecurityCredentialHasher.VerifyPassword(password, PasswordHash);
 
     public bool CanResolve(DateTimeOffset now) => IsActive && !IsScheduled(now) && !IsExpired(now);
 

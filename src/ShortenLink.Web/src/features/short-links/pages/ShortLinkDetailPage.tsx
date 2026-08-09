@@ -126,6 +126,10 @@ export function ShortLinkDetailPage({ code, onBackHome }: ShortLinkDetailPagePro
           <dt>Clicks</dt>
           <dd>{details.clickCount} / {details.maxClicks ?? "Unlimited"}</dd>
         </div>
+        <div>
+          <dt>Protection</dt>
+          <dd>{details.isPasswordProtected ? "Password protected" : "Public link"}</dd>
+        </div>
       </dl>
 
       {errorMessage ? <p className="feedback feedback-error">{errorMessage}</p> : null}

@@ -13,10 +13,11 @@ public sealed record ShortLinkCreatedResponse(
     DateTimeOffset? ActiveFromUtc = null,
     DateTimeOffset? ExpiredAtUtc = null,
     int? MaxClicks = null,
-    int ClickCount = 0)
+    int ClickCount = 0,
+    bool IsPasswordProtected = false)
 {
     public static ShortLinkCreatedResponse FromDomain(ShortLink shortLink, string shortUrl) =>
-        new(shortLink.Code, shortUrl, shortLink.OriginalUrl.AbsoluteUri, shortLink.CreatedAt, shortLink.ActiveFrom, shortLink.ExpiresAt, shortLink.MaxClicks, shortLink.ClickCount);
+        new(shortLink.Code, shortUrl, shortLink.OriginalUrl.AbsoluteUri, shortLink.CreatedAt, shortLink.ActiveFrom, shortLink.ExpiresAt, shortLink.MaxClicks, shortLink.ClickCount, shortLink.IsPasswordProtected);
 }
 
 public sealed record ShortLinkAdminListItemResponse(
@@ -32,7 +33,8 @@ public sealed record ShortLinkAdminListItemResponse(
     string? AccessLevel,
     DateTimeOffset? ActiveFromUtc = null,
     int? MaxClicks = null,
-    int ClickCount = 0)
+    int ClickCount = 0,
+    bool IsPasswordProtected = false)
 {
     public static ShortLinkAdminListItemResponse FromDomain(
         ShortLink shortLink,
@@ -51,7 +53,8 @@ public sealed record ShortLinkAdminListItemResponse(
             accessLevel,
             shortLink.ActiveFrom,
             shortLink.MaxClicks,
-            shortLink.ClickCount);
+            shortLink.ClickCount,
+            shortLink.IsPasswordProtected);
 }
 
 public sealed record ShortLinkAdminListResponse(
@@ -94,7 +97,8 @@ public sealed record ShortLinkDetailsResponse(
     bool IsActive,
     DateTimeOffset? ActiveFromUtc = null,
     int? MaxClicks = null,
-    int ClickCount = 0)
+    int ClickCount = 0,
+    bool IsPasswordProtected = false)
 {
     public static ShortLinkDetailsResponse FromDomain(ShortLink shortLink) =>
         new(
@@ -105,7 +109,8 @@ public sealed record ShortLinkDetailsResponse(
             shortLink.IsActive,
             shortLink.ActiveFrom,
             shortLink.MaxClicks,
-            shortLink.ClickCount);
+            shortLink.ClickCount,
+            shortLink.IsPasswordProtected);
 }
 
 public sealed record ShortLinkAnalyticsResponse(

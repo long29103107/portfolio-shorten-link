@@ -52,6 +52,58 @@ public sealed class ShortLinkServiceTests
     }
 
     [Fact]
+    public async Task PasswordProtection_HashesSecretAndGuardsResolution()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var service = CreateService(timeProvider: new FixedTimeProvider(now));
+
+        var created = await service.CreateAsync(new CreateShortLinkRequest(
+            "https://example.com/protected",
+            now.AddDays(1),
+            Password: "link-secret"));
+
+        Assert.True(created.Succeeded);
+        Assert.NotNull(created.ShortLink);
+        Assert.True(created.ShortLink.IsPasswordProtected);
+        Assert.NotEqual("link-secret", created.ShortLink.PasswordHash);
+        Assert.DoesNotContain("link-secret", created.ShortLink.PasswordHash, StringComparison.Ordinal);
+        Assert.True(created.ShortLink.VerifyPassword("link-secret"));
+
+        var missing = await service.ResolveAsync(created.ShortLink.Code);
+        var wrong = await service.ResolveWithPasswordAsync(created.ShortLink.Code, "wrong-secret");
+        var correct = await service.ResolveWithPasswordAsync(created.ShortLink.Code, "link-secret");
+
+        Assert.Equal(ShortLinkErrorCodes.PasswordRequired, missing.ErrorCode);
+        Assert.Equal(ShortLinkErrorCodes.InvalidLinkPassword, wrong.ErrorCode);
+        Assert.True(correct.Succeeded);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ClearsPasswordProtectionWithoutChangingDestination()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);
+        var repository = new InMemoryShortLinkRepository();
+        var service = CreateService(repository, timeProvider: new FixedTimeProvider(now));
+        var created = await service.CreateAsync(new CreateShortLinkRequest(
+            "https://example.com/protected",
+            now.AddDays(1),
+            Password: "link-secret"));
+
+        var updated = await service.UpdateAsync(
+            created.ShortLink!.Code,
+            new UpdateShortLinkRequest(
+                "https://example.com/protected",
+                now.AddDays(2),
+                Password: null,
+                ClearPassword: true));
+        var resolved = await service.ResolveAsync(created.ShortLink.Code);
+
+        Assert.True(updated.Succeeded);
+        Assert.False(updated.ShortLink?.IsPasswordProtected);
+        Assert.True(resolved.Succeeded);
+    }
+
+    [Fact]
     public async Task CreateAsync_StopsAfterConfiguredCodeGenerationAttempts()
     {
         var now = new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero);

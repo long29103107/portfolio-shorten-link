@@ -84,6 +84,14 @@ internal sealed class ShortenLinkExceptionEndpointFilter : IEndpointFilter
             };
         }
 
+        if (errorCode == ShortLinkErrorCodes.InvalidPassword)
+        {
+            return new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["password"] = [message]
+            };
+        }
+
         var field = errorCode switch
         {
             ShortLinkErrorCodes.InvalidUrl => "originalUrl",

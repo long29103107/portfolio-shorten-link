@@ -13,6 +13,7 @@ internal sealed record ShortLinkPersistenceReadModel(
     DateTimeOffset? ActiveFrom,
     int? MaxClicks,
     int ClickCount,
+    string? PasswordHash,
     bool IsActive,
     string? CreatedByUserId,
     string? CreatedByDisplayName,
@@ -30,6 +31,7 @@ internal sealed record ShortLinkPersistenceReadModel(
             entity.ActiveFrom,
             entity.MaxClicks,
             entity.ClickCount,
+            entity.PasswordHash,
             entity.IsActive,
             entity.CreatedByUserId,
             entity.CreatedByDisplayName,
@@ -52,7 +54,8 @@ internal sealed record ShortLinkPersistenceReadModel(
             sharingMode: SharingMode,
             activeFrom: ActiveFrom,
             maxClicks: MaxClicks,
-            clickCount: ClickCount);
+            clickCount: ClickCount,
+            passwordHash: PasswordHash);
 }
 
 internal sealed record ShortLinkClickPersistenceReadModel(

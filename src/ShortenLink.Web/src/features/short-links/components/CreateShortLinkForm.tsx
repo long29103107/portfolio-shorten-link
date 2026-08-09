@@ -24,7 +24,9 @@ const initialForm: ShortLinkFormInput = {
   originalUrl: "",
   activeFromLocal: "",
   expiredAtLocal: "",
-  maxClicksLocal: ""
+  maxClicksLocal: "",
+  passwordLocal: "",
+  clearPassword: false
 };
 
 export function CreateShortLinkForm({
@@ -54,7 +56,8 @@ export function CreateShortLinkForm({
         originalUrl: form.originalUrl.trim(),
         activeFromUtc: form.activeFromLocal ? new Date(form.activeFromLocal).toISOString() : null,
         expiredAtUtc: new Date(form.expiredAtLocal).toISOString(),
-        maxClicks: form.maxClicksLocal.trim() ? Number(form.maxClicksLocal) : null
+        maxClicks: form.maxClicksLocal.trim() ? Number(form.maxClicksLocal) : null,
+        password: form.passwordLocal.trim() ? form.passwordLocal : null
       });
 
       onCreated(createdLink);
@@ -171,6 +174,28 @@ export function CreateShortLinkForm({
         {fieldErrors.maxClicksLocal ? (
           <span id="create-max-clicks-error" className="field-error">{fieldErrors.maxClicksLocal}</span>
         ) : null}
+      </Label>
+
+      <Label className="field">
+        <span className="field-label">
+          Link password <span className="muted">(optional)</span>
+        </span>
+        <Input
+          type="password"
+          autoComplete="new-password"
+          maxLength={256}
+          placeholder="Leave blank for a public link"
+          value={form.passwordLocal}
+          aria-invalid={fieldErrors.passwordLocal ? "true" : undefined}
+          aria-describedby={fieldErrors.passwordLocal ? "create-password-error" : undefined}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, passwordLocal: event.target.value }))
+          }
+        />
+        {fieldErrors.passwordLocal ? (
+          <span id="create-password-error" className="field-error">{fieldErrors.passwordLocal}</span>
+        ) : null}
+        <span className="field-hint">Anyone opening the short link must provide this password.</span>
       </Label>
 
       {errorMessage ? <p className="feedback feedback-error">{errorMessage}</p> : null}

@@ -16,6 +16,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
 
     public int ClickCount { get; set; }
 
+    public string? PasswordHash { get; set; }
+
     public bool IsActive { get; set; }
 
     public string? CreatedByUserId { get; set; }
@@ -44,6 +46,7 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             ActiveFrom = shortLink.ActiveFrom,
             MaxClicks = shortLink.MaxClicks,
             ClickCount = shortLink.ClickCount,
+            PasswordHash = shortLink.PasswordHash,
             IsActive = shortLink.IsActive,
             CreatedByUserId = shortLink.CreatedByUserId,
             CreatedByDisplayName = shortLink.CreatedByDisplayName,
@@ -70,7 +73,8 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
             sharingMode: SharingMode,
             activeFrom: ActiveFrom,
             maxClicks: MaxClicks,
-            clickCount: ClickCount);
+            clickCount: ClickCount,
+            passwordHash: PasswordHash);
 
     public void UpdateFromDomain(ShortLink shortLink)
     {
@@ -82,6 +86,7 @@ public sealed class ShortLinkPersistenceEntity : BaseEntity<Guid>
         ActiveFrom = shortLink.ActiveFrom;
         MaxClicks = shortLink.MaxClicks;
         ClickCount = shortLink.ClickCount;
+        PasswordHash = shortLink.PasswordHash;
         IsActive = shortLink.IsActive;
         CreatedByUserId = shortLink.CreatedByUserId;
         CreatedByDisplayName = shortLink.CreatedByDisplayName;

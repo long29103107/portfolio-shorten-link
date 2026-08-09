@@ -17,6 +17,8 @@ export type ShortLinkFormInput = {
   activeFromLocal: string;
   expiredAtLocal: string;
   maxClicksLocal: string;
+  passwordLocal: string;
+  clearPassword: boolean;
 };
 
 export type CreateShortLinkRequest = {
@@ -24,6 +26,7 @@ export type CreateShortLinkRequest = {
   activeFromUtc: string | null;
   expiredAtUtc: string;
   maxClicks: number | null;
+  password: string | null;
 };
 
 export type UpdateShortLinkRequest = {
@@ -31,6 +34,8 @@ export type UpdateShortLinkRequest = {
   activeFromUtc: string | null;
   expiredAtUtc: string;
   maxClicks: number | null;
+  password: string | null;
+  clearPassword: boolean;
 };
 
 export type CreatedShortLink = {
@@ -42,6 +47,7 @@ export type CreatedShortLink = {
   expiredAtUtc: string | null;
   maxClicks: number | null;
   clickCount: number;
+  isPasswordProtected: boolean;
 };
 
 export type ShortLinkDetails = {
@@ -53,6 +59,7 @@ export type ShortLinkDetails = {
   isActive: boolean;
   maxClicks: number | null;
   clickCount: number;
+  isPasswordProtected: boolean;
 };
 
 export type ShortLinkAdminItem = {
@@ -65,6 +72,7 @@ export type ShortLinkAdminItem = {
   isActive: boolean;
   maxClicks: number | null;
   clickCount: number;
+  isPasswordProtected: boolean;
   createdByUserId: string | null;
   createdByDisplayName: string | null;
   createdByUsername: string | null;
@@ -356,6 +364,12 @@ export function toFriendlyErrorMessage(errorCode: string, fallbackMessage: strin
       return "This link has reached its click limit.";
     case "invalid_max_clicks":
       return "Enter a positive whole-number click limit, or leave it blank for unlimited clicks.";
+    case "invalid_password":
+      return "Enter a non-empty password of 256 characters or fewer.";
+    case "password_required":
+      return "This short link requires a password before it can be opened.";
+    case "invalid_link_password":
+      return "The short-link password is invalid.";
     case "not_found":
       return "We could not find that short link.";
     case "invalid_role":

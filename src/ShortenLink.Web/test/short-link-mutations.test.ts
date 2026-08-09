@@ -27,3 +27,27 @@ test("converts API expiry values back to editor-local values", () => {
   expect(toEditorExpiryValue(null)).toBe("");
   expect(toEditorExpiryValue("not-a-date")).toBe("");
 });
+
+test("serializes a replacement password and explicit protection removal", () => {
+  expect(buildShortLinkMutationPayload({
+    originalUrl: "https://example.com/docs",
+    activeFromLocal: "",
+    expiredAtLocal: "2026-08-08T14:30",
+    maxClicksLocal: "",
+    passwordLocal: "new-link-password",
+    clearPassword: false
+  })).toMatchObject({
+    password: "new-link-password"
+  });
+
+  expect(buildShortLinkMutationPayload({
+    originalUrl: "https://example.com/docs",
+    activeFromLocal: "",
+    expiredAtLocal: "2026-08-08T14:30",
+    maxClicksLocal: "",
+    passwordLocal: "",
+    clearPassword: true
+  })).toMatchObject({
+    clearPassword: true
+  });
+});

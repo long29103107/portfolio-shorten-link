@@ -55,6 +55,11 @@ export function validateShortLinkForm(
     }
   }
 
+  const password = form.passwordLocal ?? "";
+  if (password.length > 256) {
+    errors.passwordLocal = "Enter a non-empty password of 256 characters or fewer.";
+  }
+
   return errors;
 }
 
@@ -79,9 +84,13 @@ export function mapShortLinkApiFieldErrors(
     errors.maxClicksLocal = fieldErrors.maxClicks;
   }
 
+  if (fieldErrors.password) {
+    errors.passwordLocal = fieldErrors.password;
+  }
+
   return errors;
 }
 
 export function hasShortLinkFieldErrors(errors: ShortLinkFieldErrors): boolean {
-  return Boolean(errors.originalUrl || errors.activeFromLocal || errors.expiredAtLocal || errors.maxClicksLocal);
+  return Boolean(errors.originalUrl || errors.activeFromLocal || errors.expiredAtLocal || errors.maxClicksLocal || errors.passwordLocal);
 }

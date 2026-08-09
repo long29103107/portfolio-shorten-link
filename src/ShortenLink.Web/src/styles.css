@@ -539,6 +539,27 @@ code {
   font-weight: 750;
 }
 
+.field-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d7d7d7;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.field-checkbox .ui-input {
+  width: auto;
+  min-height: auto;
+  accent-color: var(--accent-strong);
+}
+
 .ui-input {
   width: 100%;
   min-height: 42px;

@@ -51,6 +51,7 @@ public sealed class ShortLinkDatabaseSchemaTests
             await ShortLinkDatabaseSchema.EnsureIdempotencySchemaAsync(dbContext);
             await ShortLinkDatabaseSchema.EnsureScheduledActivationSchemaAsync(dbContext);
             await ShortLinkDatabaseSchema.EnsureClickLimitSchemaAsync(dbContext);
+            await ShortLinkDatabaseSchema.EnsurePasswordProtectionSchemaAsync(dbContext);
             await ShortLinkDatabaseSchema.EnsureUtcTimestampSchemaAsync(dbContext);
         }
 

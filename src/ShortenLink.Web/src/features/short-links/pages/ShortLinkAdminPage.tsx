@@ -522,6 +522,13 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
               header: "Clicks",
               cell: (link) => `${link.clickCount} / ${link.maxClicks ?? "∞"}`
             },
+            {
+              id: "protection",
+              header: "Protection",
+              cell: (link) => link.isPasswordProtected
+                ? <Badge variant="secondary">Password</Badge>
+                : <span className="muted">Public</span>
+            },
             { id: "actions", header: "Actions", cell: renderActions }
           ]}
         />
@@ -687,6 +694,54 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
                 </span>
               ) : null}
             </Label>
+            <Label className="field">
+              <span className="field-label">
+                Link password <span className="muted">(optional)</span>
+              </span>
+              <Input
+                type="password"
+                autoComplete="new-password"
+                maxLength={256}
+                placeholder={editingLink?.isPasswordProtected ? "Leave blank to keep current password" : "Leave blank for a public link"}
+                value={editForm.passwordLocal}
+                aria-invalid={fieldErrors.passwordLocal ? "true" : undefined}
+                aria-describedby={fieldErrors.passwordLocal ? "editor-password-error" : undefined}
+                onChange={(event) => {
+                  const { value } = event.target;
+                  setEditForm((current) => ({
+                    ...current,
+                    passwordLocal: value,
+                    clearPassword: false
+                  }));
+                  setFieldErrors((current) => ({
+                    ...current,
+                    passwordLocal: undefined
+                  }));
+                }}
+              />
+              {fieldErrors.passwordLocal ? (
+                <span id="editor-password-error" className="field-error">
+                  {fieldErrors.passwordLocal}
+                </span>
+              ) : null}
+              <span className="field-hint">
+                Enter a new password to replace the current one.
+              </span>
+            </Label>
+            {!isCreating && editingLink?.isPasswordProtected ? (
+              <label className="field-checkbox">
+                <Input
+                  type="checkbox"
+                  checked={editForm.clearPassword}
+                  onChange={(event) => setEditForm((current) => ({
+                    ...current,
+                    clearPassword: event.target.checked,
+                    passwordLocal: event.target.checked ? "" : current.passwordLocal
+                  }))}
+                />
+                <span>Remove current password protection</span>
+              </label>
+            ) : null}
             {editorRequestError ? (
               <div className="recovery-banner recovery-banner-error" role="alert">
                 <span>{editorRequestError} Your changes are still here; choose Save to try again.</span>

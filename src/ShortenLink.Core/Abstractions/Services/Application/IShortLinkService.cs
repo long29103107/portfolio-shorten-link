@@ -65,7 +65,8 @@ public interface IShortLinkService
 
     Task<ResolveShortLinkResponse> ResolveAsync(
         string code,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? password = null);
 
     Task<ShortLinkDetailsResponse> GetDetailsAsync(
         string code,
@@ -97,5 +98,6 @@ public interface ITenantAwareShortLinkService
     Task<ResolveShortLinkResponse> ResolveAsync(
         string code,
         CancellationToken cancellationToken,
-        string tenantId);
+        string tenantId,
+        string? password = null);
 }

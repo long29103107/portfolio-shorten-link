@@ -65,6 +65,13 @@ internal sealed class PostgresSchemaDialect : IDatabaseSchemaDialect
             cancellationToken);
     }
 
+    public Task EnsurePasswordProtectionSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_links\" ADD COLUMN IF NOT EXISTS \"PasswordHash\" character varying(512);",
+            cancellationToken);
+
     private const string AuditEventsSchema = """
         CREATE TABLE IF NOT EXISTS "short_link_audit_events" (
             "Id" uuid NOT NULL CONSTRAINT "PK_short_link_audit_events" PRIMARY KEY,

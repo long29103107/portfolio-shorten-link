@@ -16,12 +16,25 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
     public Task<ResolveShortLinkResponse> ResolveAsync(
         string code,
         CancellationToken cancellationToken = default) =>
-        ResolveAsync(code, cancellationToken, tenantId: null);
+        ResolveAsync(code, cancellationToken, tenantId: null, password: null);
+
+    public Task<ResolveShortLinkResponse> ResolveWithPasswordAsync(
+        string code,
+        string? password,
+        CancellationToken cancellationToken = default) =>
+        ResolveAsync(code, cancellationToken, tenantId: null, password: password);
+
+    async Task<ResolveShortLinkResponse> IShortLinkService.ResolveAsync(
+        string code,
+        CancellationToken cancellationToken,
+        string? password) =>
+        await ResolveAsync(code, cancellationToken, tenantId: null, password: password);
 
     public async Task<ResolveShortLinkResponse> ResolveAsync(
         string code,
         CancellationToken cancellationToken,
-        string? tenantId)
+        string? tenantId,
+        string? password = null)
     {
         var validationFailure = ValidateCode(code);
         if (validationFailure is not null)
@@ -54,7 +67,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
 
         if (shortLink is not null)
         {
-            var cachedResult = await ResolveCachedAsync(shortLink, now, cancellationToken);
+            var cachedResult = await ResolveCachedAsync(shortLink, now, password, cancellationToken);
             if (cachedResult.Succeeded && cachedResult.ShortLink is not null)
             {
                 cachedResult = await ConsumeClickBudgetAsync(
@@ -113,6 +126,13 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
         {
             CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
             return ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Expired, "Short link has expired.");
+        }
+
+        var passwordResult = ValidatePassword(shortLink, password);
+        if (passwordResult is not null)
+        {
+            CompleteRedirectDiagnostics(activity, cacheHit: false, succeeded: false);
+            return passwordResult;
         }
 
         var budgetResult = await ConsumeClickBudgetAsync(shortLink, now, cancellationToken);
@@ -199,6 +219,7 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
     private async Task<ResolveShortLinkResponse> ResolveCachedAsync(
         ShortLink shortLink,
         DateTimeOffset now,
+        string? password,
         CancellationToken cancellationToken)
     {
         if (shortLink.IsClickLimitReached)
@@ -227,7 +248,36 @@ public sealed partial class ShortLinkService : IShortLinkService, ITenantAwareSh
             return ResolveShortLinkResponse.Failure(ShortLinkErrorCodes.Expired, "Short link has expired.");
         }
 
+        var passwordResult = ValidatePassword(shortLink, password);
+        if (passwordResult is not null)
+        {
+            return passwordResult;
+        }
+
         return ResolveShortLinkResponse.Success(shortLink);
+    }
+
+    private static ResolveShortLinkResponse? ValidatePassword(
+        ShortLink shortLink,
+        string? password)
+    {
+        if (!shortLink.IsPasswordProtected)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            return ResolveShortLinkResponse.Failure(
+                ShortLinkErrorCodes.PasswordRequired,
+                "A password is required to open this short link.");
+        }
+
+        return shortLink.VerifyPassword(password)
+            ? null
+            : ResolveShortLinkResponse.Failure(
+                ShortLinkErrorCodes.InvalidLinkPassword,
+                "The short-link password is invalid.");
     }
 
     private async Task<ResolveShortLinkResponse> ConsumeClickBudgetAsync(

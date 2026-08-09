@@ -28,6 +28,11 @@ public static class ShortLinkDatabaseSchema
         CancellationToken cancellationToken = default) =>
         GetDialect(dbContext).EnsureClickLimitSchemaAsync(dbContext, cancellationToken);
 
+    public static Task EnsurePasswordProtectionSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken = default) =>
+        GetDialect(dbContext).EnsurePasswordProtectionSchemaAsync(dbContext, cancellationToken);
+
     public static Task EnsureAuditEventsTableAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken = default) =>

@@ -4,13 +4,16 @@ public sealed record ShortLinkCreateRequest(
     string OriginalUrl,
     DateTimeOffset? ExpiredAtUtc,
     DateTimeOffset? ActiveFromUtc = null,
-    int? MaxClicks = null);
+    int? MaxClicks = null,
+    string? Password = null);
 
 public sealed record ShortLinkUpdateRequest(
     string OriginalUrl,
     DateTimeOffset? ExpiredAtUtc,
     DateTimeOffset? ActiveFromUtc = null,
-    int? MaxClicks = null);
+    int? MaxClicks = null,
+    string? Password = null,
+    bool ClearPassword = false);
 
 public sealed record ShortLinkShareUpsertRequest(
     string Username,

@@ -20,6 +20,10 @@ internal interface IDatabaseSchemaDialect
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken);
 
+    Task EnsurePasswordProtectionSchemaAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken);
+
     Task EnsureAuditEventsTableAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken);

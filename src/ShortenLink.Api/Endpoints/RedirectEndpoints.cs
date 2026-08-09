@@ -27,7 +27,8 @@ internal static class RedirectEndpoints
                             httpContext.Request.Headers.UserAgent.ToString(),
                             httpContext.Request.Headers.Referer.ToString(),
                             options.Value.Redirect.EnableFrontendFallback,
-                            options.Value.Redirect.FrontendFallbackPath),
+                            options.Value.Redirect.FrontendFallbackPath,
+                            GetRedirectPassword(httpContext)),
                         cancellationToken);
                     return TypedResults.Redirect(response.Location);
                 })
@@ -40,5 +41,13 @@ internal static class RedirectEndpoints
         }
 
         return endpoints;
+    }
+
+    private static string? GetRedirectPassword(HttpContext httpContext)
+    {
+        var header = httpContext.Request.Headers["X-Short-Link-Password"].ToString();
+        return string.IsNullOrWhiteSpace(header)
+            ? httpContext.Request.Query["password"].ToString()
+            : header;
     }
 }

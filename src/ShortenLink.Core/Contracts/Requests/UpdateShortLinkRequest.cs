@@ -4,4 +4,6 @@ public sealed record UpdateShortLinkRequest(
     string OriginalUrl,
     DateTimeOffset? ExpiresAt = null,
     DateTimeOffset? ActiveFrom = null,
-    int? MaxClicks = null);
+    int? MaxClicks = null,
+    string? Password = null,
+    bool ClearPassword = false);

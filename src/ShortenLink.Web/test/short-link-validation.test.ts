@@ -56,4 +56,15 @@ describe("short-link API field mapping", () => {
       maxClicksLocal: "0"
     }, now).maxClicksLocal).toContain("positive");
   });
+
+  test("limits optional link passwords", () => {
+    expect(validateShortLinkForm({
+      originalUrl: "https://example.com/docs",
+      activeFromLocal: "",
+      expiredAtLocal: "2026-07-21T00:00:01.000Z",
+      maxClicksLocal: "",
+      passwordLocal: "x".repeat(257),
+      clearPassword: false
+    }, now).passwordLocal).toContain("256");
+  });
 });

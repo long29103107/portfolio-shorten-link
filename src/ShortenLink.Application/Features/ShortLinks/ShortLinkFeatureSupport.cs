@@ -27,8 +27,12 @@ internal static class ShortLinkFeatureSupport
                 or ShortLinkErrorCodes.InvalidExpiration
                 or ShortLinkErrorCodes.InvalidActivationWindow
                 or ShortLinkErrorCodes.InvalidMaxClicks
+                or ShortLinkErrorCodes.InvalidPassword
                 or ShortLinkErrorCodes.InvalidCode =>
                 new RequestValidationException(code, message ?? "The request is invalid."),
+            ShortLinkErrorCodes.PasswordRequired
+                or ShortLinkErrorCodes.InvalidLinkPassword =>
+                new AuthenticationRequiredException(code, message ?? "A valid short-link password is required."),
             ShortLinkErrorCodes.NotFound => new NotFoundException(code, message ?? "Short link was not found."),
             ShortLinkErrorCodes.Expired
                 or ShortLinkErrorCodes.Inactive
