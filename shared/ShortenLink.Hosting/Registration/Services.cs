@@ -75,6 +75,12 @@ public static partial class Services
                 static options => HasValidQueueOptions(options.Queue),
                 "ShortenLink:Queue requires positive capacities, queue names, and a RabbitMqConnectionString when RabbitMq is selected.")
             .Validate(
+                static options => options.BulkJobs.MaxAttempts > 0
+                    && options.BulkJobs.RetryDelayMilliseconds >= 0
+                    && options.BulkJobs.RetentionMinutes > 0
+                    && options.BulkJobs.MaintenanceIntervalSeconds > 0,
+                "ShortenLink:BulkJobs requires positive retention/maintenance values and MaxAttempts > 0.")
+            .Validate(
                 static options => IsValidCacheProvider(options.Cache),
                 "ShortenLink:Cache:Provider must be Memory or Redis.")
             .Validate(
@@ -199,6 +205,8 @@ public static partial class Services
         {
             services.TryAddEnumerable(
                 ServiceDescriptor.Singleton<IHostedService, ShortLinkBulkJobBackgroundService>());
+            services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IHostedService, ShortLinkBulkJobMaintenanceService>());
         }
 
         var healthChecksEnabled = configuration.GetValue<bool>(

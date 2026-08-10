@@ -6,6 +6,7 @@ export const APP_ROUTES = {
   NOT_FOUND: "/not-found",
   SHORT_LINKS: "/short-links",
   AUDIT_LOGS: "/audit-logs",
+  BULK_JOBS: "/bulk-jobs",
   ADMIN_DASHBOARD: "/admin/dashboard",
   ADMIN_SECURITY: "/admin/security",
   LINK_DETAILS: "/links"

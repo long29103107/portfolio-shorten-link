@@ -60,6 +60,8 @@ public static class ShortenLinkEndpointMappings
             .WithName("CreateShortLinkBulkJobEndpoint");
         group.MapGet("/bulk/jobs/{jobId:guid}", GetShortLinkBulkJobStatusAsync)
             .WithName("GetShortLinkBulkJobStatusEndpoint");
+        group.MapDelete("/bulk/jobs/{jobId:guid}", CancelShortLinkBulkJobAsync)
+            .WithName("CancelShortLinkBulkJobEndpoint");
         group.MapPost("/bulk", ExecuteShortLinkBulkOperationAsync)
             .WithName("ExecuteShortLinkBulkOperationEndpoint");
         group.MapGet("/export", ExportShortLinksAsync)
@@ -307,7 +309,7 @@ public static class ShortenLinkEndpointMappings
         CancellationToken cancellationToken)
     {
         var response = await sender.Send(
-            new CreateShortLinkBulkJobCommand(request.Codes, request.Operation, request.Folder, request.Tags),
+            new CreateShortLinkBulkJobCommand(request.Codes, request.Operation, request.Folder, request.Tags, request.IdempotencyKey),
             cancellationToken);
         return TypedResults.Accepted($"{httpContext.Request.Path}/{response.JobId}", response);
     }
@@ -317,6 +319,12 @@ public static class ShortenLinkEndpointMappings
         ISender sender,
         CancellationToken cancellationToken) =>
         sender.Send(new GetShortLinkBulkJobStatusQuery(jobId), cancellationToken);
+
+    private static async Task<IResult> CancelShortLinkBulkJobAsync(
+        Guid jobId,
+        ISender sender,
+        CancellationToken cancellationToken) =>
+        TypedResults.Ok(await sender.Send(new CancelShortLinkBulkJobCommand(jobId), cancellationToken));
 
     private static Task<IAsyncEnumerable<ShortLinkExportRecord>> ExportShortLinksAsync(
         int? limit,

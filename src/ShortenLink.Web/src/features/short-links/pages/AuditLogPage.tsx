@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -13,8 +13,10 @@ import { DiscoverySelect } from "@/shared/components/DiscoverySelect";
 import {
   emptyAuditLogFilters,
   formatAuditLabel,
+  getAuditTimeRange,
   toAuditFilterIso,
-  validateAuditTimeRange
+  validateAuditTimeRange,
+  type AuditTimePreset
 } from "../domain/auditDiscovery";
 import {
   formatDateTime,
@@ -22,57 +24,73 @@ import {
   type AuditLogFilters
 } from "../types";
 import { useAuditLogData } from "../hooks/useAuditLogData";
+import { useDebouncedCallback } from "@/shared/hooks/useDebouncedCallback";
 
 type AuditFilterDraft = {
   action: string;
-  targetId: string;
-  actorId: string;
+  search: string;
+  timePreset: AuditTimePreset;
   fromLocal: string;
   toLocal: string;
 };
 
 const emptyDraft: AuditFilterDraft = {
   action: "",
-  targetId: "",
-  actorId: "",
+  search: "",
+  timePreset: "today",
   fromLocal: "",
   toLocal: ""
 };
 
+const initialFilters: AuditLogFilters = {
+  ...emptyAuditLogFilters,
+  ...getAuditTimeRange("today")
+};
+
 export function AuditLogPage() {
   const [draft, setDraft] = useState<AuditFilterDraft>(emptyDraft);
-  const [filters, setFilters] = useState<AuditLogFilters>(emptyAuditLogFilters);
+  const [filters, setFilters] = useState<AuditLogFilters>(initialFilters);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const {
     actions,
     events,
     nextCursor,
+    hasPreviousPage,
+    pageNumber,
     failure,
     isLoading,
     isLoadingOlder,
-    loadOlder,
+    loadNext,
+    loadPrevious,
     retry
   } = useAuditLogData(filters);
 
-  const applyFilters = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const validationError = validateAuditTimeRange(draft.fromLocal, draft.toLocal);
+  const applyFilters = (nextDraft: AuditFilterDraft) => {
+    const customRange = {
+      from: toAuditFilterIso(nextDraft.fromLocal),
+      to: toAuditFilterIso(nextDraft.toLocal)
+    };
+    const range = nextDraft.timePreset === "custom"
+      ? customRange
+      : getAuditTimeRange(nextDraft.timePreset);
+    const validationError = nextDraft.timePreset === "custom"
+      ? validateAuditTimeRange(nextDraft.fromLocal, nextDraft.toLocal)
+      : null;
     setRangeError(validationError);
     if (validationError) return;
 
     setFilters({
-      action: draft.action.trim(),
-      targetId: draft.targetId.trim(),
-      actorId: draft.actorId.trim(),
-      from: toAuditFilterIso(draft.fromLocal),
-      to: toAuditFilterIso(draft.toLocal)
+      action: nextDraft.action.trim(),
+      search: nextDraft.search.trim(),
+      ...range
     });
   };
 
-  const clearFilters = () => {
-    setDraft(emptyDraft);
-    setRangeError(null);
-    setFilters({ ...emptyAuditLogFilters });
+  const debouncedApplyFilters = useDebouncedCallback(applyFilters, 350);
+  const updateDraft = (change: Partial<AuditFilterDraft>) => {
+    const nextDraft = { ...draft, ...change };
+    setDraft(nextDraft);
+    debouncedApplyFilters.invoke(nextDraft);
   };
 
   return (
@@ -89,76 +107,66 @@ export function AuditLogPage() {
       </CardHeader>
 
       <CardContent>
-        <form className="audit-filter-panel" onSubmit={applyFilters}>
+        <div className="audit-filter-panel">
           <div className="audit-filter-grid">
             <DiscoverySelect
               label="Action"
               value={draft.action}
-              onChange={(action) => setDraft((current) => ({
-                ...current,
-                action
-              }))}
+              onChange={(action) => updateDraft({ action })}
             >
               <option value="">All actions</option>
               {actions.map((action) => <option key={action} value={action}>{formatAuditLabel(action)}</option>)}
             </DiscoverySelect>
-            <label>
-              <span>Target ID</span>
+            <label className="audit-filter-search">
+              <span>Search</span>
               <Input
-                aria-label="Filter by target ID"
-                placeholder="Code, user, role, or API key ID"
-                value={draft.targetId}
-                onChange={(event) => setDraft((current) => ({
-                  ...current,
-                  targetId: event.target.value
-                }))}
+                aria-label="Search audit logs"
+                placeholder="Action, actor, target, or outcome"
+                value={draft.search}
+                onChange={(event) => updateDraft({ search: event.target.value })}
               />
             </label>
             <label>
-              <span>Actor ID</span>
-              <Input
-                aria-label="Filter by actor ID"
-                placeholder="user-1"
-                value={draft.actorId}
-                onChange={(event) => setDraft((current) => ({
-                  ...current,
-                  actorId: event.target.value
-                }))}
-              />
+              <span>Time range</span>
+              <select
+                aria-label="Audit log time range"
+                value={draft.timePreset}
+                onChange={(event) => updateDraft({ timePreset: event.target.value as AuditTimePreset })}
+              >
+                <option value="today">Today</option>
+                <option value="week">Last 7 days</option>
+                <option value="month">Last 30 days</option>
+                <option value="custom">Custom</option>
+              </select>
             </label>
-            <label>
-              <span>From</span>
-              <Input
-                aria-label="Filter from time"
-                type="datetime-local"
-                value={draft.fromLocal}
-                onChange={(event) => setDraft((current) => ({
-                  ...current,
-                  fromLocal: event.target.value
-                }))}
-              />
-            </label>
-            <label>
-              <span>To</span>
-              <Input
-                aria-label="Filter to time"
-                type="datetime-local"
-                value={draft.toLocal}
-                onChange={(event) => setDraft((current) => ({
-                  ...current,
-                  toLocal: event.target.value
-                }))}
-              />
-            </label>
+            {draft.timePreset === "custom" ? (
+              <>
+                <label>
+                  <span>From</span>
+                  <Input
+                    aria-label="Filter from time"
+                    type="datetime-local"
+                    value={draft.fromLocal}
+                    onChange={(event) => updateDraft({ fromLocal: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>To</span>
+                  <Input
+                    aria-label="Filter to time"
+                    type="datetime-local"
+                    value={draft.toLocal}
+                    onChange={(event) => updateDraft({ toLocal: event.target.value })}
+                  />
+                </label>
+              </>
+            ) : null}
           </div>
           {rangeError ? <p className="field-error" role="alert">{rangeError}</p> : null}
           <div className="audit-filter-actions">
-            <Button type="submit" disabled={isLoading}>Apply filters</Button>
-            <Button type="button" variant="secondary" onClick={clearFilters} disabled={isLoading}>
-              Clear
-            </Button>
+            <span className="audit-filter-hint">Filters update automatically</span>
           </div>
-        </form>
+        </div>
 
         {isLoading ? (
           <div className="audit-loading" role="status">Loading audit events...</div>
@@ -177,8 +185,7 @@ export function AuditLogPage() {
         {!isLoading && !failure && events.length === 0 ? (
           <EmptyState
             title="No matching audit events"
-            description="Try a wider time range or clear one of the investigation filters."
-            action={<Button variant="secondary" onClick={clearFilters}>Clear filters</Button>}
+            description="Try a different search, action, or time range."
           />
         ) : null}
 
@@ -214,18 +221,23 @@ export function AuditLogPage() {
             ) : null}
 
             <div className="audit-pagination" role="status">
-              <span>{events.length} event{events.length === 1 ? "" : "s"} loaded</span>
-              {nextCursor ? (
+              <span>Page {pageNumber} · {events.length} event{events.length === 1 ? "" : "s"}</span>
+              <div className="audit-pagination-actions">
                 <Button
                   variant="secondary"
-                  onClick={() => void loadOlder()}
-                  disabled={isLoadingOlder}
+                  onClick={() => void loadPrevious()}
+                  disabled={!hasPreviousPage || isLoadingOlder}
                 >
-                  {isLoadingOlder ? "Loading..." : "Load older events"}
+                  Previous
                 </Button>
-              ) : (
-                <span>End of results</span>
-              )}
+                <Button
+                  variant="secondary"
+                  onClick={() => void loadNext()}
+                  disabled={!nextCursor || isLoadingOlder}
+                >
+                  {isLoadingOlder ? "Loading..." : "Next"}
+                </Button>
+              </div>
             </div>
           </>
         ) : null}

@@ -17,6 +17,9 @@ public sealed class UnitOfWorkPipelineBehavior<TRequest, TResponse>(
         RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
+        if (request is IBypassUnitOfWork)
+            return await next();
+
         try
         {
             var response = await unitOfWork.ExecuteAsync(_ => next(), cancellationToken);

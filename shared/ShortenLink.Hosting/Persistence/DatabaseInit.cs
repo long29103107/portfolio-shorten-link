@@ -30,6 +30,7 @@ internal sealed class DatabaseInit : IHostedService
         await ShortLinkDatabaseSchema.EnsurePasswordProtectionSchemaAsync(dbContext, cancellationToken);
         await ShortLinkDatabaseSchema.EnsureAdvancedAnalyticsSchemaAsync(dbContext, cancellationToken);
         await ShortLinkDatabaseSchema.EnsureOrganizationSchemaAsync(dbContext, cancellationToken);
+        await ShortLinkDatabaseSchema.EnsureBulkJobsTableAsync(dbContext, cancellationToken);
         await ShortLinkDatabaseSchema.EnsureUtcTimestampSchemaAsync(dbContext, cancellationToken);
 
         if (initializeSecurity)

@@ -46,6 +46,16 @@ internal sealed class PostgresSchemaDialect : IDatabaseSchemaDialect
         CancellationToken cancellationToken) =>
         dbContext.Database.ExecuteSqlRawAsync(ExpirationCheckpointsSchema, cancellationToken);
 
+    public async Task EnsureBulkJobsTableAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(BulkJobsSchema, cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"short_link_bulk_jobs\" ADD COLUMN IF NOT EXISTS \"RequestHash\" character varying(64) NOT NULL DEFAULT '';",
+            cancellationToken);
+    }
+
     public Task EnsureScheduledActivationSchemaAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken) =>
@@ -157,5 +167,40 @@ internal sealed class PostgresSchemaDialect : IDatabaseSchemaDialect
         );
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_short_link_expiration_checkpoints_TenantId"
             ON "short_link_expiration_checkpoints" ("TenantId");
+        """;
+
+    private const string BulkJobsSchema = """
+        CREATE TABLE IF NOT EXISTS "short_link_bulk_jobs" (
+            "Id" uuid NOT NULL PRIMARY KEY,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            "CreatedBy" uuid NULL,
+            "UpdatedAt" timestamp with time zone NULL,
+            "UpdatedBy" uuid NULL,
+            "Operation" character varying(32) NOT NULL,
+            "CodesJson" text NOT NULL,
+            "Folder" character varying(128) NULL,
+            "TagsJson" text NOT NULL,
+            "Status" character varying(32) NOT NULL,
+            "TotalCount" integer NOT NULL,
+            "ProcessedCount" integer NOT NULL,
+            "SucceededCount" integer NOT NULL,
+            "FailedCount" integer NOT NULL,
+            "ResultJson" text NULL,
+            "Error" character varying(2048) NULL,
+            "ActorId" character varying(256) NULL,
+            "UserId" character varying(128) NULL,
+            "IsAdmin" boolean NOT NULL DEFAULT false,
+            "TenantId" character varying(128) NOT NULL DEFAULT '',
+            "IdempotencyKey" character varying(256) NULL,
+            "RequestHash" character varying(64) NOT NULL DEFAULT '',
+            "AttemptCount" integer NOT NULL DEFAULT 0,
+            "StartedAtUtc" timestamp with time zone NULL,
+            "CompletedAtUtc" timestamp with time zone NULL,
+            "LastHeartbeatAtUtc" timestamp with time zone NULL,
+            "LeaseExpiresAtUtc" timestamp with time zone NULL,
+            "CancellationRequested" boolean NOT NULL DEFAULT false
+        );
+        CREATE INDEX IF NOT EXISTS "IX_short_link_bulk_jobs_Status_CreatedAt" ON "short_link_bulk_jobs" ("Status", "CreatedAt");
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_short_link_bulk_jobs_TenantId_IdempotencyKey" ON "short_link_bulk_jobs" ("TenantId", "IdempotencyKey");
         """;
 }

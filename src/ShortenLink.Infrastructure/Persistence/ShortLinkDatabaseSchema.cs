@@ -53,6 +53,11 @@ public static class ShortLinkDatabaseSchema
         CancellationToken cancellationToken = default) =>
         GetDialect(dbContext).EnsureExpirationCheckpointsTableAsync(dbContext, cancellationToken);
 
+    public static Task EnsureBulkJobsTableAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken = default) =>
+        GetDialect(dbContext).EnsureBulkJobsTableAsync(dbContext, cancellationToken);
+
     private static IDatabaseSchemaDialect GetDialect(ShortLinkDbContext dbContext)
     {
         ArgumentNullException.ThrowIfNull(dbContext);

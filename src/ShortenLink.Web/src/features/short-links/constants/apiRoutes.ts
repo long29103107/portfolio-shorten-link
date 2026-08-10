@@ -24,6 +24,7 @@ const shortLinkRoutes = {
   BULK: `${SHORT_LINK_ROOT}/bulk`,
   BULK_JOBS: `${SHORT_LINK_ROOT}/bulk/jobs`,
   BULK_JOB: (jobId: string) => `${SHORT_LINK_ROOT}/bulk/jobs/${pathSegment(jobId)}`,
+  CANCEL_BULK_JOB: (jobId: string) => `${SHORT_LINK_ROOT}/bulk/jobs/${pathSegment(jobId)}`,
   BY_CODE: (code: string) => `${SHORT_LINK_ROOT}/${pathSegment(code)}`,
   ANALYTICS: (code: string) => `${SHORT_LINK_ROOT}/${pathSegment(code)}/analytics`,
   DEACTIVATE: (code: string) => `${SHORT_LINK_ROOT}/${pathSegment(code)}/deactivate`,

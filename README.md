@@ -472,9 +472,12 @@ For larger selections, submit the same payload to
 and returns `202 Accepted` with a `jobId`; poll
 `GET /api/short-links/bulk/jobs/{jobId}` for `queued`, `running`, `completed`,
 or `failed` status and the same item-level result when complete. Job state is
-bounded and process-local (it is cleared on application restart), and status
-is visible only to the submitting actor in the same tenant. A saturated queue
-returns `409` with `bulk_job_queue_full` so callers can retry later.
+durable in the configured SQLite/PostgreSQL store, and status is visible only
+to the submitting actor in the same tenant. Reuse an `idempotencyKey` to make a
+client retry return the original job. A saturated queue returns `409` with
+`bulk_job_queue_full`; transient worker failures retry according to
+`ShortenLink:BulkJobs` options. `DELETE /api/short-links/bulk/jobs/{jobId}`
+cooperatively cancels queued or running work.
 
 ### Admin Security
 

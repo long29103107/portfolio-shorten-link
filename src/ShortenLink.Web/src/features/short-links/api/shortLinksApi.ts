@@ -201,6 +201,12 @@ export async function getShortLinkBulkJobStatus(
   );
 }
 
+export async function cancelShortLinkBulkJob(jobId: string): Promise<ShortLinkBulkJobStatusResponse> {
+  return apiClient.delete<ShortLinkBulkJobStatusResponse>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK.CANCEL_BULK_JOB(jobId)
+  );
+}
+
 export async function listSecurityAssignments(signal?: AbortSignal): Promise<SecurityAssignmentsList> {
   return apiClient.get<SecurityAssignmentsList>(
     SHORT_LINK_API_ROUTES.SECURITY.ASSIGNMENTS,

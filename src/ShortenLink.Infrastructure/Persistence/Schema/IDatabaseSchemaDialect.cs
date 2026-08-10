@@ -39,4 +39,8 @@ internal interface IDatabaseSchemaDialect
     Task EnsureExpirationCheckpointsTableAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken);
+
+    Task EnsureBulkJobsTableAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken);
 }

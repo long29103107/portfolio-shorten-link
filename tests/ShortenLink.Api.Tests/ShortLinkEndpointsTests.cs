@@ -601,13 +601,24 @@ public sealed class ShortLinkEndpointsTests
         using var submitResponse = await client.PostAsJsonAsync("/api/short-links/bulk/jobs", new
         {
             codes = new[] { created.Code },
-            operation = "deactivate"
+            operation = "deactivate",
+            idempotencyKey = "bulk-job-replay"
         });
         var accepted = await submitResponse.Content.ReadFromJsonAsync<ShortLinkBulkJobAcceptedResponse>();
 
         Assert.Equal(HttpStatusCode.Accepted, submitResponse.StatusCode);
         Assert.NotNull(accepted);
         Assert.Equal(1, accepted?.TotalCount);
+
+        using var replayResponse = await client.PostAsJsonAsync("/api/short-links/bulk/jobs", new
+        {
+            codes = new[] { created.Code },
+            operation = "deactivate",
+            idempotencyKey = "bulk-job-replay"
+        });
+        Assert.Equal(HttpStatusCode.Accepted, replayResponse.StatusCode);
+        var replay = await replayResponse.Content.ReadFromJsonAsync<ShortLinkBulkJobAcceptedResponse>();
+        Assert.Equal(accepted?.JobId, replay?.JobId);
 
         ShortLinkBulkJobStatusResponse? completed = null;
         var finished = await WaitForConditionAsync(async () =>

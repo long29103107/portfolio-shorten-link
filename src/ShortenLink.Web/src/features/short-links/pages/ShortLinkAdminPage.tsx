@@ -29,6 +29,7 @@ import { useShortLinkDiscovery } from "../hooks/useShortLinkDiscovery";
 import { useShortLinkAnalyticsData } from "../hooks/useShortLinkAnalyticsData";
 import { useShortLinkExport } from "../hooks/useShortLinkExport";
 import { useShortLinkMutations } from "../hooks/useShortLinkMutations";
+import { BULK_SELECTION_STORAGE_KEY } from "../hooks/useBulkJobCenter";
 import { ShortLinkAnalyticsDialog } from "../components/ShortLinkAnalyticsDialog";
 import { downloadShortLinksCsv } from "../domain/export";
 
@@ -127,6 +128,14 @@ export function ShortLinkAdminPage({ onDirtyChange }: ShortLinkAdminPageProps) {
 
   const selectedLinks = links.filter((link) => selectedCodes.has(link.code));
   const selectedCount = selectedCodes.size;
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(BULK_SELECTION_STORAGE_KEY, JSON.stringify(Array.from(selectedCodes)));
+    } catch {
+      // Session storage is an enhancement; bulk jobs remain usable without it.
+    }
+  }, [selectedCodes]);
   const canEditLink = (link: ShortLinkAdminItem) =>
     link.accessLevel === "Admin" || link.accessLevel === "Owner" || link.accessLevel === "Edit";
   const canManageLink = (link: ShortLinkAdminItem) =>

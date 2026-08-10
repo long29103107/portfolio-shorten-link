@@ -19,6 +19,10 @@ export function parseRoute(pathname: string): AppRoute {
     return { kind: "audit" };
   }
 
+  if (pathname === APP_ROUTES.BULK_JOBS) {
+    return { kind: "bulk-jobs" };
+  }
+
   if (pathname === APP_ROUTES.ADMIN_SECURITY) {
     return { kind: "security", section: "users" };
   }

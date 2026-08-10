@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildAuditLogUrl,
   formatAuditLabel,
+  getAuditTimeRange,
   mergeAuditLogEvents,
   toAuditFilterIso,
   validateAuditTimeRange
@@ -16,18 +17,17 @@ describe("audit investigation discovery", () => {
       cursor: " opaque+/= ",
       filters: {
         action: " short_link.updated ",
-        targetId: " abc 123 ",
-        actorId: " user@example.com ",
+        search: " abc 123 ",
         from: "2026-07-01T00:00:00.000Z",
         to: "2026-07-31T23:59:59.000Z"
       }
     })).toBe(
-      "/api/audit-logs?limit=200&cursor=opaque%2B%2F%3D&fe=%28%28Action+eq+%60short_link.updated%60%29+%26+%28TargetId+eq+%60abc+123%60%29+%26+%28ActorId+eq+%60user%40example.com%60%29+%26+%28OccurredAt+ge+%602026-07-01T00%3A00%3A00.000Z%60%29+%26+%28OccurredAt+le+%602026-07-31T23%3A59%3A59.000Z%60%29%29"
+      "/api/audit-logs?limit=200&cursor=opaque%2B%2F%3D&fe=%28%28Action+eq+%60short_link.updated%60%29+%26+%28%28Action+contains+%60abc+123%60%29+%7C+%28TargetType+contains+%60abc+123%60%29+%7C+%28TargetId+contains+%60abc+123%60%29+%7C+%28ActorId+contains+%60abc+123%60%29+%7C+%28Outcome+contains+%60abc+123%60%29+%7C+%28SubjectUserId+contains+%60abc+123%60%29%29+%26+%28OccurredAt+ge+%602026-07-01T00%3A00%3A00.000Z%60%29+%26+%28OccurredAt+le+%602026-07-31T23%3A59%3A59.000Z%60%29%29"
     );
   });
 
   test("serializes a selected action for the audit API", () => {
-    expect(buildAuditLogUrl({ filters: { action: "short_link.created" } }))
+    expect(buildAuditLogUrl({ filters: { action: "short_link.created", search: "" } }))
       .toBe("/api/audit-logs?limit=50&fe=%28Action+eq+%60short_link.created%60%29");
   });
 
@@ -52,6 +52,15 @@ describe("audit investigation discovery", () => {
     expect(toAuditFilterIso("2026-07-28T09:00"))
       .toBe(new Date("2026-07-28T09:00").toISOString());
     expect(toAuditFilterIso("")).toBe("");
+  });
+
+  test("builds stable relative audit time ranges", () => {
+    const now = new Date("2026-07-28T10:00:00.000Z");
+    expect(getAuditTimeRange("week", now)).toEqual({
+      from: "2026-07-21T10:00:00.000Z",
+      to: "2026-07-28T10:00:00.000Z"
+    });
+    expect(getAuditTimeRange("custom", now)).toEqual({ from: "", to: "" });
   });
 
   test("formats stable contract values and preserves retry guidance", () => {

@@ -4,6 +4,7 @@ import { CreateShortLinkPage } from "@/features/short-links/pages/CreateShortLin
 import { LoginPage } from "@/features/short-links/pages/LoginPage";
 const AdminDashboardPage = lazy(() => import("@/features/short-links/pages/AdminDashboardPage").then(({ AdminDashboardPage }) => ({ default: AdminDashboardPage })));
 const AuditLogPage = lazy(() => import("@/features/short-links/pages/AuditLogPage").then(({ AuditLogPage }) => ({ default: AuditLogPage })));
+const BulkJobsPage = lazy(() => import("@/features/short-links/pages/BulkJobsPage").then(({ BulkJobsPage }) => ({ default: BulkJobsPage })));
 const SecurityManagementPage = lazy(() => import("@/features/short-links/pages/SecurityManagementPage").then(({ SecurityManagementPage }) => ({ default: SecurityManagementPage })));
 const ShortLinkAdminPage = lazy(() => import("@/features/short-links/pages/ShortLinkAdminPage").then(({ ShortLinkAdminPage }) => ({ default: ShortLinkAdminPage })));
 import { StatusPage } from "@/features/short-links/pages/StatusPage";
@@ -48,6 +49,8 @@ export function App() {
         ? "Dashboard"
       : route.kind === "audit"
         ? "Audit logs"
+      : route.kind === "bulk-jobs"
+        ? "Bulk jobs"
       : route.kind === "security"
         ? "Identity & Access"
       : route.kind === "login"
@@ -65,6 +68,8 @@ export function App() {
         ? "Monitor short links and access controls"
       : route.kind === "audit"
         ? "Investigate durable mutation history"
+      : route.kind === "bulk-jobs"
+        ? "Track background short-link operations"
       : route.kind === "security"
         ? `Manage ${route.section} access controls`
       : route.kind === "login"
@@ -157,6 +162,10 @@ export function App() {
               adminPermissions.canReadAuditLogs
                 ? <AuditLogPage />
                 : <StatusPage statusCode={HTTP_STATUS.FORBIDDEN} onBackHome={() => navigate(APP_ROUTES.HOME)} />
+            ) : null}
+
+            {route.kind === "bulk-jobs" ? (
+              <BulkJobsPage />
             ) : null}
 
             {route.kind === "security" ? (

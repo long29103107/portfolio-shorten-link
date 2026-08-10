@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ShortenLink.Infrastructure.Persistence.Configurations;
+using ShortenLink.Infrastructure.Persistence.Entities;
 
 namespace ShortenLink.Infrastructure.Persistence;
 
@@ -29,6 +30,8 @@ public sealed class ShortLinkDbContext : DbContext
     public DbSet<ShortenLinkSecurityUserPersistenceEntity> SecurityUsers => Set<ShortenLinkSecurityUserPersistenceEntity>();
 
     public DbSet<ShortenLinkUserApiKeyPersistenceEntity> SecurityUserApiKeys => Set<ShortenLinkUserApiKeyPersistenceEntity>();
+
+    public DbSet<ShortLinkBulkJobPersistenceEntity> ShortLinkBulkJobs => Set<ShortLinkBulkJobPersistenceEntity>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {

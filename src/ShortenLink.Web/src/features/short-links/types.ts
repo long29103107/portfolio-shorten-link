@@ -3,6 +3,7 @@ export type AppRoute =
   | { kind: "admin" }
   | { kind: "dashboard" }
   | { kind: "audit" }
+  | { kind: "bulk-jobs" }
   | { kind: "security"; section: SecuritySection }
   | { kind: "login" }
   | { kind: "detail"; code: string }
@@ -169,8 +170,7 @@ export type AuditLogActions = {
 
 export type AuditLogFilters = {
   action: string;
-  targetId: string;
-  actorId: string;
+  search: string;
   from: string;
   to: string;
 };
@@ -216,6 +216,7 @@ export type ShortLinkBulkOperationRequest = {
   operation: ShortLinkBulkOperation;
   folder?: string | null;
   tags?: string[] | null;
+  idempotencyKey?: string | null;
 };
 
 export type ShortLinkBulkOperationItem = {
@@ -233,7 +234,7 @@ export type ShortLinkBulkOperationResponse = {
   items: ShortLinkBulkOperationItem[];
 };
 
-export type ShortLinkBulkJobStatus = "queued" | "running" | "completed" | "failed";
+export type ShortLinkBulkJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export type ShortLinkBulkJobAcceptedResponse = {
   jobId: string;

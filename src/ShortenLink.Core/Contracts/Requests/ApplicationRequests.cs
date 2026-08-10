@@ -23,7 +23,8 @@ public sealed record ShortLinkBulkOperationRequest(
     IReadOnlyList<string>? Codes,
     string Operation,
     string? Folder = null,
-    IReadOnlyList<string>? Tags = null);
+    IReadOnlyList<string>? Tags = null,
+    string? IdempotencyKey = null);
 
 public sealed record ShortLinkShareUpsertRequest(
     string Username,

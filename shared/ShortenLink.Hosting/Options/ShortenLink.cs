@@ -18,6 +18,8 @@ public sealed class ShortenLinkOptions
 
     public ShortenLinkQueueOptions Queue { get; set; } = new();
 
+    public ShortenLinkBulkJobOptions BulkJobs { get; set; } = new();
+
     public ShortenLinkCacheOptions Cache { get; set; } = new();
 
     public ShortenLinkObservabilityOptions Observability { get; set; } = new();
@@ -87,6 +89,17 @@ public sealed class ShortenLinkQueueOptions
     public int AnalyticsCapacity { get; set; }
 
     public ushort PrefetchCount { get; set; } = 16;
+}
+
+public sealed class ShortenLinkBulkJobOptions
+{
+    public int MaxAttempts { get; set; } = 3;
+
+    public int RetryDelayMilliseconds { get; set; } = 250;
+
+    public int RetentionMinutes { get; set; } = 1440;
+
+    public int MaintenanceIntervalSeconds { get; set; } = 60;
 }
 
 public sealed class ShortenLinkObservabilityOptions

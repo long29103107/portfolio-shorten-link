@@ -2,7 +2,7 @@ import { getShortLinkBulkJobStatus } from "../api/shortLinksApi";
 import type { ShortLinkBulkJobStatusResponse } from "../types";
 
 export const isShortLinkBulkJobTerminal = (status: ShortLinkBulkJobStatusResponse) =>
-  status.status === "completed" || status.status === "failed";
+  status.status === "completed" || status.status === "failed" || status.status === "cancelled";
 
 export async function waitForShortLinkBulkJob(
   jobId: string,

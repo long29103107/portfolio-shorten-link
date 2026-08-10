@@ -77,6 +77,16 @@ internal sealed class SqliteSchemaDialect : IDatabaseSchemaDialect
         CancellationToken cancellationToken) =>
         dbContext.Database.ExecuteSqlRawAsync(ExpirationCheckpointsSchema, cancellationToken);
 
+    public async Task EnsureBulkJobsTableAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(BulkJobsSchema, cancellationToken);
+        await EnsureColumnAsync(dbContext, "short_link_bulk_jobs", "RequestHash",
+            "ALTER TABLE \"short_link_bulk_jobs\" ADD COLUMN \"RequestHash\" TEXT NOT NULL DEFAULT '';",
+            cancellationToken);
+    }
+
     public Task EnsureScheduledActivationSchemaAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken) =>
@@ -283,6 +293,41 @@ internal sealed class SqliteSchemaDialect : IDatabaseSchemaDialect
         );
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_short_link_expiration_checkpoints_TenantId"
             ON "short_link_expiration_checkpoints" ("TenantId");
+        """;
+
+    private const string BulkJobsSchema = """
+        CREATE TABLE IF NOT EXISTS "short_link_bulk_jobs" (
+            "Id" TEXT NOT NULL CONSTRAINT "PK_short_link_bulk_jobs" PRIMARY KEY,
+            "CreatedAt" TEXT NOT NULL,
+            "CreatedBy" TEXT NULL,
+            "UpdatedAt" TEXT NULL,
+            "UpdatedBy" TEXT NULL,
+            "Operation" TEXT NOT NULL,
+            "CodesJson" TEXT NOT NULL,
+            "Folder" TEXT NULL,
+            "TagsJson" TEXT NOT NULL,
+            "Status" TEXT NOT NULL,
+            "TotalCount" INTEGER NOT NULL,
+            "ProcessedCount" INTEGER NOT NULL,
+            "SucceededCount" INTEGER NOT NULL,
+            "FailedCount" INTEGER NOT NULL,
+            "ResultJson" TEXT NULL,
+            "Error" TEXT NULL,
+            "ActorId" TEXT NULL,
+            "UserId" TEXT NULL,
+            "IsAdmin" INTEGER NOT NULL DEFAULT 0,
+            "TenantId" TEXT NOT NULL DEFAULT '',
+            "IdempotencyKey" TEXT NULL,
+            "RequestHash" TEXT NOT NULL DEFAULT '',
+            "AttemptCount" INTEGER NOT NULL DEFAULT 0,
+            "StartedAtUtc" TEXT NULL,
+            "CompletedAtUtc" TEXT NULL,
+            "LastHeartbeatAtUtc" TEXT NULL,
+            "LeaseExpiresAtUtc" TEXT NULL,
+            "CancellationRequested" INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS "IX_short_link_bulk_jobs_Status_CreatedAt" ON "short_link_bulk_jobs" ("Status", "CreatedAt");
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_short_link_bulk_jobs_TenantId_IdempotencyKey" ON "short_link_bulk_jobs" ("TenantId", "IdempotencyKey");
         """;
 
     private static readonly IReadOnlyDictionary<string, string[]> TimestampColumns =

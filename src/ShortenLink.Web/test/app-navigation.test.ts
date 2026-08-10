@@ -9,6 +9,7 @@ describe("application navigation", () => {
       [{ kind: "admin" }, APP_ROUTES.SHORT_LINKS],
       [{ kind: "dashboard" }, APP_ROUTES.ADMIN_DASHBOARD],
       [{ kind: "audit" }, APP_ROUTES.AUDIT_LOGS],
+      [{ kind: "bulk-jobs" }, APP_ROUTES.BULK_JOBS],
       [{ kind: "security", section: "roles" }, `${APP_ROUTES.ADMIN_SECURITY}/roles`]
     ];
 
@@ -28,4 +29,3 @@ describe("application navigation", () => {
     expect(resolveNavigationPath(APP_ROUTES.ADMIN_DASHBOARD, true)).toBe(APP_ROUTES.ADMIN_DASHBOARD);
   });
 });
-

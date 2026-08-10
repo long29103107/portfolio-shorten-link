@@ -20,7 +20,7 @@ public sealed class ShortLinkDbContextModelTests
             .Where(entityType => entityType.ClrType is not null)
             .ToList();
 
-        Assert.Equal(10, entityTypes.Count);
+        Assert.Equal(11, entityTypes.Count);
         Assert.All(entityTypes, entityType =>
         {
             Assert.True(

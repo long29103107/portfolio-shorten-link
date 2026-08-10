@@ -39,4 +39,8 @@ internal sealed class NoopSchemaDialect : IDatabaseSchemaDialect
     public Task EnsureExpirationCheckpointsTableAsync(
         ShortLinkDbContext dbContext,
         CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task EnsureBulkJobsTableAsync(
+        ShortLinkDbContext dbContext,
+        CancellationToken cancellationToken) => Task.CompletedTask;
 }

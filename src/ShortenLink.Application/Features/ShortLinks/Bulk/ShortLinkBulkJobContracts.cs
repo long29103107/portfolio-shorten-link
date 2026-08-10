@@ -15,6 +15,7 @@ public static class ShortLinkBulkJobStatuses
     public const string Running = "running";
     public const string Completed = "completed";
     public const string Failed = "failed";
+    public const string Cancelled = "cancelled";
 }
 
 public static class ShortLinkBulkJobLimits
@@ -39,18 +40,29 @@ public sealed record ShortLinkBulkJobStatusResponse(
 
 public interface IShortLinkBulkJobScheduler
 {
-    ShortLinkBulkJobAcceptedResponse Enqueue(
+    Task<ShortLinkBulkJobAcceptedResponse> EnqueueAsync(
         ExecuteShortLinkBulkOperationCommand request,
-        CurrentRequestActor actor);
+        CurrentRequestActor actor,
+        CancellationToken cancellationToken = default,
+        string? idempotencyKey = null);
 
-    ShortLinkBulkJobStatusResponse GetStatus(Guid jobId, CurrentRequestActor actor);
+    Task<ShortLinkBulkJobStatusResponse> GetStatusAsync(
+        Guid jobId,
+        CurrentRequestActor actor,
+        CancellationToken cancellationToken = default);
+
+    Task<ShortLinkBulkJobStatusResponse> CancelAsync(
+        Guid jobId,
+        CurrentRequestActor actor,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record CreateShortLinkBulkJobCommand(
     IReadOnlyList<string>? Codes,
     string Operation,
     string? Folder = null,
-    IReadOnlyList<string>? Tags = null) : IRequest<ShortLinkBulkJobAcceptedResponse>;
+    IReadOnlyList<string>? Tags = null,
+    string? IdempotencyKey = null) : IRequest<ShortLinkBulkJobAcceptedResponse>, IBypassUnitOfWork;
 
 public sealed class CreateShortLinkBulkJobCommandValidator
     : AbstractValidator<CreateShortLinkBulkJobCommand>
@@ -84,6 +96,10 @@ public sealed class CreateShortLinkBulkJobCommandValidator
                 || (request.Folder is null && request.Tags is null))
             .WithMessage("Folder and tags are only supported by the organize operation.")
             .WithErrorCode(ErrorCodes.InvalidRequest);
+        RuleFor(request => request.IdempotencyKey)
+            .Must(static key => key is null || key.Trim().Length <= 256)
+            .WithMessage("Idempotency key must be at most 256 characters.")
+            .WithErrorCode(ErrorCodes.InvalidRequest);
     }
 }
 
@@ -101,11 +117,17 @@ internal sealed class CreateShortLinkBulkJobCommandHandler(
                 ? ShortenLinkPermissionCatalog.ShortLinksUpdate
                 : ShortenLinkPermissionCatalog.ShortLinksStatus;
         var actor = await requestContext.AuthorizeAsync(permission, cancellationToken);
-        return scheduler.Enqueue(new ExecuteShortLinkBulkOperationCommand(request.Codes, request.Operation, request.Folder, request.Tags), actor);
+        return await scheduler.EnqueueAsync(
+            new ExecuteShortLinkBulkOperationCommand(request.Codes, request.Operation, request.Folder, request.Tags),
+            actor,
+            cancellationToken,
+            request.IdempotencyKey);
     }
 }
 
 public sealed record GetShortLinkBulkJobStatusQuery(Guid JobId) : IRequest<ShortLinkBulkJobStatusResponse>;
+
+public sealed record CancelShortLinkBulkJobCommand(Guid JobId) : IRequest<ShortLinkBulkJobStatusResponse>;
 
 internal sealed class GetShortLinkBulkJobStatusQueryHandler(
     IShortLinkBulkJobScheduler scheduler,
@@ -115,6 +137,18 @@ internal sealed class GetShortLinkBulkJobStatusQueryHandler(
     public async Task<ShortLinkBulkJobStatusResponse> Handle(GetShortLinkBulkJobStatusQuery request, CancellationToken cancellationToken)
     {
         var actor = await requestContext.AuthorizeAsync(ShortenLinkPermissionCatalog.ShortLinksRead, cancellationToken);
-        return scheduler.GetStatus(request.JobId, actor);
+        return await scheduler.GetStatusAsync(request.JobId, actor, cancellationToken);
+    }
+}
+
+internal sealed class CancelShortLinkBulkJobCommandHandler(
+    IShortLinkBulkJobScheduler scheduler,
+    ICurrentRequestContext requestContext)
+    : IRequestHandler<CancelShortLinkBulkJobCommand, ShortLinkBulkJobStatusResponse>
+{
+    public async Task<ShortLinkBulkJobStatusResponse> Handle(CancelShortLinkBulkJobCommand request, CancellationToken cancellationToken)
+    {
+        var actor = await requestContext.AuthorizeAsync(ShortenLinkPermissionCatalog.ShortLinksRead, cancellationToken);
+        return await scheduler.CancelAsync(request.JobId, actor, cancellationToken);
     }
 }

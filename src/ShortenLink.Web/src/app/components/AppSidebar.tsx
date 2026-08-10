@@ -10,7 +10,7 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { APP_ROUTES, buildSecurityRoute } from "@/shared/constants/routes";
 
-type NavigationIconName = "endpoint" | "admin" | "audit" | "users" | "roles" | "sign-in";
+type NavigationIconName = "endpoint" | "admin" | "audit" | "bulk" | "users" | "roles" | "sign-in";
 
 const securitySectionIcons = {
   users: "users",
@@ -99,6 +99,15 @@ export function AppSidebar({
             >
               <NavigationIcon name="endpoint" />
               Short links
+            </Button>
+            <Button
+              className="sidebar-nav-button"
+              aria-current={route.kind === "bulk-jobs" ? "page" : undefined}
+              variant="ghost"
+              onClick={() => navigate(APP_ROUTES.BULK_JOBS)}
+            >
+              <NavigationIcon name="bulk" />
+              Bulk jobs
             </Button>
             {adminPermissions.canReadAuditLogs ? (
               <Button
@@ -197,6 +206,12 @@ function NavigationIcon({ name }: { name: NavigationIconName }) {
       <>
         <path d="M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H19v20H6.5A2.5 2.5 0 0 1 4 19.5Z" />
         <path d="M8 7h7M8 11h7M8 15h4" />
+      </>
+    ),
+    bulk: (
+      <>
+        <rect width="18" height="18" x="3" y="3" rx="2" />
+        <path d="M8 8h8M8 12h5M8 16h3" />
       </>
     ),
     users: (

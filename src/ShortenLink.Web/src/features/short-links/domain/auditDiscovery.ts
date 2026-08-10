@@ -9,11 +9,12 @@ import { AUDIT_LOG_DEFAULTS } from "../constants/defaults";
 
 export const emptyAuditLogFilters: AuditLogFilters = {
   action: "",
-  targetId: "",
-  actorId: "",
+  search: "",
   from: "",
   to: ""
 };
+
+export type AuditTimePreset = "today" | "week" | "month" | "custom";
 
 export function buildAuditLogUrl(query: AuditLogQuery = {}): string {
   const params = new URLSearchParams({
@@ -30,8 +31,7 @@ export function buildAuditLogUrl(query: AuditLogQuery = {}): string {
   const filters = { ...emptyAuditLogFilters, ...(query.filters ?? {}) };
   const expressions: FilterExpression[] = [];
   addCondition(expressions, "Action", "eq", filters.action);
-  addCondition(expressions, "TargetId", "eq", filters.targetId);
-  addCondition(expressions, "ActorId", "eq", filters.actorId);
+  addSearchCondition(expressions, filters.search);
   addCondition(expressions, "OccurredAt", "ge", filters.from);
   addCondition(expressions, "OccurredAt", "le", filters.to);
   appendQueryExpression(params, {
@@ -86,6 +86,29 @@ export function validateAuditTimeRange(fromLocal: string, toLocal: string): stri
   return from > to ? "From must be earlier than or equal to To." : null;
 }
 
+export function getAuditTimeRange(
+  preset: AuditTimePreset,
+  now = new Date()
+): { from: string; to: string } {
+  if (preset === "custom") {
+    return { from: "", to: "" };
+  }
+
+  const from = new Date(now);
+  if (preset === "today") {
+    from.setHours(0, 0, 0, 0);
+  } else if (preset === "week") {
+    from.setDate(from.getDate() - 7);
+  } else {
+    from.setDate(from.getDate() - 30);
+  }
+
+  return {
+    from: from.toISOString(),
+    to: now.toISOString()
+  };
+}
+
 export function formatAuditLabel(value: string): string {
   return value
     .split(/[._]/)
@@ -104,4 +127,20 @@ function addCondition(
   if (normalized) {
     expressions.push(filter.condition(field, operator, normalized));
   }
+}
+
+function addSearchCondition(expressions: FilterExpression[], value: string) {
+  const normalized = value.trim();
+  if (!normalized) {
+    return;
+  }
+
+  expressions.push(filter.or(
+    filter.condition("Action", "contains", normalized),
+    filter.condition("TargetType", "contains", normalized),
+    filter.condition("TargetId", "contains", normalized),
+    filter.condition("ActorId", "contains", normalized),
+    filter.condition("Outcome", "contains", normalized),
+    filter.condition("SubjectUserId", "contains", normalized)
+  ));
 }

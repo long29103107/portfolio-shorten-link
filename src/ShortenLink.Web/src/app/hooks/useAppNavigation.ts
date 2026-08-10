@@ -20,6 +20,8 @@ export function getCurrentRoutePath(route: AppRoute, currentPathname: string): s
       ? buildSecurityRoute(route.section)
       : route.kind === "audit"
         ? APP_ROUTES.AUDIT_LOGS
+        : route.kind === "bulk-jobs"
+          ? APP_ROUTES.BULK_JOBS
         : route.kind === "dashboard"
           ? APP_ROUTES.ADMIN_DASHBOARD
           : currentPathname;
@@ -119,4 +121,3 @@ export function useAppNavigation({ hasDirtyChanges, onDiscardChanges }: UseAppNa
     cancelPendingNavigation: () => setPendingNavigationPath(null)
   };
 }
-
