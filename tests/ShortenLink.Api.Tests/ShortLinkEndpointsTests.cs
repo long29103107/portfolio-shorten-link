@@ -592,6 +592,38 @@ public sealed class ShortLinkEndpointsTests
     }
 
     [Fact]
+    public async Task BulkJob_ReturnsAcceptedAndExposesCompletionResult()
+    {
+        await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
+        using var client = factory.CreateClient();
+        var created = await CreateShortLinkAsync(client, "https://example.com/bulk-job");
+
+        using var submitResponse = await client.PostAsJsonAsync("/api/short-links/bulk/jobs", new
+        {
+            codes = new[] { created.Code },
+            operation = "deactivate"
+        });
+        var accepted = await submitResponse.Content.ReadFromJsonAsync<ShortLinkBulkJobAcceptedResponse>();
+
+        Assert.Equal(HttpStatusCode.Accepted, submitResponse.StatusCode);
+        Assert.NotNull(accepted);
+        Assert.Equal(1, accepted?.TotalCount);
+
+        ShortLinkBulkJobStatusResponse? completed = null;
+        var finished = await WaitForConditionAsync(async () =>
+        {
+            using var statusResponse = await client.GetAsync($"/api/short-links/bulk/jobs/{accepted!.JobId}");
+            completed = await statusResponse.Content.ReadFromJsonAsync<ShortLinkBulkJobStatusResponse>();
+            return completed?.Status is "completed" or "failed";
+        });
+
+        Assert.True(finished);
+        Assert.Equal("completed", completed?.Status);
+        Assert.Equal(1, completed?.SucceededCount);
+        Assert.Equal("deactivate", completed?.Result?.Operation);
+    }
+
+    [Fact]
     public async Task PostCreate_ScheduledLinkIsExposedAndCannotRedirectBeforeActivation()
     {
         await using var factory = new ShortLinkApiFactory(enableFrontendFallback: false);
@@ -3986,6 +4018,21 @@ public sealed class ShortLinkEndpointsTests
         bool Succeeded,
         string? ErrorCode,
         string? Message);
+
+    private sealed record ShortLinkBulkJobAcceptedResponse(
+        Guid JobId,
+        string Status,
+        int TotalCount);
+
+    private sealed record ShortLinkBulkJobStatusResponse(
+        Guid JobId,
+        string Status,
+        int TotalCount,
+        int ProcessedCount,
+        int SucceededCount,
+        int FailedCount,
+        ShortLinkBulkOperationResponse? Result,
+        string? Error);
 
     private static async Task<bool> WaitForConditionAsync(Func<Task<bool>> condition)
     {

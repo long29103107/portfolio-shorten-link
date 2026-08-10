@@ -21,6 +21,7 @@ using ShortenLink.Application.Abstractions;
 using ShortenLink.Application.Behaviors;
 using ShortenLink.Application.Features.Audit;
 using ShortenLink.Application.Features.ShortLinks;
+using ShortenLink.Application.Features.ShortLinks.Bulk;
 using ShortenLink.Application.Features.ShortLinks.Create;
 using ShortenLink.Infrastructure.Persistence;
 using ShortenLink.Infrastructure.Repositories;
@@ -143,6 +144,7 @@ public static partial class Services
         services.TryAddScoped<AuditWriter>();
         services.TryAddScoped<ShortLinkAccessGuard>();
         services.TryAddScoped<ShortLinkAuditWriter>();
+        services.TryAddScoped<ShortLinkBulkOperationExecutor>();
         services.AddValidatorsFromAssemblyContaining<CreateShortLinkCommand>(ServiceLifetime.Scoped);
         RegisterApplicationMediator(services, typeof(CreateShortLinkCommand).Assembly);
         if (!hostOptions.RedirectOnly && !hostOptions.UseExternalPersistence)
@@ -190,6 +192,14 @@ public static partial class Services
         RegisterRateLimiting(services);
         RegisterAnalytics(services);
         RegisterAuditQueue(services);
+        services.TryAddSingleton<ShortLinkBulkJobScheduler>();
+        services.TryAddSingleton<IShortLinkBulkJobScheduler>(serviceProvider =>
+            serviceProvider.GetRequiredService<ShortLinkBulkJobScheduler>());
+        if (!hostOptions.RedirectOnly && !hostOptions.UseExternalPersistence)
+        {
+            services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IHostedService, ShortLinkBulkJobBackgroundService>());
+        }
 
         var healthChecksEnabled = configuration.GetValue<bool>(
             $"{ShortenLinkOptions.SectionName}:Observability:HealthChecksEnabled");

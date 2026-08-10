@@ -33,6 +33,8 @@ import type {
   ShortLinkAdminPageResult,
   ShortLinkBulkOperationRequest,
   ShortLinkBulkOperationResponse,
+  ShortLinkBulkJobAcceptedResponse,
+  ShortLinkBulkJobStatusResponse,
   ShortLinkDiscoveryQuery,
   ShortLinkDetails,
   RateLimitActivity,
@@ -177,6 +179,25 @@ export async function executeShortLinkBulkOperation(
   return apiClient.post<ShortLinkBulkOperationResponse>(
     SHORT_LINK_API_ROUTES.SHORT_LINK.BULK,
     request
+  );
+}
+
+export async function submitShortLinkBulkJob(
+  request: ShortLinkBulkOperationRequest
+): Promise<ShortLinkBulkJobAcceptedResponse> {
+  return apiClient.post<ShortLinkBulkJobAcceptedResponse>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK.BULK_JOBS,
+    request
+  );
+}
+
+export async function getShortLinkBulkJobStatus(
+  jobId: string,
+  signal?: AbortSignal
+): Promise<ShortLinkBulkJobStatusResponse> {
+  return apiClient.get<ShortLinkBulkJobStatusResponse>(
+    SHORT_LINK_API_ROUTES.SHORT_LINK.BULK_JOB(jobId),
+    signal ? { signal } : undefined
   );
 }
 

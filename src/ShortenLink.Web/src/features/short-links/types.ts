@@ -233,6 +233,25 @@ export type ShortLinkBulkOperationResponse = {
   items: ShortLinkBulkOperationItem[];
 };
 
+export type ShortLinkBulkJobStatus = "queued" | "running" | "completed" | "failed";
+
+export type ShortLinkBulkJobAcceptedResponse = {
+  jobId: string;
+  status: ShortLinkBulkJobStatus;
+  totalCount: number;
+};
+
+export type ShortLinkBulkJobStatusResponse = {
+  jobId: string;
+  status: ShortLinkBulkJobStatus;
+  totalCount: number;
+  processedCount: number;
+  succeededCount: number;
+  failedCount: number;
+  result: ShortLinkBulkOperationResponse | null;
+  error: string | null;
+};
+
 export type SecurityAssignment = {
   credentialKeyHash: string;
   name: string;
