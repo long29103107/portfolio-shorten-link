@@ -239,6 +239,15 @@ docker build -t shorten-link-api:local -f src/ShortenLink.Api/Dockerfile .
 docker build -t shorten-link-web:local -f src/ShortenLink.Web/Dockerfile src/ShortenLink.Web
 ```
 
+Build a web image that calls an external API directly:
+
+```bash
+docker build \
+  --build-arg VITE_SHORTENLINK_API_BASE_URL=https://api.example.com \
+  -t shorten-link-web:external-api \
+  -f src/ShortenLink.Web/Dockerfile src/ShortenLink.Web
+```
+
 ## Releases and publishing
 
 Docker publishing is handled by GitHub Actions when a semantic version tag is
