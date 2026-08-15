@@ -373,7 +373,7 @@ Minimum `appsettings.json` configuration for SQLite default mode:
       "ApiKeys": [
         {
           "Name": "local-owner",
-          "Key": "dev-owner-key",
+          "Key": "<set-from-a-secret-store>",
           "Roles": [ "Admin" ],
           "Permissions": []
         }
@@ -622,7 +622,7 @@ with reusable portal feedback.
 For local frontend development without backend security enabled, configure the React app with Vite environment variables instead of hard-coding secrets:
 
 ```dotenv
-VITE_SHORTENLINK_ADMIN_API_KEY=dev-owner-key
+VITE_SHORTENLINK_ADMIN_API_KEY=<same-as-backend-api-key>
 VITE_SHORTENLINK_ADMIN_API_KEY_HEADER=X-ShortenLink-Api-Key
 VITE_SHORTENLINK_ADMIN_ROLE=Admin
 ```
@@ -1238,6 +1238,57 @@ The smoke script:
 - returns a JSON summary on success
 
 When PostgreSQL is not reachable, the script fails early with a concrete blocker message instead of pretending the host smoke passed.
+
+## Public Docker Image
+
+The release workflow publishes the demo API image to GitHub Container Registry:
+
+```text
+ghcr.io/long29103107/portfolio-shorten-link:latest
+```
+
+After the first tag workflow run, set the GHCR package visibility to `Public`
+in the package settings; GitHub can create a newly pushed container package as
+private by default.
+
+Pull a versioned image or the rolling `latest` tag:
+
+```bash
+docker pull ghcr.io/long29103107/portfolio-shorten-link:1.0.0
+docker pull ghcr.io/long29103107/portfolio-shorten-link:latest
+```
+
+For a local SQLite demo, persist `/data` and explicitly disable API-key
+authorization:
+
+```bash
+docker volume create shorten-link-data
+docker run --rm -p 5188:8080 \
+  -v shorten-link-data:/data \
+  -e ShortenLink__BaseUrl=http://localhost:5188/ \
+  -e ShortenLink__Security__Enabled=false \
+  ghcr.io/long29103107/portfolio-shorten-link:latest
+```
+
+The public image does not contain a bootstrap credential. Before exposing it
+outside a local machine, keep security enabled and provide the bootstrap key
+through a secret store or environment variables:
+
+```bash
+export SHORTENLINK_ADMIN_KEY='<random-secret>'
+docker run --rm -p 5188:8080 \
+  -v shorten-link-data:/data \
+  -e ShortenLink__BaseUrl=https://short.example.com/ \
+  -e ShortenLink__Security__ApiKeys__0__Name=owner \
+  -e ShortenLink__Security__ApiKeys__0__Key="$SHORTENLINK_ADMIN_KEY" \
+  -e ShortenLink__Security__ApiKeys__0__Roles__0=Admin \
+  ghcr.io/long29103107/portfolio-shorten-link:1.0.0
+```
+
+The image listens on port `8080` and uses SQLite at `/data/shorten-link.db`
+when PostgreSQL is not enabled. For PostgreSQL/Redis, set the corresponding
+`ShortenLink__Database__*` and `ShortenLink__Cache__*` environment variables;
+the existing `docker-compose.yml` remains the local operational-stack example.
 
 ## Local Operational Stack With Docker Compose
 

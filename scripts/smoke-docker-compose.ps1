@@ -90,7 +90,7 @@ else {
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot ".."))
 if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
-    $ComposeFile = Join-Path $repoRoot "compose.yml"
+    $ComposeFile = Join-Path $repoRoot "docker-compose.yml"
 }
 
 $composePath = [System.IO.Path]::GetFullPath($ComposeFile)

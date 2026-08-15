@@ -47,6 +47,9 @@ services:
       ShortenLink__Database__UsePostgres: "true"
       ShortenLink__Database__PostgresConnectionString: Host=postgres;Port=5432;Database=shorten_link;Username=postgres;Password=postgres
       ShortenLink__Redirect__EnableFrontendFallback: "false"
+      # Local smoke only. Configure an API key and keep security enabled before
+      # exposing a deployment outside a local development machine.
+      ShortenLink__Security__Enabled: "false"
       ShortenLink__Analytics__Enabled: "true"
       ShortenLink__Analytics__UseAsyncWorker: "true"
       ShortenLink__Analytics__QueueCapacity: "512"
