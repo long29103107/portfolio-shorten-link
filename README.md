@@ -7,6 +7,160 @@ The reusable library projects are intentionally separated from the demo applicat
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the Git commit convention used by
 this repository.
 
+[![CI](https://github.com/long29103107/portfolio-shorten-link/actions/workflows/ci.yml/badge.svg)](https://github.com/long29103107/portfolio-shorten-link/actions/workflows/ci.yml)
+[![Docker image](https://github.com/long29103107/portfolio-shorten-link/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/long29103107/portfolio-shorten-link/actions/workflows/docker-publish.yml)
+
+## Overview
+
+ShortenLink is an open-source-friendly short-link platform and reusable .NET
+library. It provides a small API for creating, inspecting, redirecting,
+deactivating, importing, exporting, and organizing short links. The repository
+contains both a reusable package surface for embedding into another ASP.NET
+Core application and a demo application that makes the behavior easy to run
+locally or in Docker.
+
+The project is currently maintained as an active portfolio/reference project.
+The demo API and frontend are useful starting points, while the package
+surface is the intended integration boundary for production applications.
+
+## Tech Stack
+
+| Area | Technology |
+|---|---|
+| Backend | C#, .NET 10, ASP.NET Core Minimal APIs |
+| Architecture | Clean Architecture-style Core, Application, Infrastructure, and Hosting layers |
+| Persistence | EF Core 10, SQLite by default, PostgreSQL as an opt-in provider |
+| Caching | In-memory cache by default, optional Redis |
+| Messaging | In-memory processing with optional RabbitMQ integration |
+| Validation | FluentValidation |
+| API documentation | OpenAPI/Swagger through Swashbuckle in Development |
+| Frontend | React 19, TypeScript, Vite 7 |
+| Containers | Docker multi-stage build, Docker Compose, GitHub Container Registry |
+| Testing | .NET test projects and Bun-based frontend tests |
+
+## Quick Start
+
+### Prerequisites
+
+- .NET SDK 10.0 or later
+- Node.js 20+ and npm for the demo frontend
+- Docker Desktop 4.x or later for the container path
+- Git
+
+Clone the repository and build the backend:
+
+```powershell
+git clone https://github.com/long29103107/portfolio-shorten-link.git
+cd portfolio-shorten-link
+dotnet restore ShortenLink.slnx
+dotnet build ShortenLink.slnx
+dotnet test ShortenLink.slnx
+```
+
+Run the demo API on `http://localhost:5188`:
+
+```powershell
+$env:ShortenLink__Security__Enabled = "false"
+dotnet run --project .\src\ShortenLink.Api\ShortenLink.Api.csproj --launch-profile http
+```
+
+The API health endpoint is `http://localhost:5188/api/health`. The API uses
+SQLite by default and stores local data in `shorten-link.db` outside Docker.
+For a deployment or a shared environment, keep security enabled and provide
+API keys through environment variables or a secret manager.
+
+Run the demo frontend in a second terminal:
+
+```powershell
+cd .\src\ShortenLink.Web
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. Vite proxies `/api` requests to
+`http://localhost:5188`; override that target with
+`SHORTENLINK_API_PROXY_TARGET` when the API runs elsewhere.
+
+### Choose an installation path
+
+| Need | Recommended path |
+|---|---|
+| Try the complete demo quickly | Pull the [public Docker image](#public-docker-image) |
+| Develop or modify the repository | Run the API and frontend from source as shown above |
+| Embed short links in another ASP.NET Core app | Install `ShortenLink.Hosting` from NuGet or use a project reference |
+| Run a production-like local stack | Use [Docker Compose](#local-operational-stack-with-docker-compose) with PostgreSQL and Redis |
+
+## What is included
+
+- Reusable NuGet packages: `ShortenLink.Hosting`, `ShortenLink.Core`,
+  `ShortenLink.Infrastructure`, and `ShortenLink.Auditing`.
+- Demo Minimal API with health, Swagger, short-link, security, analytics, and
+  operational endpoints.
+- React/Vite demo UI for creating, managing, inspecting, and redirecting links.
+- SQLite-first local development with optional PostgreSQL, Redis, and RabbitMQ.
+- Docker image `ghcr.io/long29103107/portfolio-shorten-link` with versioned and
+  `latest` tags.
+- Automated backend CI and tag-based Docker image publishing.
+
+## Open-source project information
+
+### Documentation map
+
+- [Project vision and roadmap](PRODUCT_VISION.md)
+- [Contribution rules](CONTRIBUTING.md)
+- [Release readiness](docs/release-readiness-closure.md)
+- [NuGet publish preflight](docs/nuget-publish-preflight.md)
+- [Agent instructions](AGENT.md)
+
+### Configuration and security
+
+Configuration is supplied through `ShortenLink` settings or equivalent
+environment variables. Common examples are:
+
+| Environment variable | Purpose |
+|---|---|
+| `ShortenLink__Database__UsePostgres` | Switch from SQLite to PostgreSQL |
+| `ShortenLink__Database__SqliteConnectionString` | SQLite database path |
+| `ShortenLink__Database__PostgresConnectionString` | PostgreSQL connection string |
+| `ShortenLink__Cache__Enabled` | Enable caching |
+| `ShortenLink__Cache__Provider` | Select `Memory` or `Redis` |
+| `ShortenLink__Cache__RedisConnectionString` | Redis endpoint |
+| `ShortenLink__Security__Enabled` | Enable API-key/session authorization |
+| `ShortenLink__Security__ApiKeys__0__Key` | Bootstrap API key; load from a secret store |
+| `ShortenLink__BaseUrl` | Public base URL used when generating short URLs |
+
+Never use the local/demo security-disabled command on a public or shared
+deployment. Do not commit real credentials to `appsettings*.json`, Docker
+Compose files, README examples, or frontend environment files.
+
+### API starting points
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | Liveness check |
+| `POST` | `/api/short-links` | Create a short link |
+| `GET` | `/api/short-links/{code}` | Read link details |
+| `GET` | `/{code}` | Redirect to the original URL |
+| `DELETE` | `/api/short-links/{code}` | Delete/deactivate a link |
+| `POST` | `/api/security/login` | Start an authenticated session |
+
+See the detailed endpoint and configuration sections below, or run the API in
+Development to inspect Swagger.
+
+### Support, issues, and contributions
+
+Use GitHub Issues for reproducible bugs, feature proposals, and questions.
+Small focused pull requests are welcome; please include the relevant tests and
+documentation updates. Read [CONTRIBUTING.md](CONTRIBUTING.md) before creating
+a commit or pull request.
+
+### License
+
+The repository does not currently include a `LICENSE` file. A maintainer should
+choose and add an explicit open-source license before treating the project as
+available for unrestricted redistribution. Until then, the public source and
+Docker image should be treated as an evaluation/reference release.
+
 ## Project Structure
 
 ```text
@@ -1257,6 +1411,75 @@ Pull a versioned image or the rolling `latest` tag:
 docker pull ghcr.io/long29103107/portfolio-shorten-link:1.0.0
 docker pull ghcr.io/long29103107/portfolio-shorten-link:latest
 ```
+
+The current public image contains the ASP.NET Core API only. The React/Vite
+frontend is still run separately from `src/ShortenLink.Web`; it does not yet
+have its own published container image.
+
+### Publish a new Docker image
+
+The maintainer workflow is defined in
+[`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml).
+It runs only when a SemVer tag matching `v*.*.*` is pushed. For example,
+`v1.0.1` publishes these GHCR tags:
+
+```text
+ghcr.io/long29103107/portfolio-shorten-link:1.0.1
+ghcr.io/long29103107/portfolio-shorten-link:1.0
+ghcr.io/long29103107/portfolio-shorten-link:latest
+```
+
+Before publishing, run the local release checks:
+
+```powershell
+dotnet build ShortenLink.slnx --verbosity minimal
+dotnet test ShortenLink.slnx --verbosity minimal
+docker compose -f docker-compose.yml config
+docker build --pull -t shorten-link:release-candidate -f src/ShortenLink.Api/Dockerfile .
+```
+
+Smoke the candidate image locally before pushing the release tag:
+
+```powershell
+docker run -d --name shorten-link-release-smoke -p 5189:8080 `
+  -v shorten-link-release-data:/data `
+  -e ShortenLink__BaseUrl=http://localhost:5189/ `
+  -e ShortenLink__Security__Enabled=false `
+  shorten-link:release-candidate
+
+Invoke-RestMethod http://localhost:5189/api/health
+docker rm -f shorten-link-release-smoke
+docker volume rm shorten-link-release-data
+```
+
+Commit the verified changes, push the branch, then create and push an
+annotated release tag:
+
+```powershell
+git add <the-files-you-changed>
+git commit -m "feat(release): prepare Docker image v1.0.1"
+git push origin main
+
+git tag -a v1.0.1 -m "Release v1.0.1"
+git push origin v1.0.1
+```
+
+The tag starts the [Docker publish workflow](https://github.com/long29103107/portfolio-shorten-link/actions/workflows/docker-publish.yml).
+Wait for the run to finish successfully, then verify the published artifact
+without credentials:
+
+```powershell
+docker pull ghcr.io/long29103107/portfolio-shorten-link:1.0.1
+docker pull ghcr.io/long29103107/portfolio-shorten-link:latest
+docker image inspect ghcr.io/long29103107/portfolio-shorten-link:1.0.1 `
+  --format '{{index .RepoDigests 0}}'
+```
+
+If the GHCR package was created as private, open the package settings on
+GitHub and change **Package visibility** to **Public**. Never put registry
+passwords or personal access tokens in this README or in the repository.
+Publish a new immutable version to correct a bad release; do not overwrite an
+existing version tag.
 
 For a local SQLite demo, persist `/data` and explicitly disable API-key
 authorization:
