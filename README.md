@@ -248,6 +248,10 @@ docker build \
   -f src/ShortenLink.Web/Dockerfile src/ShortenLink.Web
 ```
 
+The same setup is available as a commented `web-external-api` sample in
+`docker-compose.public.yml`. Use that service instead of the default `web`
+service, then configure `ShortenLink__Cors__AllowedOrigins__0` on the API.
+
 ## Releases and publishing
 
 Docker publishing is handled by GitHub Actions when a semantic version tag is
