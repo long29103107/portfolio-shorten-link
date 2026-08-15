@@ -248,10 +248,25 @@ docker build \
   -f src/ShortenLink.Web/Dockerfile src/ShortenLink.Web
 ```
 
-The same setup is available as a commented `build` and `args` sample directly
-inside the `web` service in `docker-compose.public.yml`. Uncomment that block,
-run `docker compose build web`, then configure
-`ShortenLink__Cors__AllowedOrigins__0` on the API.
+The public Compose file only pulls images, so it does not require the source
+tree. To route `/api` to an external API without rebuilding the web image,
+uncomment the `API_UPSTREAM` and `entrypoint` sample inside the `web` service,
+then comment out its `depends_on: api` block:
+
+```yaml
+environment:
+  API_UPSTREAM: https://api.example.com
+entrypoint:
+  - /bin/sh
+  - -c
+  - >-
+    sed -i "s|proxy_pass http://api:8080;|proxy_pass $${API_UPSTREAM};|"
+    /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'
+```
+
+Then configure `ShortenLink__Cors__AllowedOrigins__0` on the API only when the
+browser calls the API directly. The Nginx proxy path is same-origin and does
+not need browser CORS.
 
 ## Releases and publishing
 
