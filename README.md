@@ -248,9 +248,10 @@ docker build \
   -f src/ShortenLink.Web/Dockerfile src/ShortenLink.Web
 ```
 
-The same setup is available as a commented `web-external-api` sample in
-`docker-compose.public.yml`. Use that service instead of the default `web`
-service, then configure `ShortenLink__Cors__AllowedOrigins__0` on the API.
+The same setup is available as a commented `build` and `args` sample directly
+inside the `web` service in `docker-compose.public.yml`. Uncomment that block,
+run `docker compose build web`, then configure
+`ShortenLink__Cors__AllowedOrigins__0` on the API.
 
 ## Releases and publishing
 

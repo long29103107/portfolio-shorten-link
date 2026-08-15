@@ -62,24 +62,17 @@ services:
   web:
     image: ghcr.io/long29103107/portfolio-shorten-link-web:latest
     container_name: shorten-link-public-web
+    # Sample for calling an external API directly from the browser:
+    # Uncomment `build` and its args, then run `docker compose build web`.
+    # build:
+    #   context: ./src/ShortenLink.Web
+    #   args:
+    #     VITE_SHORTENLINK_API_BASE_URL: https://api.example.com
     depends_on:
       - api
     ports:
       - "5173:80"
     restart: unless-stopped
-
-  # Sample: build the web image to call an API hosted by another service/domain.
-  # Use this service instead of the `web` service above.
-  # web-external-api:
-  #   build:
-  #     context: ./src/ShortenLink.Web
-  #     args:
-  #       VITE_SHORTENLINK_API_BASE_URL: https://api.example.com
-  #   image: shorten-link-web:external-api
-  #   container_name: shorten-link-public-web-external-api
-  #   ports:
-  #     - "5173:80"
-  #   restart: unless-stopped
 
 volumes:
   shorten-link-public-sqlite:
