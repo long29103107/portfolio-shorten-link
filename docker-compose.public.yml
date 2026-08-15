@@ -43,6 +43,8 @@ services:
       # PostgreSQL option:
       # ShortenLink__Database__UsePostgres: "true"
       # ShortenLink__Database__PostgresConnectionString: Host=postgres;Port=5432;Database=shorten_link;Username=postgres;Password=postgres
+      # Direct cross-origin frontend option:
+      # ShortenLink__Cors__AllowedOrigins__0: https://web.example.com
       ShortenLink__Redirect__EnableFrontendFallback: "false"
       ShortenLink__Security__Enabled: "false"
       ShortenLink__Analytics__Enabled: "true"

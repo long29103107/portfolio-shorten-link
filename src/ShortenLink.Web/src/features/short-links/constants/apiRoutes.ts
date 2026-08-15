@@ -1,4 +1,5 @@
-const API_ROOT = "/api";
+const configuredApiBaseUrl = import.meta.env.VITE_SHORTENLINK_API_BASE_URL?.trim().replace(/\/+$/, "");
+const API_ROOT = configuredApiBaseUrl ? `${configuredApiBaseUrl}/api` : "/api";
 const SECURITY_ROOT = `${API_ROOT}/security`;
 const SHORT_LINK_ROOT = `${API_ROOT}/short-links`;
 

@@ -7,6 +7,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddShortenLink(builder.Configuration);
+var corsOrigins = builder.Configuration
+    .GetSection("ShortenLink:Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+if (corsOrigins.Length > 0)
+{
+    builder.Services.AddCors(options => options.AddPolicy("ShortenLinkFrontend", policy =>
+        policy.WithOrigins(corsOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()));
+}
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
@@ -21,6 +31,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseRateLimiter();
 app.UseExceptionHandler();
+if (corsOrigins.Length > 0)
+{
+    app.UseCors("ShortenLinkFrontend");
+}
 
 app.MapShortenLinkEndpoints();
 app.MapAuditLogEndpoints();
