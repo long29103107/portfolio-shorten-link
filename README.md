@@ -1536,9 +1536,10 @@ docker compose -f docker-compose.public.yml up -d
 ```
 
 Open the frontend at `http://localhost:5173`; the API is available at
-`http://localhost:5188`. This public Compose file uses security-disabled demo
-defaults. Configure API keys and secret-managed database credentials before
-exposing it outside a local environment.
+`http://localhost:5188`. This public Compose file uses SQLite with a persistent
+Docker volume and keeps PostgreSQL commented out. It also uses
+security-disabled demo defaults; configure API keys before exposing it outside
+a local environment.
 
 ## Local Operational Stack With Docker Compose
 
