@@ -85,7 +85,7 @@ Open `http://localhost:5173`. Vite proxies `/api` requests to
 
 | Need | Recommended path |
 |---|---|
-| Try the complete demo quickly | Pull the [public Docker image](#public-docker-image) |
+| Try the complete demo quickly | Pull the [public Docker images](#public-docker-images) |
 | Develop or modify the repository | Run the API and frontend from source as shown above |
 | Embed short links in another ASP.NET Core app | Install `ShortenLink.Hosting` from NuGet or use a project reference |
 | Run a production-like local stack | Use [Docker Compose](#local-operational-stack-with-docker-compose) with PostgreSQL and Redis |
@@ -98,8 +98,9 @@ Open `http://localhost:5173`. Vite proxies `/api` requests to
   operational endpoints.
 - React/Vite demo UI for creating, managing, inspecting, and redirecting links.
 - SQLite-first local development with optional PostgreSQL, Redis, and RabbitMQ.
-- Docker image `ghcr.io/long29103107/portfolio-shorten-link` with versioned and
-  `latest` tags.
+- Separate API and Web images with versioned and `latest` tags:
+  `ghcr.io/long29103107/portfolio-shorten-link-api` and
+  `ghcr.io/long29103107/portfolio-shorten-link-web`.
 - Automated backend CI and tag-based Docker image publishing.
 
 ## Open-source project information
@@ -1393,12 +1394,14 @@ The smoke script:
 
 When PostgreSQL is not reachable, the script fails early with a concrete blocker message instead of pretending the host smoke passed.
 
-## Public Docker Image
+## Public Docker Images
 
-The release workflow publishes the demo API image to GitHub Container Registry:
+The release workflow publishes separate API and frontend images to GitHub
+Container Registry:
 
 ```text
-ghcr.io/long29103107/portfolio-shorten-link:latest
+ghcr.io/long29103107/portfolio-shorten-link-api:latest
+ghcr.io/long29103107/portfolio-shorten-link-web:latest
 ```
 
 After the first tag workflow run, set the GHCR package visibility to `Public`
@@ -1408,25 +1411,30 @@ private by default.
 Pull a versioned image or the rolling `latest` tag:
 
 ```bash
-docker pull ghcr.io/long29103107/portfolio-shorten-link:1.0.0
-docker pull ghcr.io/long29103107/portfolio-shorten-link:latest
+docker pull ghcr.io/long29103107/portfolio-shorten-link-api:1.0.0
+docker pull ghcr.io/long29103107/portfolio-shorten-link-web:1.0.0
+docker pull ghcr.io/long29103107/portfolio-shorten-link-api:latest
+docker pull ghcr.io/long29103107/portfolio-shorten-link-web:latest
 ```
 
-The current public image contains the ASP.NET Core API only. The React/Vite
-frontend is still run separately from `src/ShortenLink.Web`; it does not yet
-have its own published container image.
+The API image contains the ASP.NET Core backend. The Web image builds the
+React/Vite frontend and serves it through Nginx; `/api` requests are proxied to
+the `api` service when both images run in Docker Compose.
 
 ### Publish a new Docker image
 
 The maintainer workflow is defined in
 [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml).
 It runs only when a SemVer tag matching `v*.*.*` is pushed. For example,
-`v1.0.1` publishes these GHCR tags:
+`v1.0.1` publishes these GHCR tags for both images:
 
 ```text
-ghcr.io/long29103107/portfolio-shorten-link:1.0.1
-ghcr.io/long29103107/portfolio-shorten-link:1.0
-ghcr.io/long29103107/portfolio-shorten-link:latest
+ghcr.io/long29103107/portfolio-shorten-link-api:1.0.1
+ghcr.io/long29103107/portfolio-shorten-link-api:1.0
+ghcr.io/long29103107/portfolio-shorten-link-api:latest
+ghcr.io/long29103107/portfolio-shorten-link-web:1.0.1
+ghcr.io/long29103107/portfolio-shorten-link-web:1.0
+ghcr.io/long29103107/portfolio-shorten-link-web:latest
 ```
 
 Before publishing, run the local release checks:
@@ -1436,6 +1444,7 @@ dotnet build ShortenLink.slnx --verbosity minimal
 dotnet test ShortenLink.slnx --verbosity minimal
 docker compose -f docker-compose.yml config
 docker build --pull -t shorten-link:release-candidate -f src/ShortenLink.Api/Dockerfile .
+docker build --pull -t shorten-link-web:release-candidate -f src/ShortenLink.Web/Dockerfile src/ShortenLink.Web
 ```
 
 Smoke the candidate image locally before pushing the release tag:
@@ -1469,9 +1478,13 @@ Wait for the run to finish successfully, then verify the published artifact
 without credentials:
 
 ```powershell
-docker pull ghcr.io/long29103107/portfolio-shorten-link:1.0.1
-docker pull ghcr.io/long29103107/portfolio-shorten-link:latest
-docker image inspect ghcr.io/long29103107/portfolio-shorten-link:1.0.1 `
+docker pull ghcr.io/long29103107/portfolio-shorten-link-api:1.0.1
+docker pull ghcr.io/long29103107/portfolio-shorten-link-web:1.0.1
+docker pull ghcr.io/long29103107/portfolio-shorten-link-api:latest
+docker pull ghcr.io/long29103107/portfolio-shorten-link-web:latest
+docker image inspect ghcr.io/long29103107/portfolio-shorten-link-api:1.0.1 `
+  --format '{{index .RepoDigests 0}}'
+docker image inspect ghcr.io/long29103107/portfolio-shorten-link-web:1.0.1 `
   --format '{{index .RepoDigests 0}}'
 ```
 
@@ -1490,7 +1503,7 @@ docker run --rm -p 5188:8080 \
   -v shorten-link-data:/data \
   -e ShortenLink__BaseUrl=http://localhost:5188/ \
   -e ShortenLink__Security__Enabled=false \
-  ghcr.io/long29103107/portfolio-shorten-link:latest
+  ghcr.io/long29103107/portfolio-shorten-link-api:latest
 ```
 
 The public image does not contain a bootstrap credential. Before exposing it
@@ -1505,13 +1518,27 @@ docker run --rm -p 5188:8080 \
   -e ShortenLink__Security__ApiKeys__0__Name=owner \
   -e ShortenLink__Security__ApiKeys__0__Key="$SHORTENLINK_ADMIN_KEY" \
   -e ShortenLink__Security__ApiKeys__0__Roles__0=Admin \
-  ghcr.io/long29103107/portfolio-shorten-link:1.0.0
+  ghcr.io/long29103107/portfolio-shorten-link-api:1.0.0
 ```
 
 The image listens on port `8080` and uses SQLite at `/data/shorten-link.db`
 when PostgreSQL is not enabled. For PostgreSQL/Redis, set the corresponding
 `ShortenLink__Database__*` and `ShortenLink__Cache__*` environment variables;
-the existing `docker-compose.yml` remains the local operational-stack example.
+the existing `docker-compose.yml` remains the local build-based operational
+stack example.
+
+For the published API and frontend images together, use
+[`docker-compose.public.yml`](docker-compose.public.yml):
+
+```powershell
+docker compose -f docker-compose.public.yml pull
+docker compose -f docker-compose.public.yml up -d
+```
+
+Open the frontend at `http://localhost:5173`; the API is available at
+`http://localhost:5188`. This public Compose file uses security-disabled demo
+defaults. Configure API keys and secret-managed database credentials before
+exposing it outside a local environment.
 
 ## Local Operational Stack With Docker Compose
 

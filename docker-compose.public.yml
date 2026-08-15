@@ -1,0 +1,66 @@
+name: shorten-link-public
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shorten-link-public-postgres
+    environment:
+      POSTGRES_DB: shorten_link
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shorten_link"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - shorten-link-public-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: shorten-link-public-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - shorten-link-public-redis:/data
+
+  api:
+    image: ghcr.io/long29103107/portfolio-shorten-link-api:latest
+    container_name: shorten-link-public-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ShortenLink__BaseUrl: http://localhost:5188/
+      ShortenLink__Database__UsePostgres: "true"
+      ShortenLink__Database__PostgresConnectionString: Host=postgres;Port=5432;Database=shorten_link;Username=postgres;Password=postgres
+      ShortenLink__Redirect__EnableFrontendFallback: "false"
+      ShortenLink__Security__Enabled: "false"
+      ShortenLink__Analytics__Enabled: "true"
+      ShortenLink__Analytics__UseAsyncWorker: "true"
+      ShortenLink__Cache__Enabled: "true"
+      ShortenLink__Cache__Provider: Redis
+      ShortenLink__Cache__RedisConnectionString: redis:6379
+      ShortenLink__RateLimiting__Enabled: "true"
+    ports:
+      - "5188:8080"
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/long29103107/portfolio-shorten-link-web:latest
+    container_name: shorten-link-public-web
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+volumes:
+  shorten-link-public-postgres:
+  shorten-link-public-redis:
