@@ -282,6 +282,21 @@ entrypoint:
     /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'
 ```
 
+For a server deployment with configurable host ports and persistent bind
+mounts, use `docker-compose.host.yml`. Set `SHORTENLINK_PUBLIC_URL` to the
+public URL used in generated links, and optionally override
+`SHORTENLINK_API_PORT`, `SHORTENLINK_WEB_PORT`, `SHORTENLINK_DATA_DIR`,
+`SHORTENLINK_REDIS_DATA_DIR`, and `SHORTENLINK_IMAGE_TAG` from the shell or a
+local `.env` file. The host file keeps Redis and API on a private Compose
+network while exposing the API redirect port and web UI port.
+
+```powershell
+$env:SHORTENLINK_PUBLIC_URL = "https://short.example.com/"
+$env:SHORTENLINK_API_PORT = "5188"
+$env:SHORTENLINK_WEB_PORT = "5173"
+docker compose -f docker-compose.host.yml up -d
+```
+
 Then configure `ShortenLink__Cors__AllowedOrigins__0` on the API only when the
 browser calls the API directly. The Nginx proxy path is same-origin and does
 not need browser CORS.

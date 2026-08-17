@@ -1,0 +1,66 @@
+name: shorten-link-host
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: shorten-link-host-redis
+    networks:
+      - short-link
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - ${SHORTENLINK_REDIS_DATA_DIR:-./.data/redis}:/data
+    restart: unless-stopped
+
+  api:
+    image: ghcr.io/long29103107/portfolio-shorten-link-api:${SHORTENLINK_IMAGE_TAG:-latest}
+    container_name: shorten-link-host-api
+    networks:
+      - short-link
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ShortenLink__BaseUrl: "${SHORTENLINK_PUBLIC_URL:-http://localhost:5188/}"
+      ShortenLink__Database__UsePostgres: "false"
+      ShortenLink__Database__SqliteConnectionString: Data Source=/data/shorten-link.db
+      ShortenLink__Redirect__EnableFrontendFallback: "false"
+      # Keep security enabled for a hosted deployment. The bootstrap account
+      # is admin/admin; change it after the first login.
+      ShortenLink__Security__Enabled: "${SHORTENLINK_SECURITY_ENABLED:-true}"
+      ShortenLink__Security__SessionSigningKey: "${SHORTENLINK_SESSION_SIGNING_KEY:-}"
+      ShortenLink__Analytics__Enabled: "true"
+      ShortenLink__Analytics__UseAsyncWorker: "true"
+      ShortenLink__Cache__Enabled: "true"
+      ShortenLink__Cache__Provider: Redis
+      ShortenLink__Cache__RedisConnectionString: redis:6379
+      ShortenLink__RateLimiting__Enabled: "true"
+    ports:
+      - "${SHORTENLINK_API_PORT:-5188}:8080"
+    volumes:
+      - ${SHORTENLINK_DATA_DIR:-./.data/shorten-link}:/data
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/long29103107/portfolio-shorten-link-web:${SHORTENLINK_IMAGE_TAG:-latest}
+    container_name: shorten-link-host-web
+    networks:
+      - short-link
+    depends_on:
+      - api
+    environment:
+      # Leave empty to use the same-origin /api proxy through api:8080.
+      # If set, this must be reachable by the user's browser, not api:8080.
+      VITE_SHORTENLINK_API_BASE_URL: "${VITE_SHORTENLINK_API_BASE_URL:-}"
+    ports:
+      - "${SHORTENLINK_WEB_PORT:-5173}:80"
+    restart: unless-stopped
+
+networks:
+  short-link:
+    name: ${SHORTENLINK_NETWORK_NAME:-shorten-link-host}
+    driver: bridge
