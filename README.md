@@ -249,9 +249,27 @@ docker build \
 ```
 
 The public Compose file only pulls images, so it does not require the source
-tree. To route `/api` to an external API without rebuilding the web image,
-uncomment the `API_UPSTREAM` and `entrypoint` sample inside the `web` service,
-then comment out its `depends_on: api` block:
+tree. Its `redis`, `api`, and `web` services share a dedicated `short-link`
+network. The web image's Nginx proxies browser requests from `/api` to the
+Compose service at `http://api:8080`, so the browser uses the web origin and
+does not need Docker DNS or CORS configuration.
+
+The web container accepts `VITE_SHORTENLINK_API_BASE_URL` at startup through
+Compose. Set it to a browser-reachable API origin when the frontend should call
+the API directly, for example `http://localhost:5288`. Leave it unset to use
+the same-origin `/api` proxy. This setting is injected at container startup;
+it does not require rebuilding the web image.
+
+For example, on PowerShell:
+
+```powershell
+$env:VITE_SHORTENLINK_API_BASE_URL = "http://localhost:5288"
+docker compose -f docker-compose.public.yml up -d
+```
+
+To route `/api` to an external API without rebuilding the web image, uncomment
+the `API_UPSTREAM` and `entrypoint` sample inside the `web` service, then
+comment out its `depends_on: api` block:
 
 ```yaml
 environment:

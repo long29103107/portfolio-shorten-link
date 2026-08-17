@@ -11,3 +11,9 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+interface Window {
+  readonly __SHORTENLINK_CONFIG__?: {
+    readonly apiBaseUrl?: string;
+  };
+}

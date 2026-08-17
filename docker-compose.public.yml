@@ -21,6 +21,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: shorten-link-public-redis
+    networks:
+      - short-link
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -32,6 +34,8 @@ services:
   api:
     image: ghcr.io/long29103107/portfolio-shorten-link-api:latest
     container_name: shorten-link-public-api
+    networks:
+      - short-link
     depends_on:
       redis:
         condition: service_healthy
@@ -62,6 +66,8 @@ services:
   web:
     image: ghcr.io/long29103107/portfolio-shorten-link-web:latest
     container_name: shorten-link-public-web
+    networks:
+      - short-link
     # Sample for routing /api to an external API without source code:
     # 1. Uncomment API_UPSTREAM and entrypoint below.
     # 2. Comment out `depends_on: api` when the local API is not used.
@@ -73,6 +79,9 @@ services:
     #   - >-
     #     sed -i "s|proxy_pass http://api:8080;|proxy_pass $${API_UPSTREAM};|"
     #     /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'
+    environment:
+      # Optional browser-reachable API origin. Leave empty to use the same-origin /api proxy.
+      VITE_SHORTENLINK_API_BASE_URL: "${VITE_SHORTENLINK_API_BASE_URL:-}"
     depends_on:
       - api
     ports:
@@ -82,3 +91,7 @@ services:
 volumes:
   shorten-link-public-sqlite:
   shorten-link-public-redis:
+
+networks:
+  short-link:
+    driver: bridge
